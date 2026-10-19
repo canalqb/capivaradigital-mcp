@@ -15,6 +15,10 @@ for usar, alterar ou estender este sistema DEVE seguir estas regras.
   - opencode: `mcp.escrivao` em `~/.config/opencode/opencode.jsonc`
   - kimi-code: `mcpServers.escrivao` em `~/.kimi-code/mcp.json`
   - Ao mover/renomear a pasta, atualize TODOS os registros.
+  - Atualização oficial do servidor: ferramenta `mcp_atualizar` (baixa o
+    server.js direto do GitHub raw; funciona em qualquer instalação, COM ou
+    SEM git — não dependa de `git pull`). Em clone com git, `git pull`
+    também vale.
 
 ## 2. Zero dados reais (INEGOCIÁVEL — esta pasta vai para GitHub)
 - **Nunca** insira nomes, CPF, CNPJ, números de processos, máscaras que

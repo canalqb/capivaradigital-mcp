@@ -63,10 +63,11 @@ com `node --version` — precisa ser 18 ou superior.
 
 ## E se eu não tiver o escrivão na máquina?
 
-Como o servidor é um único arquivo sem dependências, basta baixá-lo. O clone
-completo é recomendado porque traz também a pasta `regras/`; o download direto
-pega só o `server.js`. Guarde numa pasta fixa — o caminho entra no registro do
-cliente — e rode o teste via stdin antes de registrar.
+Como o servidor é um único arquivo sem dependências, basta baixá-lo — git
+NÃO é obrigatório. O clone completo é recomendado porque traz também a pasta
+regras/; o download direto pega só o server.js. Guarde numa pasta fixa — o
+caminho entra no registro do cliente — e rode o teste via stdin antes de
+registrar.
 
 ```powershell
 git clone https://github.com/canalqb/escrivao-mcp.git        # recomendado
@@ -460,6 +461,10 @@ vários tribunais mascaram o CPF da parte. Os detalhes estão na lista abaixo.
   loop do `cnj_desmascarar` com `cpf`/`nome`.
 - Escavador, CEIS/CNEP, TSE e Receita exigem login/captcha/chave — não
   implementados aqui; ver `GUIA_OSINT.md` para as rotas manuais.
+- Resultado negativo (0 processos) por nome ou documento no e-SAJ/DataJud é
+  **indício, não prova**: o índice de partes tem lacunas (CPF mascarado,
+  consulta anônima suprime criminais) — cruze com DJEN e a consulta pública do
+  tribunal antes de concluir ausência de processos.
 
 ## E a ética e a LGPD?
 
@@ -513,5 +518,6 @@ obrigatório: CPF procura os CNPJs vinculados; CNPJ extrai os CPFs do QSA.
 
 **Como atualizo o escrivão já instalado?**
 Peça `mcp_atualizar` ao agente: o servidor baixa o `server.js` mais recente
-do GitHub, guarda um backup `.bak` e se substitui. Depois reinicie o cliente
-MCP para a nova versão subir.
+direto do GitHub, guarda um backup `.bak` e se substitui — funciona com OU
+sem git (não dependa de `git pull`). Depois reinicie o cliente MCP para a
+nova versão subir.

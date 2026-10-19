@@ -60,6 +60,12 @@ tabela completa de atalhos no `README.md` §6.
 - **1º grau de alguns tribunais**: login gov.br/PDPJ ou captcha por busca.
 - **Partes no DataJud público**: campo oculto/limpo — por isso o método
   fingerprint (§5.3) existe.
+- **Jusbrasil (diário do DJSP) e eproc.tjsp.jus.br (consulta unificada)**:
+  não alcançáveis via fetch anônimo (captcha/paywall) — exigem browser
+  automatizado (MCP Playwright; ver `guia_navegacao`).
+- **e-SAJ/DataJud = 0 por nome ou documento**: o índice de partes tem lacunas
+  (CPF mascarado, consulta anônima suprime criminais) — resultado negativo é
+  **indício, não prova**; cruze com DJEN e consulta pública do tribunal.
 
 ## 5. COMO BUSCAR — técnicas validadas
 

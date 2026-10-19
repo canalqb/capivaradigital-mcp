@@ -113,6 +113,10 @@ async function datajudSearch(endpoint, body) {
       if (tentativa < 3) await new Promise(r => setTimeout(r, 5000));
     }
   }
+  const msg = String(lastErr && lastErr.message ? lastErr.message : lastErr);
+  if (/HTTP 50[234]/.test(msg)) throw new Error(`${msg} - gateway do tribunal lento/sobrecarregado (TRANSIENTE): aguarde e repita a consulta.`);
+  if (/HTTP 429/.test(msg)) throw new Error(`${msg} - limite de requisicoes (429): aguarde alguns minutos antes de nova consulta.`);
+  if (/HTTP 403/.test(msg)) throw new Error(`${msg} - bloqueio de acesso (403): tente mais tarde ou a consulta publica do tribunal (rotas em guia_navegacao/fontes_osint).`);
   throw lastErr;
 }
 
@@ -373,7 +377,7 @@ async function toolBrasilapiCnpj(a) {
   out += `Endereco: ${d.logradouro || ''}, ${d.numero || ''} - ${d.bairro || ''}, ${d.municipio || ''}/${d.uf || ''} - CEP ${d.cep || ''}\n`;
   out += `Capital social: ${d.capital_social || ''}\n`;
   if (qsa.length) out += `Socios (QSA):\n${qsa.join('\n')}\n`;
-  out += '\nCICLO OBRIGATORIO PF<->PJ: com CPF do pesquisado, procure os CNPJs vinculados a ele (razao social costuma embutir o CPF do titular); com CNPJ do pesquisado, extraia os CPFs do QSA (mascarados, com faixa etaria) e procure os processos dessas pessoas (datajud_por_cpf). PROIBICAO anti-homonimo: sem documento cruzado, nao atribua o achado ao pesquisado.';
+  out += '\nCICLO OBRIGATORIO PF<->PJ: com CPF do pesquisado, procure os CNPJs vinculados a ele (razao social costuma embutir o CPF do titular); com CNPJ do pesquisado, extraia os CPFs do QSA (mascarados, com faixa etaria) e procure os processos dessas pessoas (datajud_por_cpf). CPF mascarado com digitos visiveis pode ser quebrado por combinacao (tecnica do cnj_desmascarar); sem digitos suficientes, mascara + faixa etaria + nome servem apenas como fingerprint (PROVAVEL, nunca CONFIRMADO). PROIBICAO anti-homonimo: sem documento cruzado, nao atribua o achado ao pesquisado.';
   return out;
 }
 
@@ -412,7 +416,7 @@ async function toolDatajudPorCpf(a) {
     const fmt = doc.length === 11
       ? `${doc.slice(0, 3)}.${doc.slice(3, 6)}.${doc.slice(6, 9)}-${doc.slice(9)}`
       : `${doc.slice(0, 2)}.${doc.slice(2, 5)}.${doc.slice(5, 8)}/${doc.slice(8, 12)}-${doc.slice(12)}`;
-    return `0 processos por documento ${doc} em ${endpoint}. Muitos tribunais mascaram o documento da parte - tente datajud_buscar com "${fmt}" (formatado e entre aspas duplas) ou a consulta publica do tribunal de origem.\n\n${avisoAncora(doc)}`;
+    return `0 processos por documento ${doc} em ${endpoint}. ATENCAO: 0 NAO significa que o pesquisado nao tem processos - a API publica mascara o documento da parte (documentoReplicado) em varios tribunais; resultado negativo e INDICIO, nao prova. Tente datajud_buscar com "${fmt}" (formatado e entre aspas duplas), datajud_varrer em varios tribunais ou a consulta publica do tribunal de origem.\n\n${avisoAncora(doc)}`;
   }
   let out = `DataJud ${endpoint} por documento ${doc}: ${hits.length} processo(s)\n`;
   out += hits.map(h => fmtResumo(h._source || {})).join('\n');
@@ -476,14 +480,20 @@ async function toolEsajBuscar(a) {
   params.set('dadosConsulta.valorConsulta', valor);
   params.set('cdForo', String(a.foro || '-1'));
   const html = await fetchWithTimeout(`${ESAJ_SEARCH}?${params.toString()}`, { headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'text/html' } }, 90000);
-  const plano = html.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
-  if (/nao existem informa/i.test(plano)) return `e-SAJ TJSP: 0 processos para "${valor}" (a consulta anonima SUPRIME partes de processos criminais - sigilo legal).`;
+  const plano = html
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ');
+  if (/nao existem informa/i.test(plano)) return `e-SAJ TJSP: 0 processos para "${valor}" (a consulta anonima SUPRIME partes de processos criminais - sigilo legal). ATENCAO: 0 e INDICIO, nao prova - o indice de partes do e-SAJ tem lacunas; cruze com DataJud (datajud_buscar/datajud_varrer) e DJEN antes de concluir ausencia.\n\n${avisoAncora(valor)}`;
   const m = plano.match(/(\d+)\s*Processos?\s*encontrados?/i);
-  const total = m ? m[1] : '?';
+  const leuContagem = !!m;
+  const total = m ? m[1] : '0 (nao foi possivel ler a contagem)';
   const numeros = plano.match(/\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}/g) || [];
   const i = plano.search(/Processos? encontrados?/i);
   const trecho = i >= 0 ? plano.slice(i, i + 3000) : plano.slice(0, 3000);
-  let out = `e-SAJ TJSP - ${total} processo(s) encontrado(s) para "${valor}" (tipo ${tipo}):\n${trecho}`;
+  let out = `e-SAJ TJSP - ${total} processo(s) encontrado(s) para "${valor}" (tipo ${tipo})${leuContagem ? '' : ` | HTML recebido: ${html.length} bytes`}:\n${trecho}`;
   if (numeros.length) out += `\n\nNumeros listados (${numeros.length}):\n${[...new Set(numeros)].join('\n')}`;
   out += `\n\n${tipo === 'DOCPARTE'
     ? 'DOCUMENTO como ancora: correto pela regra do servidor - cruze com DataJud/DJEN antes de marcar CONFIRMADO. CICLO OBRIGATORIO PF<->PJ: com CPF, procure os CNPJs vinculados; com CNPJ, extraia os CPFs do QSA (brasilapi_cnpj) e procure os processos dessas pessoas.'
@@ -570,7 +580,7 @@ async function toolMcpAtualizar(a) {
   const vAtual = (atual.match(vRe) || [])[1] || '?';
   const vNova = (novo.match(vRe) || [])[1] || '?';
   if (atual && novo.trim() === atual.trim()) {
-    return `Servidor ja esta na versao mais recente (v${vAtual}). Nada a fazer.`;
+    return `Servidor ja esta na versao mais recente (v${vAtual}). Nada a fazer. (Esta e a rota oficial de atualizacao - nao requer git.)`;
   }
   let bak = '';
   try {
@@ -586,6 +596,7 @@ async function toolMcpAtualizar(a) {
   return [
     `Atualizacao concluida: v${vAtual} -> v${vNova}${bak ? ` (backup: ${bak})` : ''}`,
     'A instancia em memoria continua na versao antiga ate o processo terminar.',
+    'Atualizacao sem git: este metodo baixa direto do GitHub raw e funciona em qualquer instalacao.',
     `REINICIE o cliente MCP (opencode/kimi-code/Claude/Cursor) para a v${vNova} subir e confira com tools/list.`
   ].join('\n');
 }
@@ -767,6 +778,7 @@ async function toolGuiaRelatorios() {
     '',
     '4. SECAO DE PENDENCIAS OBRIGATORIA:',
     '- Tudo que ficou sem numero, sem confirmacao ou sem fonte acessivel - com o PROXIMO PASSO concreto de cada item (ex.: busca por nome no e-SAJ com captcha manual; ProJudi TJPR; certidao de distribuicao).',
+    '- Erros de consulta (fonte fora, HTTP 504/403, bloqueio) entram como pendencia com data/hora da tentativa - e a checagem anti-homonimo NAO relaxa: o aviso de PROIBICAO/ciclo PF<->PJ vem anexado ao proprio erro.',
     '- Contadores no topo: identificados vs. pendentes vs. descartados.',
     '',
     '5. CADEIA DE EVIDENCIA E AUDITORIA:',
@@ -810,11 +822,13 @@ async function toolGuiaInstalacao() {
     '',
     '4. REINICIAR O TERMINAL APOS INSTALAR (o PATH so reconhece o node em sessoes novas) e conferir: node --version',
     '',
-    '5. OBTER O SERVIDOR (arquivo unico, zero dependencias - nunca npm install):',
-    '   git clone https://github.com/canalqb/escrivao-mcp.git   (recomendado: traz tambem a pasta regras/)',
-    '   Sem git, baixe so o server.js:',
+    '5. OBTER O SERVIDOR (arquivo unico, zero dependencias - nunca npm install; GIT NAO E OBRIGATORIO):',
+    '   Com git (recomendado - traz tambem a pasta regras/):',
+    '   git clone https://github.com/canalqb/escrivao-mcp.git',
+    '   SEM git (rota oficial alternativa - so o servidor):',
     '   curl.exe -L -o server.js https://raw.githubusercontent.com/canalqb/escrivao-mcp/main/server.js   (Windows)',
     '   curl -L -o server.js https://raw.githubusercontent.com/canalqb/escrivao-mcp/main/server.js       (Linux/macOS)',
+    '   PowerShell sem curl: Invoke-WebRequest -Uri https://raw.githubusercontent.com/canalqb/escrivao-mcp/main/server.js -OutFile server.js',
     '',
     '6. TESTAR SEM CLIENTE (stdin JSON-RPC):',
     '   echo {"jsonrpc":"2.0","id":1,"method":"tools/list"} | node server.js',
@@ -823,6 +837,10 @@ async function toolGuiaInstalacao() {
     '7. REGISTRAR NO CLIENTE MCP (apos o teste passar):',
     '   node <caminho-absoluto>/escrivao-mcp/server.js  -  receitas por cliente (opencode, kimi-code, Claude Desktop, Cursor) no README.',
     '   Windows: caminho com \\ entre pastas. Reinicie o cliente para o servidor subir.',
+    '',
+    '8. ATUALIZAR (qualquer instalacao, COM ou SEM git):',
+    '   A rota oficial e a ferramenta mcp_atualizar - baixa o server.js direto do GitHub raw, guarda backup .bak e se substitui; NAO depende de git.',
+    '   Em clone com git tambem vale: git pull. Reinicie o cliente apos atualizar.',
     '',
     'REGRAS DA CASA: zero dependencias, zero dados reais, Node 18+; todo relatorio segue o padrao 8.5 (ver guia_relatorios).'
   ].join('\n');
@@ -1019,7 +1037,7 @@ const TOOLS = [
   },
   {
     name: 'mcp_atualizar',
-    description: 'Autoatualizacao do servidor: baixa a ultima versao do server.js direto do GitHub (canalqb/escrivao-mcp), guarda backup (.bak) e substitui o arquivo local; a nova versao sobe apos reiniciar o cliente MCP.',
+    description: 'Autoatualizacao do servidor: baixa a ultima versao do server.js direto do GitHub (canalqb/escrivao-mcp), guarda backup (.bak) e substitui o arquivo local; a nova versao sobe apos reiniciar o cliente MCP. Funciona em QUALQUER instalacao (com ou sem git) - e a rota oficial de atualizacao.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -1035,7 +1053,7 @@ function send(obj) { process.stdout.write(JSON.stringify(obj) + '\n'); }
 
 async function handle(msg) {
   if (msg.method === 'initialize') {
-    return { protocolVersion: '2024-11-05', capabilities: { tools: {} }, serverInfo: { name: 'escrivao', version: '1.10.0' } };
+    return { protocolVersion: '2024-11-05', capabilities: { tools: {} }, serverInfo: { name: 'escrivao', version: '1.11.0' } };
   }
   if (msg.method === 'ping') return {};
   if (msg.method === 'tools/list') return { tools: TOOLS.map(t => ({ name: t.name, description: t.description, inputSchema: t.inputSchema })) };
@@ -1048,7 +1066,12 @@ async function handle(msg) {
       const text = String(await t._run(args)).slice(0, 60000);
       return { content: [{ type: 'text', text }], isError: false };
     } catch (e) {
-      return { content: [{ type: 'text', text: 'ERRO: ' + String(e && e.message ? e.message : e) }], isError: true };
+      let txt = 'ERRO: ' + String(e && e.message ? e.message : e);
+      try {
+        const q = String(args.consulta || args.nome_parte || args.nome_ou_doc || args.cpf || args.cnpj || args.nome || '').trim();
+        if (q) txt += `\n\n${avisoAncora(q)}\nA checagem anti-homonimo e o ciclo PF<->PJ continuam valendo mesmo quando a fonte falha - registre a falha na secao de pendencias do relatorio.`;
+      } catch (e2) { /* aviso best-effort */ }
+      return { content: [{ type: 'text', text: txt }], isError: true };
     }
   }
   const err = new Error(`Metodo nao suportado: ${msg.method}`);
