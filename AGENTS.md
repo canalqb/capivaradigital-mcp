@@ -26,6 +26,11 @@ for usar, alterar ou estender este sistema DEVE seguir estas regras.
   teste ficam FORA da pasta (ex.: temp do sistema), nunca commitados.
 - Erros a evitar: máscaras "didáticas" com fórum/DD/ano de um caso real também
   identificam — use `000XXXX-XX.AAAA.8.TR.OOOO` com segmento genérico.
+- **Exceção expressa do mantenedor (2026-10-19):** o bloco oficial de
+  contato/apoio no README (e-mail e PIX do desenvolvedor +
+  https://canalqb.com.br) e o espelho das regras do Drive em `regras/` são
+  permitidos e devem ser preservados. A proibição acima segue valendo para
+  todos os DEMAIS dados (investigados, casos reais, credenciais).
 
 ## 3. Zero dependências
 - `server.js` roda com Node 18+ puro: **não adicionar** libs npm, pip, nem

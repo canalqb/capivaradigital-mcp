@@ -143,6 +143,7 @@ pedem login ou captcha, o que está sinalizado no `GUIA_OSINT.md`.
 | BrasilAPI — CNPJ gratuito | https://brasilapi.com.br |
 | e-SAJ TJSP — consulta pública | https://esaj.tjsp.jus.br/cpopg |
 | Escavador — agregador (paywall) | https://www.escavador.com |
+| Jusbrasil — agregador (paywall) | https://www.jusbrasil.com.br |
 
 ### Portais oficiais dos tribunais (TJ)
 | Estado | Portal |
@@ -271,6 +272,63 @@ real, e é assim que deve permanecer.
 - "Consulte o CNPJ 00.000.000/0001-91" (número de documentação)
 - "Busque na web com a Exa: notícias sobre concursos públicos em 2024"
 
+## Como monto o ambiente completo de pesquisa?
+
+O escrivão cobre DataJud, DJEN, e-SAJ, CNPJ e quebra de máscara CNJ — e não
+deve ser duplicado. Para navegar em portais com captcha, ler PDFs longos e
+buscar na web, os MCPs companheiros abaixo entram como complementos; cada
+comando se autoinstala na primeira execução.
+
+| MCP | Instalação | Papel |
+|---|---|---|
+| Playwright (Microsoft) | `npx -y @playwright/mcp` | Browser automatizado para portais com captcha/JS: e-SAJ por nome, TSE, Receita, eproc TJSC (Turnstile) — captcha resolvido manualmente por você na tela |
+| DuckDuckGo | `uvx duckduckgo-mcp-server` | Busca web sem chave (exige `uv`; no Windows, `scoop install uv`) |
+| anymd | `npx -y @sylphx/anymd` | PDFs e documentos como Markdown, local e sem chave |
+| Tavily | remoto: `https://mcp.tavily.com/mcp/?tavilyApiKey={env:TAVILY_API_KEY}` | Busca profunda; 1000 créditos/mês grátis (chave em https://app.tavily.com) |
+| Firecrawl | `npx -y firecrawl-mcp-server` + `FIRECRAWL_API_KEY` | Scraping profundo; 500 crawls grátis (chave em https://firecrawl.dev) |
+| Exa | já embutido aqui (`exa_buscar`) ou `npx -y exa-mcp-server` | Busca neural (chave gratuita em https://exa.ai) |
+| Perplexity | remoto: `https://mcp.perplexity.ai/mcp` (uma vez: `opencode mcp auth perplexity`) | Consulta com citação de fontes |
+
+## Qual o fluxo típico de uma investigação?
+
+O ciclo validado na prática tem sete passos, cada um com a ferramenta daqui.
+Homônimos ficam sempre separados dos achados do pesquisado, e nenhuma linha é
+marcada como confirmada sem data exata batendo em duas bases.
+
+1. `cnj_validar` — valida o DV e o tribunal antes de qualquer consulta.
+2. `cnj_desmascarar` — máscara `000XXXX-XX...` gera candidatos com DV válido, verificados numa única query no DataJud (fingerprint).
+3. `datajud_processo` / `datajud_pesquisar` — capa e metadados por número, classe, assunto ou órgão.
+4. `datajud_buscar` (nome exato entre aspas) e `datajud_varrer` (uma consulta em vários tribunais) — achados por nome ou documento.
+5. `djen_intimacoes` — intimações com texto integral revelam fatos e processos correlatos.
+6. `brasilapi_cnpj` e `exa_buscar` — contexto societário e de web para ancorar anti-homônimos.
+7. Relatório no padrão obrigatório do prompt 8.5 (seção abaixo), com nível de confirmação por linha.
+
+## Qual o padrão obrigatório de relatório?
+
+OBRIGATÓRIO: todo relatório ou dossiê gerado com dados deste servidor segue o
+prompt 8.5, espelhado em `regras/prompt_8_5.md` (original em
+https://docs.google.com/document/d/1hRoAQEZnKufWdUnzwTxuuwjbAA05sAfTf2oY1MnIky4/edit).
+O formato padrão é UM único arquivo HTML autocontido — apenas HTML, CSS e JS
+internos, sem PHP, sem arquivos separados, sem CDN — que abre offline; outro
+formato (PDF, DOCX etc.) só quando você pedir explicitamente.
+
+- Cabeçalho com nome do pesquisado, data de geração e TL;DR de 3 bullets (registros, confirmações, pendências).
+- Seções com título em forma de pergunta e resposta curta (40-60 palavras) antes do detalhe; FAQ ao final; zero emojis; PT-BR objetivo.
+- Tabela de processos: número CNJ | tribunal/foro | classe | assunto | órgão julgador | ajuizamento | status | fonte | nível de confirmação — com filtro por status e busca textual via JS interno.
+- Níveis de confirmação: CONFIRMADO (fonte chaveada, datas exatas em 2+ bases), PROVÁVEL (fingerprint coerente), POSSÍVEL HOMÔNIMO (sem âncora — sempre em seção separada).
+- Cadeia de evidência: número mascarado ao lado do desmascarado; toda afirmação cita fonte e data-hora; HTML/PDF brutos salvos.
+- Pendências obrigatórias com o próximo passo concreto de cada item.
+- A ferramenta `guia_relatorios` devolve este padrão completo em tempo de execução.
+
+## O que há na pasta regras/?
+
+Espelho autorizado das regras do mantenedor (Google Drive, pasta
+`regras_llms`): `master_rules.md` (protocolo central), `prompt_8_5.md` (padrão
+de relatório e conteúdo), `prompt_de_llms/` (regras para LLMs), `prompts_php/`
+(regras PHP/CSS/JS), `templates_php/` (templates e componentes universais) e
+os logs e configurações de solução. Original sempre em:
+https://drive.google.com/drive/folders/1U5U9QNx__hVio5GTKSVflZP9-b_E0OLm
+
 ## Quais as limitações conhecidas?
 
 Toda fonte pública tem lacunas, e conhecê-las evita conclusões erradas: a API
@@ -298,6 +356,11 @@ violência doméstica (Lei 11.340/2006), nunca identificar menores (ECA),
 presunção de inocência para recursos pendentes (CF art. 5º, LVII). Resultados
 para uso interno; divulgação exige avaliação jurídica própria. Nada de
 assédio, exposição ou contorno de paywall.
+
+## Quem desenvolve e como apoiar?
+
+Desenvolvido por qrodrigob@gmail.com. Apoie o projeto via PIX:
+qrodrigob@gmail.com. Site e canal oficial: https://canalqb.com.br
 
 ## FAQ
 

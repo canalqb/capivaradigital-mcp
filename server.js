@@ -550,6 +550,9 @@ async function toolGuiaNavegacao() {
 
 async function toolGuiaRelatorios() {
   return [
+    'OBRIGACAO (prompt 8.5): todo relatorio/dossie gerado com dados deste servidor segue OBRIGATORIAMENTE o padrao 8.5 - espelho local em regras/prompt_8_5.md; protocolo central em regras/master_rules.md (original no Drive, ver guia_navegacao).',
+    'FORMATO PADRAO: UM unico arquivo HTML autocontido - apenas HTML, CSS e JS INTERNOS (tags <style> e <script> embutidas), sem PHP, sem arquivos separados, sem CDN - abrindo offline; outro formato (PDF, DOCX etc.) SOMENTE quando o usuario pedir explicitamente.',
+    '',
     'TECNICAS DE RELATORIO (validadas na pratica - dossies de investigacao judicial):',
     '',
     '1. FORMATO: HTML UNICO AUTOCONTIDO',
@@ -769,7 +772,7 @@ function send(obj) { process.stdout.write(JSON.stringify(obj) + '\n'); }
 
 async function handle(msg) {
   if (msg.method === 'initialize') {
-    return { protocolVersion: '2024-11-05', capabilities: { tools: {} }, serverInfo: { name: 'escrivao', version: '1.5.0' } };
+    return { protocolVersion: '2024-11-05', capabilities: { tools: {} }, serverInfo: { name: 'escrivao', version: '1.6.0' } };
   }
   if (msg.method === 'ping') return {};
   if (msg.method === 'tools/list') return { tools: TOOLS.map(t => ({ name: t.name, description: t.description, inputSchema: t.inputSchema })) };
