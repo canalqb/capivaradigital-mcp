@@ -597,6 +597,44 @@ async function toolGuiaRelatorios() {
   ].join('\n');
 }
 
+async function toolGuiaInstalacao() {
+  return [
+    'GUIA DE INSTALACAO DO ZERO (para usuario ou agente sem Node e/ou sem este servidor):',
+    '',
+    '1. VERIFICAR O NODE (requisito: 18 ou superior):',
+    '   node --version',
+    '   Se imprimir v18/v20/v22+ esta tudo pronto. Se falhar ou for anterior a 18, instale (item 2).',
+    '',
+    '2. INSTALAR O NODE.JS NO WINDOWS 10/11 - WINGET (preferido; gerenciador oficial da Microsoft, ja presente no sistema atualizado):',
+    '   winget install --id OpenJS.NodeJS.LTS -e --accept-source-agreements --accept-package-agreements',
+    '   Sem winget? Instale o "Instalador de Aplicativo" (App Installer) pela Microsoft Store, ou baixe o MSI oficial em https://nodejs.org/en/download',
+    '   Alternativas: choco install nodejs-lts -y   |   scoop install nodejs-lts',
+    '',
+    '3. INSTALAR O NODE.JS NO LINUX / MACOS:',
+    '   Debian/Ubuntu: sudo apt install -y nodejs   (repositorio antigo? use NodeSource: https://github.com/nodesource/distributions)',
+    '   Fedora/RHEL: sudo dnf install -y nodejs',
+    '   macOS: brew install node',
+    '',
+    '4. REINICIAR O TERMINAL APOS INSTALAR (o PATH so reconhece o node em sessoes novas) e conferir: node --version',
+    '',
+    '5. OBTER O SERVIDOR (arquivo unico, zero dependencias - nunca npm install):',
+    '   git clone https://github.com/canalqb/escrivao-mcp.git   (recomendado: traz tambem a pasta regras/)',
+    '   Sem git, baixe so o server.js:',
+    '   curl.exe -L -o server.js https://raw.githubusercontent.com/canalqb/escrivao-mcp/main/server.js   (Windows)',
+    '   curl -L -o server.js https://raw.githubusercontent.com/canalqb/escrivao-mcp/main/server.js       (Linux/macOS)',
+    '',
+    '6. TESTAR SEM CLIENTE (stdin JSON-RPC):',
+    '   echo {"jsonrpc":"2.0","id":1,"method":"tools/list"} | node server.js',
+    '   Deve responder 16 ferramentas. Suite completa de teste no README (secao "Como valido o servidor sem cliente?").',
+    '',
+    '7. REGISTRAR NO CLIENTE MCP (apos o teste passar):',
+    '   node <caminho-absoluto>/escrivao-mcp/server.js  -  receitas por cliente (opencode, kimi-code, Claude Desktop, Cursor) no README.',
+    '   Windows: caminho com \\ entre pastas. Reinicie o cliente para o servidor subir.',
+    '',
+    'REGRAS DA CASA: zero dependencias, zero dados reais, Node 18+; todo relatorio segue o padrao 8.5 (ver guia_relatorios).'
+  ].join('\n');
+}
+
 const TOOLS = [
   {
     name: 'cnj_validar',
@@ -765,6 +803,12 @@ const TOOLS = [
     description: 'Tecnicas validadas para gerar relatorios/dossies de investigacao judicial: HTML unico autocontido (CSS/JS internos, sem PHP), padrao de conteudo adaptado do prompt 8.5 (TL;DR, secoes em pergunta, FAQ), tabelas de processos com nivel de confirmacao (CONFIRMADO/PROVAVEL/POSSIVEL HOMONIMO), secao de pendencias, cadeia de evidencia, anti-homonimos, etica e checklist de entrega.',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
     _run: toolGuiaRelatorios
+  },
+  {
+    name: 'guia_instalacao',
+    description: 'Comandos prontos para instalar tudo do zero: Node.js via winget (Windows 10/11), alternativas (choco/scoop/MSI, apt/dnf/brew), obtencao deste servidor (git clone ou download do server.js), teste via stdin e registro nos clientes MCP. Use quando o usuario ou o agente nao possuir Node ou o escrivao.',
+    inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+    _run: toolGuiaInstalacao
   }
 ];
 
@@ -772,7 +816,7 @@ function send(obj) { process.stdout.write(JSON.stringify(obj) + '\n'); }
 
 async function handle(msg) {
   if (msg.method === 'initialize') {
-    return { protocolVersion: '2024-11-05', capabilities: { tools: {} }, serverInfo: { name: 'escrivao', version: '1.6.0' } };
+    return { protocolVersion: '2024-11-05', capabilities: { tools: {} }, serverInfo: { name: 'escrivao', version: '1.7.0' } };
   }
   if (msg.method === 'ping') return {};
   if (msg.method === 'tools/list') return { tools: TOOLS.map(t => ({ name: t.name, description: t.description, inputSchema: t.inputSchema })) };

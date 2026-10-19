@@ -1,6 +1,6 @@
 # escrivao
 
-> Quinze ferramentas de OSINT judicial brasileiro em um único arquivo Node.
+> Dezesseis ferramentas de OSINT judicial brasileiro em um único arquivo Node.
 
 O escrivao é um servidor MCP (Model Context Protocol) autocontido para pesquisa
 em registros públicos judiciais brasileiros: DataJud/CNJ, DJEN, e-SAJ (TJSP),
@@ -31,6 +31,52 @@ buscar CNPJ com quadro societário — tudo sem chave paga.
 
 Windows, Linux ou macOS com Node.js 18 ou superior. Nada mais: não há build,
 não há dependências e não há chaves obrigatórias. Verifique com `node --version`.
+
+## E se eu não tiver o Node instalado?
+
+No Windows 10/11 o caminho mais rápido é o winget, gerenciador oficial da
+Microsoft já presente no sistema atualizado; depois reabra o terminal. Sem
+winget, baixe o MSI oficial — ou use chocolatey/scoop. Linux e macOS usam o
+gerenciador da própria plataforma.
+
+```powershell
+# Windows 10/11 (winget) — recomendado
+winget install --id OpenJS.NodeJS.LTS -e --accept-source-agreements --accept-package-agreements
+
+# Alternativas no Windows
+choco install nodejs-lts -y        # chocolatey
+scoop install nodejs-lts           # scoop
+# Sem gerenciador? MSI oficial: https://nodejs.org/en/download
+```
+
+```bash
+# Debian/Ubuntu (use NodeSource se o repositório for antigo: https://github.com/nodesource/distributions)
+sudo apt install -y nodejs
+# Fedora/RHEL
+sudo dnf install -y nodejs
+# macOS
+brew install node
+```
+
+Reinicie o terminal (o PATH só reconhece o `node` em sessões novas) e confirme
+com `node --version` — precisa ser 18 ou superior.
+
+## E se eu não tiver o escrivão na máquina?
+
+Como o servidor é um único arquivo sem dependências, basta baixá-lo. O clone
+completo é recomendado porque traz também a pasta `regras/`; o download direto
+pega só o `server.js`. Guarde numa pasta fixa — o caminho entra no registro do
+cliente — e rode o teste via stdin antes de registrar.
+
+```powershell
+git clone https://github.com/canalqb/escrivao-mcp.git        # recomendado
+
+# Sem git — apenas o servidor:
+curl.exe -L -o server.js https://raw.githubusercontent.com/canalqb/escrivao-mcp/main/server.js
+```
+
+A ferramenta `guia_instalacao` devolve estes comandos prontos em tempo de
+execução, para o agente guiar a instalação em qualquer máquina.
 
 ## Como instalo no meu cliente MCP?
 
@@ -97,13 +143,13 @@ confirmar instalação, contagem de ferramentas e saúde da rede em segundos.
 cmd /c "node <caminho>\escrivao-mcp\server.js < teste.jsonl"
 ```
 
-## Quais são as 15 ferramentas?
+## Quais são as 16 ferramentas?
 
 Uma paleta enxuta cobrindo o ciclo completo de uma pesquisa judicial: validar o
 número, desmascarar o que está oculto, consultar por número, nome, documento ou
-varredura multi-tribunal, ler intimações e complementar com CNPJ, web e
-navegação por browser automatizado. A tabela abaixo resume cada ferramenta e
-sua fonte.
+varredura multi-tribunal, ler intimações e complementar com CNPJ, web, navegação
+por browser automatizado e instalação do zero. A tabela abaixo resume cada
+ferramenta e sua fonte.
 
 | Ferramenta | O que faz | Fonte |
 |---|---|---|
@@ -122,6 +168,7 @@ sua fonte.
 | `fontes_osint` | Playbook interno: bases, atalhos, rotas por tribunal, técnicas e ética/LGPD | — |
 | `guia_navegacao` | Guia de navegação: links das regras do mantenedor (master rules, pasta de regras, prompt 8.5), fluxo validado com o MCP Playwright (captchas manuais, armadilhas do e-SAJ) e módulos de Python para scripts locais | — |
 | `guia_relatorios` | Técnicas de relatório/dossiê: HTML único autocontido (CSS/JS internos, sem PHP), padrão 8.5 adaptado, níveis de confirmação (CONFIRMADO/PROVÁVEL/POSSÍVEL HOMÔNIMO), pendências com próximo passo, cadeia de evidência, anti-homônimos e checklist de entrega | — |
+| `guia_instalacao` | Comandos prontos para instalar do zero: Node.js via winget (Windows 10/11), alternativas (choco/scoop/MSI, apt/dnf/brew), obtenção do servidor (git clone ou download do `server.js`), teste via stdin e registro nos clientes | — |
 
 ## Que atalhos de consulta pública existem?
 
@@ -386,3 +433,8 @@ e o CNPJ 00.000.000/0001-91) ou nomes claramente fictícios.
 Use `datajud_buscar` com o CPF formatado entre aspas duplas (query_string) ou
 `datajud_varrer` para varrer vários tribunais de uma vez; o `GUIA_OSINT.md`
 detalha as rotas alternativas por tribunal.
+
+**E se o computador não tiver Node?**
+No Windows 10/11: `winget install --id OpenJS.NodeJS.LTS -e` e reabra o
+terminal; sem winget, use o MSI de https://nodejs.org. A ferramenta
+`guia_instalacao` devolve os comandos prontos para Windows, Linux e macOS.
