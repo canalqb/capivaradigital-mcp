@@ -544,6 +544,52 @@ async function toolGuiaNavegacao() {
   ].join('\n');
 }
 
+async function toolGuiaRelatorios() {
+  return [
+    'TECNICAS DE RELATORIO (validadas na pratica - dossies de investigacao judicial):',
+    '',
+    '1. FORMATO: HTML UNICO AUTOCONTIDO',
+    '- UM arquivo .html com CSS e JS EMBUTIDOS (tags <style> e <script> internas); NUNCA PHP, nunca arquivos separados, nunca CDN externo - o relatorio abre offline em qualquer navegador.',
+    '- <meta charset="utf-8"> obrigatorio; titulo com nome do pesquisado e data de geracao no <title> e no cabecalho.',
+    '- Estrutura semantica: <header>, <nav> com ancora por secao, <main>, <section id> por tema, <footer> com data/hora da geracao e aviso de uso interno.',
+    '',
+    '2. PADRAO DE CONTEUDO (adaptacao do prompt 8.5 ao dossie):',
+    '- Cabecalho: TL;DR com 3 bullets (total de registros, confirmacoes, pendencias).',
+    '- Cada secao com titulo em forma de PERGUNTA seguida de resposta curta e direta (40-60 palavras) antes do detalhe.',
+    '- Zero emojis/unicode decorativo; linguagem objetiva em PT-BR.',
+    '- FAQ ao final: perguntas que o leitor faria (quantos confirmados? qual o proximo passo? o que nao foi possivel verificar?).',
+    '',
+    '3. TABELAS DE PROCESSOS (o coracao do relatorio):',
+    '- Colunas padrao: numero CNJ | tribunal/foro | classe | assunto | orgao julgador | data ajuizamento | status | fonte | nivel de confirmacao.',
+    '- Nivel de confirmacao em 3 graus: CONFIRMADO (documento/fonte chaveada), PROVAVEL (fingerprint: orgao+classe+assunto+datas coerentes), POSSIVEL HOMONIMO (sem ancora anti-homonimo - marcar e separar).',
+    '- Numeros mascarados da fonte original exibidos AO LADO do numero desmascarado (cadeia de evidencia).',
+    '- JS interno: filtro por status e busca textual na pagina (input + listener em todas as linhas da tabela via data-attributes).',
+    '',
+    '4. SECAO DE PENDENCIAS OBRIGATORIA:',
+    '- Tudo que ficou sem numero, sem confirmacao ou sem fonte acessivel - com o PROXIMO PASSO concreto de cada item (ex.: busca por nome no e-SAJ com captcha manual; ProJudi TJPR; certidao de distribuicao).',
+    '- Contadores no topo: identificados vs. pendentes vs. descartados.',
+    '',
+    '5. CADEIA DE EVIDENCIA E AUDITORIA:',
+    '- Cada afirmação cita a fonte (API/portal/data-hora da consulta); salve HTML/PDF bruto das consultas-chave.',
+    '- Confirmacao tripla antes de marcar CONFIRMADO: datas EXATAS batendo entre 2+ fontes + numero de origem + verificacao em segunda base (ex.: DataJud + e-SAJ + DJEN).',
+    '- NUNCA misturar achados de homonimos com os do pesquisado; secoes separadas com aviso.',
+    '',
+    '6. ANTI-HOMONIMOS (precisao por documento):',
+    '- Prioridade SEMPRE: CPF/CNPJ exato > documento embutido em registro (razao social de CNPJ) > qualificacao judicial (nascimento, genitora, RG) > mascara de CPF compativel > contexto (cidade+profissao+familiares co-reus).',
+    '- Busca por nome: SEMPRE entre aspas duplas ("NOME COMPLETO") no DataJud; varrer varios tribunais (datajud_varrer) e cruzar.',
+    '',
+    '7. ETICA NO RELATORIO:',
+    '- Presuncao de inocencia para recursos pendentes (CF art. 5, LVII); NUNCA identificar menores (ECA); proteger vitimas de violencia domestica (Lei 11.340/2006).',
+    '- Aviso no rodape: uso interno, dados de fontes publicas, LGPD (Lei 13.709/2018).',
+    '- Familiares: incluir somente com documento/ancora propria, nunca por conjetura.',
+    '',
+    '8. CHECKLIST FINAL ANTES DE ENTREGAR:',
+    '( ) todos os numeros CNJ validados (cnj_validar); ( ) niveis de confirmacao marcados; ( ) pendencias com proximo passo; ( ) filtro/busca JS funcionando; ( ) data de geracao no rodape; ( ) nenhum dado de homonimo misturado; ( ) arquivo abre offline.',
+    '',
+    'REUSO: este servidor NAO gera o HTML - o agente gera seguindo estas regras. Use fontes_osint (onde/como buscar), guia_navegacao (browser/instalacao) e este guia (como apresentar).'
+  ].join('\n');
+}
+
 const TOOLS = [
   {
     name: 'cnj_validar',
@@ -706,6 +752,12 @@ const TOOLS = [
     description: 'Guia de navegacao por browser automatizado: links das regras do mantenedor (master rules, pasta de regras, prompt 8.5 de relatorio), fluxo validado com o MCP Playwright (snapshot/find/fill/click, captchas manuais, armadilhas do e-SAJ) e modulos de Python para scripts locais (requests, playwright, pandas).',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
     _run: toolGuiaNavegacao
+  },
+  {
+    name: 'guia_relatorios',
+    description: 'Tecnicas validadas para gerar relatorios/dossies de investigacao judicial: HTML unico autocontido (CSS/JS internos, sem PHP), padrao de conteudo adaptado do prompt 8.5 (TL;DR, secoes em pergunta, FAQ), tabelas de processos com nivel de confirmacao (CONFIRMADO/PROVAVEL/POSSIVEL HOMONIMO), secao de pendencias, cadeia de evidencia, anti-homonimos, etica e checklist de entrega.',
+    inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+    _run: toolGuiaRelatorios
   }
 ];
 
@@ -713,7 +765,7 @@ function send(obj) { process.stdout.write(JSON.stringify(obj) + '\n'); }
 
 async function handle(msg) {
   if (msg.method === 'initialize') {
-    return { protocolVersion: '2024-11-05', capabilities: { tools: {} }, serverInfo: { name: 'escrivao', version: '1.3.0' } };
+    return { protocolVersion: '2024-11-05', capabilities: { tools: {} }, serverInfo: { name: 'escrivao', version: '1.4.0' } };
   }
   if (msg.method === 'ping') return {};
   if (msg.method === 'tools/list') return { tools: TOOLS.map(t => ({ name: t.name, description: t.description, inputSchema: t.inputSchema })) };
