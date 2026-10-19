@@ -394,18 +394,22 @@ A ferramenta `fontes_osint` devolve esta classificação em tempo de execução.
 
 ## Qual o fluxo típico de uma investigação?
 
-Regra de ouro do servidor: o documento (CPF/CNPJ) manda — a busca principal é
-sempre pelo documento, o nome é complemento, e homônimo se elimina cruzando
-CPF/CNPJ, nunca por conjetura. O ciclo validado tem oito passos:
+Regras de ouro do servidor: o documento (CPF/CNPJ) manda — a busca principal é
+sempre pelo documento e o nome é complemento; HOMÔNIMO É PROIBIDO — achado por
+nome sem documento que bata nunca entra na lista principal (no máximo, seção
+separada); e o ciclo PF↔PJ é obrigatório — CPF sempre procura os CNPJs
+vinculados e CNPJ sempre extrai os CPFs do QSA. O ciclo validado tem nove
+passos:
 
 1. `cnj_validar` — valida o DV e o tribunal antes de qualquer consulta.
 2. Documento primeiro (OBRIGATÓRIO): `datajud_por_cpf`, `datajud_buscar`/`datajud_varrer` com CPF/CNPJ entre aspas, `esaj_buscar` DOCPARTE.
-3. `datajud_buscar` (nome entre aspas) e `datajud_varrer` — achados por nome: só entram na lista principal se o documento cruzar; senão, POSSÍVEL HOMÔNIMO.
-4. `cnj_desmascarar` com o loop — máscara `000XXXX-XX...` + `cpf` e/ou `nome`: gera candidatos com DV válido, verifica no DataJud e marca os vinculados ao pesquisado.
-5. `jusbrasil_buscar` — agregador (rota via browser quando o Cloudflare bloqueia); números mascarados voltam para o passo 4.
-6. `djen_intimacoes` — intimações com texto integral revelam fatos, documentos e processos correlatos.
-7. `datajud_processo` / `datajud_pesquisar` — capa e metadados por número, classe, assunto ou órgão; `brasilapi_cnpj` e `exa_buscar` para contexto societário e de web.
-8. Relatório no padrão obrigatório do prompt 8.5 (seção abaixo), com nível de confirmação por linha.
+3. Ciclo PF↔PJ (OBRIGATÓRIO): com CPF do pesquisado, procure os CNPJs vinculados (`brasilapi_cnpj` — razão social costuma embutir o CPF do titular — e `datajud_por_cpf` de cada CNPJ); com CNPJ, extraia os CPFs do QSA e procure os processos dessas pessoas.
+4. `datajud_buscar` (nome entre aspas) e `datajud_varrer` — achados por nome: só entram na lista principal se o documento cruzar; sem âncora, POSSÍVEL HOMÔNIMO — PROIBIDO na lista principal.
+5. `cnj_desmascarar` com o loop — máscara `000XXXX-XX...` + `cpf` e/ou `nome`: gera candidatos com DV válido, verifica no DataJud e marca os vinculados ao pesquisado.
+6. `jusbrasil_buscar` — agregador (rota via browser quando o Cloudflare bloqueia); números mascarados voltam para o passo 5.
+7. `djen_intimacoes` — intimações com texto integral revelam fatos, documentos e processos correlatos.
+8. `datajud_processo` / `datajud_pesquisar` — capa e metadados por número, classe, assunto ou órgão; `brasilapi_cnpj` e `exa_buscar` para contexto societário e de web.
+9. Relatório no padrão obrigatório do prompt 8.5 (seção abaixo), com nível de confirmação por linha.
 
 ## Qual o padrão obrigatório de relatório?
 
@@ -419,7 +423,7 @@ formato (PDF, DOCX etc.) só quando você pedir explicitamente.
 - Cabeçalho com nome do pesquisado, data de geração e TL;DR de 3 bullets (registros, confirmações, pendências).
 - Seções com título em forma de pergunta e resposta curta (40-60 palavras) antes do detalhe; FAQ ao final; zero emojis; PT-BR objetivo.
 - Tabela de processos: número CNJ | tribunal/foro | classe | assunto | órgão julgador | ajuizamento | status | fonte | nível de confirmação — com filtro por status e busca textual via JS interno.
-- Níveis de confirmação: CONFIRMADO (fonte chaveada, datas exatas em 2+ bases), PROVÁVEL (fingerprint coerente), POSSÍVEL HOMÔNIMO (sem âncora — sempre em seção separada).
+- Níveis de confirmação: CONFIRMADO (fonte chaveada, datas exatas em 2+ bases), PROVÁVEL (fingerprint coerente), POSSÍVEL HOMÔNIMO (sem âncora — PROIBIDO na lista principal; sempre em seção separada).
 - Cadeia de evidência: número mascarado ao lado do desmascarado; toda afirmação cita fonte e data-hora; HTML/PDF brutos salvos.
 - Pendências obrigatórias com o próximo passo concreto de cada item.
 - A ferramenta `guia_relatorios` devolve este padrão completo em tempo de execução.
@@ -503,7 +507,8 @@ terminal; sem winget, use o MSI de https://nodejs.org. A ferramenta
 Porque nome produz homônimos e documento não. O protocolo do servidor (em
 `fontes_osint`) é obrigatório: a busca principal é sempre pelo documento,
 todas as fontes se cruzam, e achado por nome só vale com o CPF/CNPJ batendo —
-sem isso é POSSÍVEL HOMÔNIMO, sempre separado.
+sem isso é POSSÍVEL HOMÔNIMO, PROIBIDO na lista principal. E o ciclo PF↔PJ é
+obrigatório: CPF procura os CNPJs vinculados; CNPJ extrai os CPFs do QSA.
 
 **Como atualizo o escrivão já instalado?**
 Peça `mcp_atualizar` ao agente: o servidor baixa o `server.js` mais recente

@@ -71,9 +71,19 @@ Um dado só pertence ao investigado se houver ao menos UM destes vínculos:
 4. Máscara de CPF/CNPJ compatível;
 5. Corroboração contextual forte (cidades, profissão/CNAE, familiares co-réus).
 
-Sem vínculo → registrar como **"possível homônimo — verificar"**. Nunca
-atribuir por nome puro. Dado autodeclarado (currículo, redes sociais) ≠
+Sem vínculo → registrar como **"possível homônimo — verificar"**, FORA da
+lista principal: é PROIBIDO atribuir por nome puro ou misturar homônimos nos
+achados do investigado. Dado autodeclarado (currículo, redes sociais) ≠
 registro público — entrar com nota de credibilidade.
+
+### 5.1.1 Ciclo obrigatório PF↔PJ (sempre)
+- Pesquisado com CPF → SEMPRE procurar os CNPJs vinculados: `brasilapi_cnpj`
+  (razão social costuma embutir o CPF do titular; o QSA traz CPFs mascarados e
+  faixa etária) e `datajud_por_cpf` de cada CNPJ achado.
+- Pesquisado com CNPJ → SEMPRE extrair os CPFs do QSA (`brasilapi_cnpj`) e
+  procurar os processos dessas pessoas físicas: o CNPJ processa e é processado
+  pelas pessoas por trás dele.
+- O ciclo é CPF → CNPJ → CPF, sempre.
 
 ### 5.2 Quebra de máscara CNJ (a técnica-assinatura)
 Uma máscara `NNNXXXX-DD.AAAA.J.TR.OOOO` (agregadores pagos) resolve-se assim:

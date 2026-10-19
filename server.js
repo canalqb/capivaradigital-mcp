@@ -155,8 +155,8 @@ function hitsToArray(dados) {
 function avisoAncora(consulta) {
   const n = digitsOnly(consulta);
   if (n.length === 20) return 'Busca por NUMERO de processo (ancora unica) - sem risco de homonimo.';
-  if (n.length === 11 || n.length === 14) return 'DOCUMENTO (CPF/CNPJ) como ancora: correto pela regra do servidor. Cruze os achados com as demais fontes (DataJud + DJEN + e-SAJ + BrasilAPI) antes de marcar CONFIRMADO.';
-  return 'AVISO OBRIGATORIO: busca por NOME produz HOMONIMOS. Regra do servidor: achado por nome so vale com o CPF/CNPJ do pesquisado cruzando (datajud_por_cpf, esaj_buscar DOCPARTE ou datajud_buscar com o documento formatado entre aspas); sem documento que bata = POSSIVEL HOMONIMO, sempre separado no relatorio (protocolo em fontes_osint).';
+  if (n.length === 11 || n.length === 14) return 'DOCUMENTO (CPF/CNPJ) como ancora: correto pela regra do servidor. CICLO OBRIGATORIO PF<->PJ: com CPF, procure os CNPJs vinculados (brasilapi_cnpj - razao social costuma embutir o CPF do titular); com CNPJ, extraia os CPFs do QSA e procure os processos dessas pessoas. Cruze os achados com as demais fontes (DataJud + DJEN + e-SAJ + BrasilAPI) antes de marcar CONFIRMADO.';
+  return 'PROIBICAO: busca por NOME produz HOMONIMOS. Achado por nome so vale com o CPF/CNPJ do pesquisado cruzando (datajud_por_cpf, esaj_buscar DOCPARTE ou datajud_buscar com o documento formatado entre aspas); sem documento que bata = POSSIVEL HOMONIMO - PROIBIDO apresenta-lo como sendo do pesquisado ou mistura-lo na lista principal; use secao separada (protocolo em fontes_osint).';
 }
 
 function parseMask(mascara) {
@@ -347,7 +347,7 @@ async function toolDjenIntimacoes(a) {
   const text = await fetchWithTimeout(`${DJEN_BASE}?${params.toString()}`, { headers: { 'Accept': 'application/json', 'User-Agent': 'Mozilla/5.0' } }, 45000);
   const dados = JSON.parse(text);
   const items = Array.isArray(dados.items) ? dados.items : [];
-  if (!items.length) return `Nenhuma intimacao encontrada para "${a.nome_parte}" (count: ${dados.count != null ? dados.count : 0}).`;
+  if (!items.length) return `Nenhuma intimacao encontrada para "${a.nome_parte}" (count: ${dados.count != null ? dados.count : 0}).\n\n${avisoAncora(a.nome_parte)}`;
   const maxTexto = Number(a.max_texto) || 600;
   const incluir = a.incluir_texto !== false;
   let out = `Intimacoes encontradas: ${items.length} (pagina ${a.pagina || 1})\n\n`;
@@ -373,7 +373,7 @@ async function toolBrasilapiCnpj(a) {
   out += `Endereco: ${d.logradouro || ''}, ${d.numero || ''} - ${d.bairro || ''}, ${d.municipio || ''}/${d.uf || ''} - CEP ${d.cep || ''}\n`;
   out += `Capital social: ${d.capital_social || ''}\n`;
   if (qsa.length) out += `Socios (QSA):\n${qsa.join('\n')}\n`;
-  out += '\nDica: razoes sociais costumam embutir o CPF do socio-titular (ancora anti-homonimo); o QSA traz CPFs mascarados e faixa etaria.';
+  out += '\nCICLO OBRIGATORIO PF<->PJ: com CPF do pesquisado, procure os CNPJs vinculados a ele (razao social costuma embutir o CPF do titular); com CNPJ do pesquisado, extraia os CPFs do QSA (mascarados, com faixa etaria) e procure os processos dessas pessoas (datajud_por_cpf). PROIBICAO anti-homonimo: sem documento cruzado, nao atribua o achado ao pesquisado.';
   return out;
 }
 
@@ -412,10 +412,11 @@ async function toolDatajudPorCpf(a) {
     const fmt = doc.length === 11
       ? `${doc.slice(0, 3)}.${doc.slice(3, 6)}.${doc.slice(6, 9)}-${doc.slice(9)}`
       : `${doc.slice(0, 2)}.${doc.slice(2, 5)}.${doc.slice(5, 8)}/${doc.slice(8, 12)}-${doc.slice(12)}`;
-    return `0 processos por documento ${doc} em ${endpoint}. Muitos tribunais mascaram o documento da parte - tente datajud_buscar com "${fmt}" (formatado e entre aspas duplas) ou a consulta publica do tribunal de origem.`;
+    return `0 processos por documento ${doc} em ${endpoint}. Muitos tribunais mascaram o documento da parte - tente datajud_buscar com "${fmt}" (formatado e entre aspas duplas) ou a consulta publica do tribunal de origem.\n\n${avisoAncora(doc)}`;
   }
   let out = `DataJud ${endpoint} por documento ${doc}: ${hits.length} processo(s)\n`;
   out += hits.map(h => fmtResumo(h._source || {})).join('\n');
+  out += `\n\n${avisoAncora(doc)}`;
   return out;
 }
 
@@ -459,7 +460,7 @@ async function toolDatajudVarrer(a) {
   }
   let out = `Varredura "${consulta}" em ${alvos.length} tribunal(is): ${ok} consultados, ${falhas} falha(s)\n\n`;
   out += linhas.join('\n');
-  out += '\n\nDicas: nome exato entre aspas duplas elimina homonimos; CPF formatado entre aspas ("000.000.000-00") e o modo mais preciso. Para documento da parte use datajud_por_cpf por tribunal.';
+  out += '\n\nDicas: CPF/CNPJ formatado entre aspas ("000.000.000-00") e o modo mais preciso - nome, mesmo exato e entre aspas, produz homonimos (PROIBIDO na lista principal). Para documento da parte use datajud_por_cpf por tribunal.';
   out += `\n\n${avisoAncora(consulta)}`;
   return out;
 }
@@ -485,9 +486,9 @@ async function toolEsajBuscar(a) {
   let out = `e-SAJ TJSP - ${total} processo(s) encontrado(s) para "${valor}" (tipo ${tipo}):\n${trecho}`;
   if (numeros.length) out += `\n\nNumeros listados (${numeros.length}):\n${[...new Set(numeros)].join('\n')}`;
   out += `\n\n${tipo === 'DOCPARTE'
-    ? 'DOCUMENTO como ancora: correto pela regra do servidor - cruze com DataJud/DJEN antes de marcar CONFIRMADO.'
+    ? 'DOCUMENTO como ancora: correto pela regra do servidor - cruze com DataJud/DJEN antes de marcar CONFIRMADO. CICLO OBRIGATORIO PF<->PJ: com CPF, procure os CNPJs vinculados; com CNPJ, extraia os CPFs do QSA (brasilapi_cnpj) e procure os processos dessas pessoas.'
     : tipo === 'NMPARTE'
-      ? 'AVISO OBRIGATORIO: busca por NOME produz HOMONIMOS - filtre pelo CPF/CNPJ do pesquisado (DOCPARTE ou datajud_por_cpf); sem documento que bate = POSSIVEL HOMONIMO (protocolo em fontes_osint).'
+      ? 'PROIBICAO: busca por NOME produz HOMONIMOS - PROIBIDO lista-los como sendo do pesquisado sem cruzamento pelo CPF/CNPJ (DOCPARTE ou datajud_por_cpf); sem documento que bate = POSSIVEL HOMONIMO, fora da lista principal (protocolo em fontes_osint).'
       : 'Busca por NUMERO: ancora unica.'}`;
   return out;
 }
@@ -609,10 +610,11 @@ async function toolFontesOsint() {
   return [
     'PROTOCOLO OBRIGATORIO DE PESQUISA (vale para TODA consulta feita com este servidor):',
     '1. DOCUMENTO MANDA: havendo CPF/CNPJ do pesquisado, a busca PRINCIPAL e pelo DOCUMENTO (datajud_por_cpf; datajud_buscar/datajud_varrer com o CPF formatado entre aspas; esaj_buscar DOCPARTE). Nome e apenas complemento.',
-    '2. HOMONIMO SE ELIMINA POR CPF/CNPJ: achado de busca por nome sem documento que bata = POSSIVEL HOMONIMO - nunca entra na lista principal do relatorio.',
+    '2. HOMONIMO E PROIBIDO: achado de busca por nome sem documento que bata = POSSIVEL HOMONIMO - PROIBIDO apresenta-lo como sendo do pesquisado; nunca entra na lista principal do relatorio (no maximo, secao separada claramente marcada).',
     '3. CRUZAMENTO OBRIGATORIO: nenhuma afirmacao de vinculo sem cruzar DataJud + DJEN + e-SAJ + BrasilAPI (CNPJ) + web (jusbrasil_buscar, exa_buscar).',
     '4. CONFIRMADO so com documento (CPF/CNPJ) exato batendo; sem documento, no maximo PROVAVEL (fingerprint orgao+classe+assunto+datas).',
     '5. NUMERO MASCARADO (XXXX): cnj_desmascarar com o LOOP - passe a mascara + cpf e/ou nome; o servidor gera candidatos, verifica no DataJud e marca os vinculados ao pesquisado. Vale para mascara de qualquer fonte (Jusbrasil, Escavador, documentos).',
+    '6. CICLO OBRIGATORIO PF<->PJ: pesquisado com CPF -> SEMPRE procure os CNPJs vinculados (razao social costuma embutir o CPF do titular; consulte cada CNPJ com brasilapi_cnpj e datajud_por_cpf). Pesquisado com CNPJ -> SEMPRE extraia os CPFs do QSA (brasilapi_cnpj) e procure os processos dessas pessoas fisicas - o CNPJ processa e e processado pelas pessoas por tras dele. O ciclo e CPF -> CNPJ -> CPF, sempre.',
     '',
     'BASES PUBLICAS (onde achar):',
     '- API publica DataJud/CNJ: https://api-publica.datajud.cnj.jus.br (endpoint api_publica_{tjsp|tjpr|...}/_search; chave publica na wiki https://datajud-wiki.cnj.jus.br/api-publica/acesso/). LIMITACAO: campo "partes" vem vazio - classifique por orgao+classe+assunto+datas (fingerprint).',
@@ -648,7 +650,7 @@ async function toolFontesOsint() {
     '- TJBA: PJe consulta publica (captcha slider manual a cada busca).',
     '- TJPI: e-TJPI 2a instancia por documento; 1o grau exige login gov.br no PDPJ.',
     'TECNICAS (como buscar):',
-    '1. ANTI-HOMONIMOS: valide por (a) fonte chaveada por CPF, (b) CPF embutido em registro (ex.: razao social de CNPJ), (c) qualificacao judicial (nascimento, genitora, RG), (d) mascara de CPF compativel, (e) contexto (cidades+profissao+familiares co-reus). Sem isso: "possivel homonimo".',
+    '1. ANTI-HOMONIMOS (PROIBICAO): valide por (a) fonte chaveada por CPF, (b) CPF embutido em registro (ex.: razao social de CNPJ), (c) qualificacao judicial (nascimento, genitora, RG), (d) mascara de CPF compativel, (e) contexto (cidades+profissao+familiares co-reus). Sem isso: PROIBIDO atribuir o achado ao pesquisado - classifique "possivel homonimo", fora da lista principal.',
     '2. QUEBRA DE MASCARA: NNNXXXX-DD -> 10.000 combinacoes -> DV CNJ (Res. 65/2008, ISO 7064 MOD 97-10) deixa ~103 validos -> UMA query terms no DataJud -> fingerprint -> confirmacao tripla (datas exatas + numeros de origem + e-SAJ). Ferramenta: cnj_desmascarar.',
     '3. FINGERPRINT: orgao julgador + classe + assunto + datas de movimentacao contra os metadados da fonte que mascarou.',
     '4. INTIMACOES DJEN: busque pelo nome da parte; textos integrais revelam fatos, enderecos e numeros de processos correlatos.',
@@ -751,7 +753,7 @@ async function toolGuiaRelatorios() {
     '',
     '3. TABELAS DE PROCESSOS (o coracao do relatorio):',
     '- Colunas padrao: numero CNJ | tribunal/foro | classe | assunto | orgao julgador | data ajuizamento | status | fonte | nivel de confirmacao.',
-    '- Nivel de confirmacao em 3 graus: CONFIRMADO (CPF/CNPJ do pesquisado batendo exatamente na fonte), PROVAVEL (sem documento, mas fingerprint orgao+classe+assunto+datas coerente), POSSIVEL HOMONIMO (sem ancora por documento - marcar e separar). Regra: sem documento cruzado, nunca CONFIRMADO.',
+    '- Nivel de confirmacao em 3 graus: CONFIRMADO (CPF/CNPJ do pesquisado batendo exatamente na fonte), PROVAVEL (sem documento, mas fingerprint orgao+classe+assunto+datas coerente), POSSIVEL HOMONIMO (sem ancora por documento - PROIBIDO incluir na lista principal; secao separada). Regra: sem documento cruzado, nunca CONFIRMADO e PROIBIDO apresenta-lo como sendo do pesquisado.',
     '- Numeros mascarados da fonte original exibidos AO LADO do numero desmascarado (cadeia de evidencia).',
     '- JS interno: filtro por status e busca textual na pagina (input + listener em todas as linhas da tabela via data-attributes).',
     '',
@@ -762,9 +764,9 @@ async function toolGuiaRelatorios() {
     '5. CADEIA DE EVIDENCIA E AUDITORIA:',
     '- Cada afirmação cita a fonte (API/portal/data-hora da consulta); salve HTML/PDF bruto das consultas-chave.',
     '- Confirmacao tripla antes de marcar CONFIRMADO: datas EXATAS batendo entre 2+ fontes + numero de origem + verificacao em segunda base (ex.: DataJud + e-SAJ + DJEN).',
-    '- NUNCA misturar achados de homonimos com os do pesquisado; secoes separadas com aviso.',
+    '- PROIBIDO misturar achados de homonimos com os do pesquisado - homonimo nunca entra na tabela principal; secoes separadas com aviso.',
     '',
-    '6. ANTI-HOMONIMOS (precisao por documento):',
+    '6. ANTI-HOMONIMOS (PROIBICAO de homonimo na lista principal):',
     '- Prioridade SEMPRE: CPF/CNPJ exato > documento embutido em registro (razao social de CNPJ) > qualificacao judicial (nascimento, genitora, RG) > mascara de CPF compativel > contexto (cidade+profissao+familiares co-reus).',
     '- Busca por nome: SEMPRE entre aspas duplas ("NOME COMPLETO") no DataJud; varrer varios tribunais (datajud_varrer) e cruzar.',
     '',
@@ -774,7 +776,7 @@ async function toolGuiaRelatorios() {
     '- Familiares: incluir somente com documento/ancora propria, nunca por conjetura.',
     '',
     '8. CHECKLIST FINAL ANTES DE ENTREGAR:',
-    '( ) todos os numeros CNJ validados (cnj_validar); ( ) niveis de confirmacao marcados; ( ) pendencias com proximo passo; ( ) filtro/busca JS funcionando; ( ) data de geracao no rodape; ( ) nenhum dado de homonimo misturado; ( ) arquivo abre offline.',
+    '( ) todos os numeros CNJ validados (cnj_validar); ( ) niveis de confirmacao marcados; ( ) pendencias com proximo passo; ( ) filtro/busca JS funcionando; ( ) data de geracao no rodape; ( ) nenhum dado de homonimo na lista principal (PROIBICAO); ( ) ciclo PF<->PJ executado (CPF achou CNPJs vinculados / CNPJ achou CPFs do QSA); ( ) arquivo abre offline.',
     '',
     'REUSO: este servidor NAO gera o HTML - o agente gera seguindo estas regras. Use fontes_osint (onde/como buscar), guia_navegacao (browser/instalacao) e este guia (como apresentar).'
   ].join('\n');
@@ -827,7 +829,7 @@ const TOOLS = [
   },
   {
     name: 'cnj_desmascarar',
-    description: 'Quebra numeros mascarados: recebe uma mascara com X (ex.: 000XXXX-XX.2024.8.26.0100), gera todos os candidatos com DV valido e verifica numa unica query terms quais existem no DataJud. LOOP: passe cpf (CPF/CNPJ) e/ou nome para cruzar os candidatos com o pesquisado - o resultado marca cada processo como VINCULO CONFIRMADO ou SEM ancora (possivel homonimo). Vale para mascara de qualquer fonte (Jusbrasil, Escavador, documentos).',
+    description: 'Quebra numeros mascarados: recebe uma mascara com X (ex.: 000XXXX-XX.2024.8.26.0100), gera todos os candidatos com DV valido e verifica numa unica query terms quais existem no DataJud. LOOP: passe cpf (CPF/CNPJ) e/ou nome para cruzar os candidatos com o pesquisado - o resultado marca cada processo como VINCULO CONFIRMADO ou SEM ancora (PROIBIDO apresenta-lo como sendo do pesquisado - possivel homonimo). Vale para mascara de qualquer fonte (Jusbrasil, Escavador, documentos).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -875,7 +877,7 @@ const TOOLS = [
   },
   {
     name: 'datajud_buscar',
-    description: 'Busca textual livre no DataJud (query_string do Elastic): nome exato entre aspas duplas ("NOME COMPLETO"), CPF formatado entre aspas ("000.000.000-00"), numero de 20 digitos (match exato) ou termo qualquer. O TJSP costuma responder lento (a ferramenta faz 3 tentativas). A API publica omite as PARTES em muitos processos. REGRA DO SERVIDOR: havendo CPF/CNPJ do pesquisado, a ancora e o documento entre aspas - achado por nome so vale com documento cruzando.',
+    description: 'Busca textual livre no DataJud (query_string do Elastic): nome exato entre aspas duplas ("NOME COMPLETO"), CPF formatado entre aspas ("000.000.000-00"), numero de 20 digitos (match exato) ou termo qualquer. O TJSP costuma responder lento (a ferramenta faz 3 tentativas). A API publica omite as PARTES em muitos processos. REGRA DO SERVIDOR: havendo CPF/CNPJ do pesquisado, a ancora e o documento entre aspas - achado por nome so vale com documento cruzando (sem isso: POSSIVEL HOMONIMO, PROIBIDO na lista principal).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -889,7 +891,7 @@ const TOOLS = [
   },
   {
     name: 'datajud_por_cpf',
-    description: 'Busca processos pelo CPF/CNPJ da parte no DataJud (campo partes.pessoa.documentoReplicado). Muitos tribunais mascaram esse campo e retornam 0 - nesse caso a resposta sugere a rota alternativa (datajud_buscar com o documento formatado entre aspas). Rota de ancora por documento - OBRIGATORIA sempre que existir CPF/CNPJ do pesquisado.',
+    description: 'Busca processos pelo CPF/CNPJ da parte no DataJud (campo partes.pessoa.documentoReplicado). Muitos tribunais mascaram esse campo e retornam 0 - nesse caso a resposta sugere a rota alternativa (datajud_buscar com o documento formatado entre aspas). Rota de ancora por documento - OBRIGATORIA sempre que existir CPF/CNPJ do pesquisado. CICLO PF<->PJ: aceita CNPJ tambem - com CPF do pesquisado, procure os CNPJs vinculados (brasilapi_cnpj) e consulte-os aqui; com CNPJ, extraia os CPFs do QSA e consulte-os aqui.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -903,7 +905,7 @@ const TOOLS = [
   },
   {
     name: 'djen_intimacoes',
-    description: 'Consulta intimacoes/comunicacoes oficiais (DJEN/CNJ) pelo nome da parte. Retorna textos (frequentemente sentencas integrais) que citam numeros de processos correlatos - tecnica chave para desmascarar numeros ocultos. O retorno traz o aviso anti-homonimo: cruze pelo CPF/CNPJ.',
+    description: 'Consulta intimacoes/comunicacoes oficiais (DJEN/CNJ) pelo nome da parte. Retorna textos (frequentemente sentencas integrais) que citam numeros de processos correlatos - tecnica chave para desmascarar numeros ocultos. O retorno traz a PROIBICAO anti-homonimo: cruze pelo CPF/CNPJ - sem documento que bata, PROIBIDO apresentar como sendo do pesquisado.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -919,7 +921,7 @@ const TOOLS = [
   },
   {
     name: 'brasilapi_cnpj',
-    description: 'Consulta CNPJ gratuito na BrasilAPI (razao social, socios, CNAE, situacao, endereco). Sem chave de API.',
+    description: 'Consulta CNPJ gratuito na BrasilAPI (razao social, socios, CNAE, situacao, endereco). Sem chave de API. CICLO OBRIGATORIO PF<->PJ: com CPF do pesquisado, use para achar CNPJs vinculados; com CNPJ do pesquisado, extraia os CPFs do QSA (mascarados, com faixa etaria) e procure os processos dessas pessoas (datajud_por_cpf). Razao social costuma embutir o CPF do titular.',
     inputSchema: { type: 'object', properties: { cnpj: { type: 'string', description: 'CNPJ (14 digitos ou formatado)' } }, required: ['cnpj'] },
     _run: toolBrasilapiCnpj
   },
@@ -931,7 +933,7 @@ const TOOLS = [
   },
   {
     name: 'datajud_varrer',
-    description: 'Varre UMA consulta em VARIOS tribunais de uma vez (uma chamada, N buscas). Ideal para nome exato entre aspas ou CPF formatado entre aspas - economiza dezenas de chamadas individuais. Default: 11 tribunais (tjsp, tjpr, tjsc, tjba, tjpi, tjmg, tjrs, tjrj, trt2, trt9, trt15); passe tribunais="tjsp,tjpr" para escolher ou todos_tribunais=true para todos os mapeados. Erros por tribunal nao abortam a varredura. REGRA: CPF/CNPJ entre aspas e a consulta preferida; achado por nome exige cruzamento por documento.',
+    description: 'Varre UMA consulta em VARIOS tribunais de uma vez (uma chamada, N buscas). Ideal para nome exato entre aspas ou CPF formatado entre aspas - economiza dezenas de chamadas individuais. Default: 11 tribunais (tjsp, tjpr, tjsc, tjba, tjpi, tjmg, tjrs, tjrj, trt2, trt9, trt15); passe tribunais="tjsp,tjpr" para escolher ou todos_tribunais=true para todos os mapeados. Erros por tribunal nao abortam a varredura. REGRA: CPF/CNPJ entre aspas e a consulta preferida; achado por nome exige cruzamento por documento - sem isso: POSSIVEL HOMONIMO, PROIBIDO na lista principal.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -946,7 +948,7 @@ const TOOLS = [
   },
   {
     name: 'esaj_buscar',
-    description: 'Consulta anonima do 1o grau do TJSP (e-SAJ) por nome da parte (NMPARTE), CPF/CNPJ (DOCPARTE) ou numero (NUMPROC), via HTTP direto. LIMITACAO: a consulta anonima SUPRIME partes de processos criminais (sigilo legal). REGRA: com CPF/CNPJ use DOCPARTE (ancora); NMPARTE (nome) produz possiveis homonimos.',
+    description: 'Consulta anonima do 1o grau do TJSP (e-SAJ) por nome da parte (NMPARTE), CPF/CNPJ (DOCPARTE) ou numero (NUMPROC), via HTTP direto. LIMITACAO: a consulta anonima SUPRIME partes de processos criminais (sigilo legal). REGRA: com CPF/CNPJ use DOCPARTE (ancora) - e siga o ciclo PF<->PJ (CPF acha CNPJs vinculados / CNPJ acha CPFs do QSA); NMPARTE (nome) produz homonimos - PROIBIDO lista-los como sendo do pesquisado sem cruzamento por documento.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -973,7 +975,7 @@ const TOOLS = [
   },
   {
     name: 'fontes_osint',
-    description: 'Guia rapido: bases publicas de pesquisa (onde achar), rotas por tribunal, tecnicas validadas (como buscar) e regras de etica/LGPD. ABRE COM O PROTOCOLO OBRIGATORIO: documento (CPF/CNPJ) primeiro, cruzamento total das fontes, homonimo eliminado por documento.',
+    description: 'Guia rapido: bases publicas de pesquisa (onde achar), rotas por tribunal, tecnicas validadas (como buscar) e regras de etica/LGPD. ABRE COM O PROTOCOLO OBRIGATORIO: documento (CPF/CNPJ) primeiro, cruzamento total das fontes, HOMONIMO PROIBIDO (sem documento cruzado, nunca na lista principal) e ciclo obrigatorio PF<->PJ (CPF acha CNPJs vinculados; CNPJ acha CPFs do QSA).',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
     _run: toolFontesOsint
   },
@@ -1025,7 +1027,7 @@ function send(obj) { process.stdout.write(JSON.stringify(obj) + '\n'); }
 
 async function handle(msg) {
   if (msg.method === 'initialize') {
-    return { protocolVersion: '2024-11-05', capabilities: { tools: {} }, serverInfo: { name: 'escrivao', version: '1.8.0' } };
+    return { protocolVersion: '2024-11-05', capabilities: { tools: {} }, serverInfo: { name: 'escrivao', version: '1.9.0' } };
   }
   if (msg.method === 'ping') return {};
   if (msg.method === 'tools/list') return { tools: TOOLS.map(t => ({ name: t.name, description: t.description, inputSchema: t.inputSchema })) };
