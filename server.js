@@ -163,6 +163,36 @@ function avisoAncora(consulta) {
   return 'PROIBICAO: busca por NOME produz HOMONIMOS. Achado por nome so vale com o CPF/CNPJ do pesquisado cruzando (datajud_por_cpf, esaj_buscar DOCPARTE ou datajud_buscar com o documento formatado entre aspas); sem documento que bata = POSSIVEL HOMONIMO - PROIBIDO apresenta-lo como sendo do pesquisado ou mistura-lo na lista principal; use secao separada (protocolo em fontes_osint).';
 }
 
+function cpfDvs(base9) {
+  let s = 0;
+  for (let i = 0; i < 9; i++) s += Number(base9[i]) * (10 - i);
+  const d1 = (s % 11) < 2 ? 0 : 11 - (s % 11);
+  const dez = base9 + String(d1);
+  let s2 = 0;
+  for (let i = 0; i < 10; i++) s2 += Number(dez[i]) * (11 - i);
+  const d2 = (s2 % 11) < 2 ? 0 : 11 - (s2 % 11);
+  return String(d1) + String(d2);
+}
+
+function formatCpf(c) {
+  return `${c.slice(0, 3)}.${c.slice(3, 6)}.${c.slice(6, 9)}-${c.slice(9)}`;
+}
+
+function nomesDePartes(src) {
+  try {
+    const partes = src && src.partes;
+    if (!Array.isArray(partes)) return [];
+    const out = [];
+    for (const p of partes) {
+      const pessoas = p && Array.isArray(p.pessoa) ? p.pessoa : (p && p.pessoa ? [p.pessoa] : []);
+      for (const pes of pessoas) {
+        if (pes && pes.nome) out.push(`${normName(pes.nome)} (${p && p.tipo ? p.tipo : 'parte'})`);
+      }
+    }
+    return out;
+  } catch (e) { return []; }
+}
+
 function parseMask(mascara) {
   const t = String(mascara || '').trim().toUpperCase().replace(/\s+/g, '');
   const re = /^([0-9X]{7})-?([0-9X]{2})\.?([0-9X]{4})\.?([0-9X])\.?([0-9X]{2})\.?([0-9X]{4})$/;
@@ -377,7 +407,7 @@ async function toolBrasilapiCnpj(a) {
   out += `Endereco: ${d.logradouro || ''}, ${d.numero || ''} - ${d.bairro || ''}, ${d.municipio || ''}/${d.uf || ''} - CEP ${d.cep || ''}\n`;
   out += `Capital social: ${d.capital_social || ''}\n`;
   if (qsa.length) out += `Socios (QSA):\n${qsa.join('\n')}\n`;
-  out += '\nCICLO OBRIGATORIO PF<->PJ: com CPF do pesquisado, procure os CNPJs vinculados a ele (razao social costuma embutir o CPF do titular); com CNPJ do pesquisado, extraia os CPFs do QSA (mascarados, com faixa etaria) e procure os processos dessas pessoas (datajud_por_cpf). CPF mascarado com digitos visiveis pode ser quebrado por combinacao (tecnica do cnj_desmascarar); sem digitos suficientes, mascara + faixa etaria + nome servem apenas como fingerprint (PROVAVEL, nunca CONFIRMADO). PROIBICAO anti-homonimo: sem documento cruzado, nao atribua o achado ao pesquisado.';
+  out += '\nCICLO OBRIGATORIO PF<->PJ: com CPF do pesquisado, procure os CNPJs vinculados a ele (razao social costuma embutir o CPF do titular); com CNPJ do pesquisado, extraia os CPFs do QSA (mascarados, com faixa etaria) e procure os processos dessas pessoas (datajud_por_cpf). CPF mascarado com digitos visiveis pode ser quebrado por combinacao (ferramenta cpf_desmascarar - loop + DV modulo 11 + verificacao em lote no DataJud); sem digitos suficientes, mascara + faixa etaria + nome servem apenas como fingerprint (PROVAVEL, nunca CONFIRMADO). PROIBICAO anti-homonimo: sem documento cruzado, nao atribua o achado ao pesquisado.';
   return out;
 }
 
@@ -466,6 +496,77 @@ async function toolDatajudVarrer(a) {
   out += linhas.join('\n');
   out += '\n\nDicas: CPF/CNPJ formatado entre aspas ("000.000.000-00") e o modo mais preciso - nome, mesmo exato e entre aspas, produz homonimos (PROIBIDO na lista principal). Para documento da parte use datajud_por_cpf por tribunal.';
   out += `\n\n${avisoAncora(consulta)}`;
+  return out;
+}
+
+async function toolCpfDesmascarar(a) {
+  let t = String(a.mascara || '').trim().toUpperCase().replace(/\s+/g, '');
+  if (/^[0-9]{6}$/.test(t)) t = '***' + t + 'XX';
+  const re = /^([0-9X*]{3})\.?([0-9X*]{3})\.?([0-9X*]{3})(?:-?([0-9X*]{2}))?$/;
+  const m = t.match(re);
+  if (!m) throw new Error(`Mascara invalida: "${a.mascara}". Use NNN.NNN.NNN-DD com X ou * nos desconhecidos (ex.: ***.123.456-**, 111.444.777-**) OU o bloco de 6 digitos antes do DV (ex.: 123456 -> ***.123.456-**).`);
+  const base9 = m[1] + m[2] + m[3];
+  const desconhecidos = [];
+  [...base9].forEach((c, i) => { if (!/[0-9]/.test(c)) desconhecidos.push(i); });
+  if (desconhecidos.length > 3) throw new Error(`Mascara com ${desconhecidos.length} digitos desconhecidos na base de 9 - maximo sao 3 (ate 1000 candidatos).`);
+  const total = Math.pow(10, desconhecidos.length);
+  const cands = [];
+  for (let n = 0; n < total; n++) {
+    const s = String(n).padStart(desconhecidos.length, '0');
+    const b = base9.split('');
+    desconhecidos.forEach((pos, k) => { b[pos] = s[k]; });
+    const bb = b.join('');
+    cands.push(bb + cpfDvs(bb));
+  }
+  const consultar = a.consultar_datajud !== false;
+  if (!consultar) {
+    const n = Math.min(cands.length, 100);
+    const lista = cands.slice(0, n).map(formatCpf).join('\n');
+    return `Mascara "${a.mascara}": ${cands.length} CPF(s) com DV correto gerado(s) (${desconhecidos.length} digito(s) oculto(s) + 2 DVs por modulo 11).\n${lista}${cands.length > n ? `\n... e mais ${cands.length - n} (passe o tribunal com consultar_datajud=true para a verificacao em lote - nao despejamos 1000 linhas).` : ''}`;
+  }
+  if (!a.tribunal) throw new Error('Informe o tribunal (alias tjsp/tjpr... ou codigo) para a verificacao em lote no DataJud.');
+  const endpoint = resolveEndpoint(a.tribunal);
+  const tamanho = Math.min(Number(a.tamanho) || 100, 100);
+  const porCpf = new Map();
+  const registro = (cpf, hit) => {
+    const k = porCpf.get(cpf) || { processos: [], nomes: new Set() };
+    const src = hit._source || {};
+    const num = String(src.numeroProcesso || '');
+    if (num && !k.processos.some(p => p.numero === num)) k.processos.push({ numero: num, resumo: fmtResumo(src) });
+    nomesDePartes(src).forEach(x => k.nomes.add(x));
+    porCpf.set(cpf, k);
+  };
+  try {
+    const r1 = await datajudSearch(endpoint, { query: { terms: { 'partes.pessoa.documentoReplicado': cands } }, size: tamanho });
+    for (const h of hitsToArray(r1)) {
+      const js = JSON.stringify(h._source || {});
+      const achados = cands.filter(c => js.includes(c));
+      if (achados.length) achados.forEach(c => registro(c, h));
+    }
+  } catch (e) { /* terms pode falhar; segue para query_string */ }
+  for (let i = 0; i < cands.length; i += 500) {
+    const q = cands.slice(i, i + 500).map(c => `"${formatCpf(c)}"`).join(' OR ');
+    try {
+      const r2 = await datajudSearch(endpoint, { query: { query_string: { query: q } }, size: tamanho });
+      for (const h of hitsToArray(r2)) {
+        const js = JSON.stringify(h._source || {});
+        const achados = cands.filter(c => js.includes(formatCpf(c)));
+        if (achados.length) achados.forEach(c => registro(c, h));
+      }
+    } catch (e) { /* bloco ignora falha individual */ }
+  }
+  let out = `Mascara "${a.mascara}": ${cands.length} CPF(s) com DV correto gerado(s); verificacao EM LOTE no DataJud ${endpoint}: ${porCpf.size} CPF(s) com processo(s).\n`;
+  if (!porCpf.size) {
+    out += 'Nenhum candidato tem processo visivel neste tribunal. 0 e INDICIO, nao prova: repita em outros tribunais.';
+  }
+  const ordenados = [...porCpf.entries()].sort((x, y) => y[1].processos.length - x[1].processos.length);
+  for (const [cpf, d] of ordenados) {
+    out += `\nCPF ${formatCpf(cpf)} - ${d.processos.length} processo(s)`;
+    out += d.nomes.size ? `\n  Nomes visiveis na base: ${[...d.nomes].slice(0, 5).join('; ')}` : '\n  Partes ocultas na API publica - leia a capa no portal do tribunal para o nome.';
+    d.processos.slice(0, 5).forEach(p => { out += `\n  ${p.resumo}`; });
+    if (d.processos.length > 5) out += `\n  ... e mais ${d.processos.length - 5} processo(s).`;
+  }
+  out += '\n\nVALIDACAO OBRIGATORIA PELO USUARIO: aponte qual CPF e do pesquisado (ex.: "o pesquisado e o CPF 123.456.789-0X"). Nenhum nome/CPF acima foi atribuido a ele ainda - homonimo e PROIBIDO antes da validacao. APOS validar, o dossie pesquisa TUDO pelo CPF (datajud_por_cpf, datajud_buscar com o CPF entre aspas, esaj_buscar DOCPARTE, ciclo PF<->PJ) - NUNCA pelo nome. Candidatos sem processo neste tribunal podem existir em outros: repita neles ou valide pelo nome completo + data de nascimento na Receita (captcha manual).';
   return out;
 }
 
@@ -624,7 +725,7 @@ async function toolFontesOsint() {
     '2. HOMONIMO E PROIBIDO: achado de busca por nome sem documento que bata = POSSIVEL HOMONIMO - PROIBIDO apresenta-lo como sendo do pesquisado; nunca entra na lista principal do relatorio (no maximo, secao separada claramente marcada).',
     '3. CRUZAMENTO OBRIGATORIO: nenhuma afirmacao de vinculo sem cruzar DataJud + DJEN + e-SAJ + BrasilAPI (CNPJ) + web (jusbrasil_buscar, exa_buscar).',
     '4. CONFIRMADO so com documento (CPF/CNPJ) exato batendo; sem documento, no maximo PROVAVEL (fingerprint orgao+classe+assunto+datas).',
-    '5. NUMERO MASCARADO (XXXX): cnj_desmascarar com o LOOP - passe a mascara + cpf e/ou nome; o servidor gera candidatos, verifica no DataJud e marca os vinculados ao pesquisado. Vale para mascara de qualquer fonte (Jusbrasil, Escavador, documentos).',
+    '5. NUMERO MASCARADO (XXXX): cnj_desmascarar com o LOOP - passe a mascara + cpf e/ou nome; o servidor gera candidatos, verifica no DataJud e marca os vinculados ao pesquisado. Vale para mascara de qualquer fonte (Jusbrasil, Escavador, documentos). CPF MASCARADO (ate 3 digitos ocultos, ex.: ***.NNN.NNN-** ou o bloco de 6 antes do DV): cpf_desmascarar - loop 000-999 + DV modulo 11 + verificacao EM LOTE no DataJud; devolve CPFs com processos e nomes para o USUARIO validar; apos validar, o dossie pesquisa TUDO pelo CPF, nunca pelo nome.',
     '6. CICLO OBRIGATORIO PF<->PJ: pesquisado com CPF -> SEMPRE procure os CNPJs vinculados (razao social costuma embutir o CPF do titular; consulte cada CNPJ com brasilapi_cnpj e datajud_por_cpf). Pesquisado com CNPJ -> SEMPRE extraia os CPFs do QSA (brasilapi_cnpj) e procure os processos dessas pessoas fisicas - o CNPJ processa e e processado pelas pessoas por tras dele. O ciclo e CPF -> CNPJ -> CPF, sempre.',
     '',
     'BASES PUBLICAS (onde achar):',
@@ -832,7 +933,7 @@ async function toolGuiaInstalacao() {
     '',
     '6. TESTAR SEM CLIENTE (stdin JSON-RPC):',
     '   echo {"jsonrpc":"2.0","id":1,"method":"tools/list"} | node server.js',
-    '   Deve responder 18 ferramentas. Suite completa de teste no README (secao "Como valido o servidor sem cliente?").',
+    '   Deve responder 19 ferramentas. Suite completa de teste no README (secao "Como valido o servidor sem cliente?").',
     '',
     '7. REGISTRAR NO CLIENTE MCP (apos o teste passar):',
     '   node <caminho-absoluto>/escrivao-mcp/server.js  -  receitas por cliente (opencode, kimi-code, Claude Desktop, Cursor) no README.',
@@ -868,6 +969,21 @@ const TOOLS = [
       required: ['mascara']
     },
     _run: toolCnjDesmascarar
+  },
+  {
+    name: 'cpf_desmascarar',
+    description: 'Quebra CPF mascarado com ate 3 digitos desconhecidos na base de 9 (ex.: ***.123.456-**, tipico de QSA/DataJud, OU o bloco de 6 digitos antes do DV): loop 000-999 nos ocultos + DV oficial (modulo 11) gera ate 1000 CPFs validos; verificacao EM LOTE no DataJud (terms no documentoReplicado + query_string com CPF formatado) devolve os CPFs com processos e os NOMES visiveis - lista para o USUARIO validar qual e o pesquisado. Apos a validacao, o dossie pesquisa tudo pelo CPF, nunca pelo nome.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        mascara: { type: 'string', description: 'Mascara do CPF com X ou * nos desconhecidos (ex.: ***.123.456-**, 111.444.777-**) OU o bloco de 6 digitos antes do DV (ex.: 123456). Os 2 DVs finais sao calculados automaticamente' },
+        tribunal: { type: 'string', description: 'Tribunal da verificacao em lote (alias tjsp/tjpr... ou codigo 826). Obrigatorio quando consultar_datajud=true' },
+        consultar_datajud: { type: 'boolean', description: 'Default true: verifica os candidatos no DataJud; false: apenas lista os CPFs gerados' },
+        tamanho: { type: 'number', description: 'Maximo de processos por query (default 100, max 100)' }
+      },
+      required: ['mascara']
+    },
+    _run: toolCpfDesmascarar
   },
   {
     name: 'datajud_processo',
@@ -1053,7 +1169,7 @@ function send(obj) { process.stdout.write(JSON.stringify(obj) + '\n'); }
 
 async function handle(msg) {
   if (msg.method === 'initialize') {
-    return { protocolVersion: '2024-11-05', capabilities: { tools: {} }, serverInfo: { name: 'escrivao', version: '1.11.0' } };
+    return { protocolVersion: '2024-11-05', capabilities: { tools: {} }, serverInfo: { name: 'escrivao', version: '1.12.0' } };
   }
   if (msg.method === 'ping') return {};
   if (msg.method === 'tools/list') return { tools: TOOLS.map(t => ({ name: t.name, description: t.description, inputSchema: t.inputSchema })) };

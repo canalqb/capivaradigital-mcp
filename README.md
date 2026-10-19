@@ -1,6 +1,6 @@
 # escrivao
 
-> Dezoito ferramentas de OSINT judicial brasileiro em um único arquivo Node.
+> Dezenove ferramentas de OSINT judicial brasileiro em um único arquivo Node.
 
 O escrivao é um servidor MCP (Model Context Protocol) autocontido para pesquisa
 em registros públicos judiciais brasileiros: DataJud/CNJ, DJEN, e-SAJ (TJSP),
@@ -144,7 +144,7 @@ confirmar instalação, contagem de ferramentas e saúde da rede em segundos.
 cmd /c "node <caminho>\escrivao-mcp\server.js < teste.jsonl"
 ```
 
-## Quais são as 18 ferramentas?
+## Quais são as 19 ferramentas?
 
 Uma paleta enxuta cobrindo o ciclo completo de uma pesquisa judicial: validar o
 número, desmascarar o que está oculto, consultar por número, nome, documento ou
@@ -156,6 +156,7 @@ ferramenta e sua fonte.
 |---|---|---|
 | `cnj_validar` | Valida número CNJ (Res. 65/2008, ISO 7064 MOD 97-10) e devolve o DV esperado + tribunal | — |
 | `cnj_desmascarar` | Quebra máscaras `000XXXX-XX.AAAA.J.TR.OOOO`: candidatos com DV válido, verificação numa única query `terms` no DataJud e LOOP — com `cpf`/`nome` cruza os candidatos com o pesquisado e marca VÍNCULO CONFIRMADO ou SEM âncora | DataJud |
+| `cpf_desmascarar` | Quebra CPF mascarado (até 3 dígitos ocultos, ex. `***.123.456-**` ou o bloco de 6 antes do DV): loop 000-999 + DV módulo 11 + verificação em lote no DataJud; devolve CPFs com processos e nomes para o **usuário validar** — depois o dossiê pesquisa tudo pelo CPF, nunca pelo nome | DataJud |
 | `datajud_processo` | Capa do processo por número CNJ (tribunal detectado automaticamente) | DataJud |
 | `datajud_pesquisar` | Pesquisa estruturada: lista de números (terms), classe, assunto ou órgão julgador | DataJud |
 | `datajud_buscar` | Busca textual livre (query_string): nome exato entre aspas duplas, CPF formatado entre aspas, número; 3 tentativas para tribunais lentos | DataJud |
@@ -322,6 +323,7 @@ real, e é assim que deve permanecer.
 - "Consulte o CNPJ 00.000.000/0001-91" (número de documentação)
 - "Busque na web com a Exa: notícias sobre concursos públicos em 2024"
 - "Desmascare 000XXXX-XX.2024.8.26.0100 cruzando com o CPF 111.444.777-35 (loop)"
+- "Desmascare o CPF ***.123.456-** no TJPR e liste os nomes (cpf_desmascarar)"
 - "Busque no Jusbrasil: Zuliano da Silva Sauro"
 - "Atualize o servidor com mcp_atualizar"
 
