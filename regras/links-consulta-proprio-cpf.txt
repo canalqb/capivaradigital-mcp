@@ -1,0 +1,78 @@
+CONSULTE O SEU PROPRIO CPF - FONTES OFICIAIS E GRATUITAS (BRASIL)
+Atualizado em 19/10/2026. Confira sempre se o dominio e oficial (gov.br, jus.br, bcb.gov.br etc.).
+Use apenas o SEU CPF, sempre logado com sua conta gov.br (de preferencia nivel prata ou ouro, com verificacao em duas etapas).
+
+=== 1. SITUACAO DO CPF ===
+Situacao cadastral do CPF (Receita Federal):
+https://servicos.receita.fazenda.gov.br/servicos/cpf/consultasituacao/consultapublica.asp
+
+Portal gov.br (conta unica, ative a verificacao em duas etapas):
+https://www.gov.br
+
+Pendencias e declaracoes (e-CAC / Meu Imposto de Renda):
+https://cav.receita.fazenda.gov.br
+
+Certidao de situacao fiscal federal (Receita/PGFN):
+https://solucoes.receita.fazenda.gov.br/Servicos/certidaointernet/PF/Emitir
+
+=== 2. USO INDEVIDO / FRAUDE (contas, Pix, emprestimos em seu nome) ===
+Registrato - Banco Central (contas, chaves Pix, emprestimos e dividas ligadas ao seu CPF):
+https://www.bcb.gov.br/meubc/registrato
+
+Valores a Receber - Banco Central:
+https://valoresareceber.bcb.gov.br
+
+Consumidor.gov.br (reclamacoes contra empresas):
+https://www.consumidor.gov.br
+
+=== 3. NEGATIVACAO, SCORE E PROTESTOS ===
+Serasa (consulta de CPF, score e dividas):
+https://www.serasa.com.br
+
+Boa Vista / SCPC (consulta do consumidor):
+https://www.boavistaservicos.com.br
+
+Quod (score e Cadastro Positivo):
+https://www.quod.com.br
+
+SPC Brasil:
+https://www.spcbrasil.org.br
+
+Protestos em cartorio (Cenprot Nacional):
+https://site.cenprotnacional.org.br
+
+=== 4. CERTIDOES CRIMINAIS, CIVEIS E ELEITORAIS ===
+Antecedentes criminais - Policia Federal:
+https://www.gov.br/pf/pt-br/assuntos/antecedentes-criminais
+
+Certidao de quitacao eleitoral / crimes eleitorais - TSE:
+https://www.tse.jus.br/servicos-eleitorais/certidoes
+
+Certidao Nacional de Debitos Trabalhistas (CNDT) - TST:
+https://www.tst.jus.br/certidao
+
+Processos (civeis, criminais, trabalhistas): emita a certidao de distribuicao no portal do tribunal do seu estado
+(TJ, TRF e TRT). Busque por "certidao de distribuicao" + sigla do tribunal.
+
+=== 5. IMOVEIS EM SEU NOME ===
+Operador Nacional do Registro de Imoveis (ONR) - pesquisa de bens e certidoes:
+https://registradores.onr.org.br
+
+=== 6. VINCULOS DE TRABALHO E PREVIDENCIA ===
+Meu INSS (CNIS - historico de vinculos e contribuicoes):
+https://meu.inss.gov.br
+
+Carteira de Trabalho Digital (vinculos de emprego registrados):
+https://www.gov.br/trabalho-e-emprego/pt-br/servicos/carteira-de-trabalho-digital
+
+=== 7. SEUS DIREITOS SOBRE OS DADOS (LGPD) ===
+Autoridade Nacional de Protecao de Dados (ANPD) - denuncias e orientacoes:
+https://www.gov.br/anpd
+
+=== BOAS PRATICAS DE PREVENCAO ===
+- Ative a verificacao em duas etapas na conta gov.br.
+- Consulte o Registrato a cada poucos meses; e o melhor detector de contas, Pix ou emprestimos abertos em seu nome.
+- Se achar algo que voce nao fez: registre B.O. (delegacia ou delegacia virtual do seu estado), conteste direto na instituicao
+  e no Serasa/Boa Vista/SPC, e reclame no Consumidor.gov.br se nao resolverem.
+- Desconfie de sites e apps que cobram para "consultar CPF": os canais oficiais acima sao gratuitos.
+- Nunca informe o CPF completo a quem ligou ou mandou mensagem pedindo; confirme pelo canal oficial da empresa.

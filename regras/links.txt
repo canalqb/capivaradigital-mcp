@@ -1,0 +1,47 @@
+#	Nome	O que faz	Local	Link
+1	mcp-brasil	Servidor em Python que liga agentes de IA a 70 APIs públicas brasileiras (governo, economia, legislação, tribunais, eleições, saúde, segurança)	GitHub	https://github.com/Mcp-Brasil/mcp-brasil
+2	mcp-brasil (listagem)	Mesmo projeto, com instalação via uvx	Glama	https://glama.ai/mcp/servers/jxnxts/mcp-brasil
+3	lakebrasil-mcp	153 ferramentas com dados do governo federal e estaduais, incluindo Transparência, TCU, DataJud e portais de dados abertos	Glama	https://glama.ai/mcp/servers/r4szqk0atg
+4	MCP DadosBR	Reúne CNPJ, CEP, licitações (PNCP), diários oficiais, mandados do BNMP, Portal da Transparência e DataJud	GitHub	https://github.com/cristianoaredes/mcp-dadosbr
+5	brasil-api-mcp-server (mauricio-cantu)	Consulta CEP, CNPJ, ISBN e bancos via BrasilAPI	Smithery	https://smithery.ai/servers/mauricio-cantu/brasil-api-mcp-server
+6	brasil-api-mcp-server (imagem Docker)	Mesma ferramenta, empacotada em Docker	Docker Hub	https://hub.docker.com/r/mcpcommunity/mauricio-cantu-brasil-api-mcp-server
+7	brasil-data-mcp (alanpcf)	Dados públicos via BrasilAPI: CNPJ, CEP, bancos, feriados, DDD, taxas, corretoras da CVM, IBGE e domínios .br, sem chave	GitHub	https://github.com/alanpcf/brasil-data-mcp
+8	brasil-api-mcp (guilhermelirio)	Consulta CEP, CNPJ, bancos, DDD, IBGE, câmbio e domínios .br via BrasilAPI	GitHub	https://github.com/guilhermelirio/brasil-api-mcp
+9	brasil-api-mcp (listagem)	Mesmo projeto do item 8	Glama	https://glama.ai/mcp/servers/@guilhermelirio/brasil-api-mcp
+10	OpenCNPJ / OpenCEP MCP	Consulta de empresas (CNPJ) e endereços (CEP) pelas APIs OpenCNPJ e OpenCEP	LobeHub	https://lobehub.com/mcp?q=brazil
+11	Portal da Transparência MCP	Acesso programático à API do Portal da Transparência do governo federal	LobeHub	https://lobehub.com/mcp?q=brazil
+12	Pesquisa jurídica brasileira	Servidor para pesquisa sobre direito brasileiro em fontes oficiais	LobeHub	https://lobehub.com/mcp?q=brazil
+13	Verificação de fraude em revendedoras de veículos	Versão inicial para checagem rápida de fraude de revendedores de veículos	LobeHub	https://lobehub.com/mcp?q=brazil
+14	ViaCEP Brasil MCP	Consulta endereços por CEP ou busca CEP por endereço	LobeHub	https://lobehub.com/mcp?q=viaCEP
+15	CEP em Go	Consulta de CEP pela Brasil API, sem arquivos de dados externos	LobeHub	https://lobehub.com/mcp?q=brasil
+16	TSE DivulgaCandContas	Consulta candidaturas e prestações de contas eleitorais do TSE	LobeHub	https://lobehub.com/mcp?q=brasil
+17	Banco Central: meios de pagamento	Dados abertos do BCB sobre cartões, Pix, TED, DOC e boleto	LobeHub	https://lobehub.com/mcp?q=brasil
+18	Banco Central: câmbio	Cotações pela API de moedas do Banco Central	LobeHub	https://lobehub.com/mcp?q=brasil
+19	Câmara dos Deputados (vários)	Servidores para a API de dados abertos da Câmara dos Deputados	LobeHub	https://lobehub.com/mcp?q=camara
+20	CNJ SEEU: Processos	Consulta de processos do SEEU/CNJ, somente leitura, em servidor hospedado e proprietário	Glama	https://glama.ai/mcp/servers/z3jfob1ic1
+21	Processos Judiciais (Completa)	Consulta pública de processos judiciais, somente leitura, em servidor hospedado e proprietário	Glama	https://glama.ai/mcp/servers/slw8mkfgeq
+22	DataJud, TRF3 e jurisprudência	Servidores relacionados que validam número de processo CNJ via DataJud, consultam o TRF3 (pago por uso) e buscam em tribunais	Glama (páginas dos itens 20 e 21)	https://glama.ai/mcp/servers/z3jfob1ic1
+23	mcp-ibge-br (Pipeworx)	Dados do IBGE por gateway remoto	Glama	https://glama.ai/mcp/servers/dwb6utzs7l
+24	Base dos Dados e microdados IBGE	Servidores relacionados: a Base dos Dados (BigQuery) e microdados do IBGE com DuckDB local	Glama (página do item 23)	https://glama.ai/mcp/servers/dwb6utzs7l
+25	BCB BR MCP	Dados econômicos do Banco Central	mcp.so	https://mcp.so/tags/brazil
+26	bolsai	Dados do mercado de ações brasileiro (B3, CVM, BCB)	mcp.so	https://mcp.so/tags/brazil
+27	MCP NFSe Nacional	Consulta de notas de serviço no portal nacional nfse.gov.br	mcp.so	https://mcp.so/tags/brazil
+28	Brazil Invoice	Emissão de NFS-e por servidor remoto, via Focus NFe	mcp.so	https://mcp.so/tags/brazil
+29	MCP Dev Brasil (CodeSpar)	37 servidores para comércio com IA: meios de pagamento, fiscal, bancos, logística, ERP, identidade e cripto	mcp.so	https://mcp.so/zh/u/1f8c0001-353e-4cd1-b55b-2b388310e4dd
+30	MCP Dev LATAM (CodeSpar)	109 servidores e 2.289 ferramentas para a América Latina	mcp.so	https://mcp.so/zh/u/1f8c0001-353e-4cd1-b55b-2b388310e4dd 
+MCP Servers · Mcp-Brasil
+ +26
+
+Os melhores para o seu caso:
+
+Empresas: os itens 1, 4 e 7 consultam CNPJ, sanções e licitações.
+Processos: os itens 4, 20 e 21 consultam processos por número ou por parte empresarial.
+Chaves gratuitas: algumas fontes pedem cadastro, como DataJud e Portal da Transparência. O mcp-brasil informa que quatro APIs exigem chave gratuita e 66 funcionam sem chave. 
+dev
+
+Limitações:
+
+Nenhum consulta CPF de forma geral. Nada nessa lista descobre filhos, imóveis ou fichas por CPF. O item 4 expõe mandados do BNMP, que são dados públicos do CNJ, mas isso não substitui as certidões oficiais do arquivo que enviei.
+LGPD: o mcp-brasil não traz mascaramento de dados nem salvaguardas específicas da LGPD, e o cache local em DuckDB guarda os dados sem criptografia. Use apenas com CNPJ, processos públicos e o seu próprio CPF. 
+dev
+Segurança: servidores hospedados por terceiros, como os dos itens 20 e 21, recebem o que você consulta. Para dados sensíveis, prefira rodar localmente os de código aberto (itens 1, 4, 7 e 8).

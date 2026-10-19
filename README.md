@@ -1,6 +1,6 @@
 # escrivao
 
-> Dezesseis ferramentas de OSINT judicial brasileiro em um único arquivo Node.
+> Dezoito ferramentas de OSINT judicial brasileiro em um único arquivo Node.
 
 O escrivao é um servidor MCP (Model Context Protocol) autocontido para pesquisa
 em registros públicos judiciais brasileiros: DataJud/CNJ, DJEN, e-SAJ (TJSP),
@@ -143,7 +143,7 @@ confirmar instalação, contagem de ferramentas e saúde da rede em segundos.
 cmd /c "node <caminho>\escrivao-mcp\server.js < teste.jsonl"
 ```
 
-## Quais são as 16 ferramentas?
+## Quais são as 18 ferramentas?
 
 Uma paleta enxuta cobrindo o ciclo completo de uma pesquisa judicial: validar o
 número, desmascarar o que está oculto, consultar por número, nome, documento ou
@@ -154,7 +154,7 @@ ferramenta e sua fonte.
 | Ferramenta | O que faz | Fonte |
 |---|---|---|
 | `cnj_validar` | Valida número CNJ (Res. 65/2008, ISO 7064 MOD 97-10) e devolve o DV esperado + tribunal | — |
-| `cnj_desmascarar` | Quebra máscaras `000XXXX-XX.AAAA.J.TR.OOOO`: candidatos com DV válido e, opcionalmente, verificação numa única query `terms` no DataJud (fingerprint: órgão+classe+assunto+datas) | DataJud |
+| `cnj_desmascarar` | Quebra máscaras `000XXXX-XX.AAAA.J.TR.OOOO`: candidatos com DV válido, verificação numa única query `terms` no DataJud e LOOP — com `cpf`/`nome` cruza os candidatos com o pesquisado e marca VÍNCULO CONFIRMADO ou SEM âncora | DataJud |
 | `datajud_processo` | Capa do processo por número CNJ (tribunal detectado automaticamente) | DataJud |
 | `datajud_pesquisar` | Pesquisa estruturada: lista de números (terms), classe, assunto ou órgão julgador | DataJud |
 | `datajud_buscar` | Busca textual livre (query_string): nome exato entre aspas duplas, CPF formatado entre aspas, número; 3 tentativas para tribunais lentos | DataJud |
@@ -169,6 +169,8 @@ ferramenta e sua fonte.
 | `guia_navegacao` | Guia de navegação: links das regras do mantenedor (master rules, pasta de regras, prompt 8.5), fluxo validado com o MCP Playwright (captchas manuais, armadilhas do e-SAJ) e módulos de Python para scripts locais | — |
 | `guia_relatorios` | Técnicas de relatório/dossiê: HTML único autocontido (CSS/JS internos, sem PHP), padrão 8.5 adaptado, níveis de confirmação (CONFIRMADO/PROVÁVEL/POSSÍVEL HOMÔNIMO), pendências com próximo passo, cadeia de evidência, anti-homônimos e checklist de entrega | — |
 | `guia_instalacao` | Comandos prontos para instalar do zero: Node.js via winget (Windows 10/11), alternativas (choco/scoop/MSI, apt/dnf/brew), obtenção do servidor (git clone ou download do `server.js`), teste via stdin e registro nos clientes | — |
+| `jusbrasil_buscar` | Busca no Jusbrasil: HTTP quando passa; quando o Cloudflare bloqueia (403), devolve a rota pronta via browser (MCP Playwright) com a URL montada; números mascarados alimentam o loop do `cnj_desmascarar` | Jusbrasil |
+| `mcp_atualizar` | Autoatualização: baixa o `server.js` mais recente do GitHub, guarda backup (.bak) e substitui o arquivo; a nova versão sobe ao reiniciar o cliente | GitHub |
 
 ## Que atalhos de consulta pública existem?
 
@@ -318,6 +320,9 @@ real, e é assim que deve permanecer.
 - "Procure no e-SAJ por Zuliano da Silva Sauro (NMPARTE)"
 - "Consulte o CNPJ 00.000.000/0001-91" (número de documentação)
 - "Busque na web com a Exa: notícias sobre concursos públicos em 2024"
+- "Desmascare 000XXXX-XX.2024.8.26.0100 cruzando com o CPF 111.444.777-35 (loop)"
+- "Busque no Jusbrasil: Zuliano da Silva Sauro"
+- "Atualize o servidor com mcp_atualizar"
 
 ## Como monto o ambiente completo de pesquisa?
 
@@ -336,19 +341,71 @@ comando se autoinstala na primeira execução.
 | Exa | já embutido aqui (`exa_buscar`) ou `npx -y exa-mcp-server` | Busca neural (chave gratuita em https://exa.ai) |
 | Perplexity | remoto: `https://mcp.perplexity.ai/mcp` (uma vez: `opencode mcp auth perplexity`) | Consulta com citação de fontes |
 
+## Quais MCPs enriquecem a pesquisa por CPF/CNPJ?
+
+Servidores MCP externos, úteis para aprofundar uma investigação a partir do
+documento do pesquisado — imóveis, sanções, certidões e situação cadastral.
+São projetos e serviços de terceiros: verifique custos (créditos pré-pagos),
+LGPD e política de uso antes de consultar.
+
+| MCP/Serviço | O que traz | Acesso |
+|---|---|---|
+| MCP Brasil | 70 APIs públicas: BrasilAPI/CNPJ, DataJud, TSE bens de candidatos, sanções do Portal da Transparência, TCU, imóveis da União | https://github.com/Mcp-Brasil/mcp-brasil (`uvx --from mcp-brasil python -m mcp_brasil.server`) |
+| ONR / RI Digital (OFICIAL) | Pesquisa Nacional de Bens por CPF/CNPJ, Pesquisa Qualificada, Consulta de Indisponibilidade de Bens — matrículas de todo o Brasil | https://ridigital.org.br (créditos pré-pagos) |
+| ONR — Mapa do Registro de Imóveis | Conector MCP de terceiros para o mapa do RI | https://api.mcp.ai/p_onr_mapa_registro_imoveis (créditos pré-pagos) |
+| mcp.ai Consultas | Situação cadastral CPF/CNPJ, Simples/MEI, SINTEGRA, certidões (CND Federal, CNDT, FGTS), TCU, sanções OFAC/ONU/ICIJ | https://mcp.ai/consultas (créditos pré-pagos) |
+| mcp-fiscal-brasil | CNPJ, CPF, Simples Nacional, NF-e, certidões, due diligence | https://github.com/DeHor-Labs/mcp-fiscal-brasil |
+| mcp-dadosbr | OSINT: CNPJ, CEP, processos, contratos governamentais | https://github.com/cristianoaredes/mcp-dadosbr |
+| apipj | Dados cadastrais de CNPJ | https://apipj.com.br/mcp |
+| CPFHub | CPF: nome, situação cadastral na Receita Federal | https://www.cpfhub.io |
+| lakebrasil-mcp | 153 ferramentas: Transparência, TCU, DataJud, dados abertos | https://glama.ai/mcp/servers/r4szqk0atg |
+| brasil-data-mcp | BrasilAPI sem chave: CNPJ, CEP, corretoras CVM, IBGE | https://github.com/alanpcf/brasil-data-mcp |
+| OpenCNPJ / OpenCEP | Empresas (CNPJ) e endereços (CEP) | https://lobehub.com/mcp?q=brazil |
+| Catálogos (Glama, Smithery, LobeHub, mcp.so) | Descobrir mais MCPs brasileiros | https://glama.ai · https://smithery.ai · https://lobehub.com/mcp?q=brazil · https://mcp.so/tags/brazil |
+
+A ferramenta `guia_navegacao` devolve esta lista em tempo de execução para o
+agente combinar com as consultas daqui. **Segurança/LGPD:** servidores MCP
+*hospedados* por terceiros recebem o que você consulta — para dados
+sensíveis, rode localmente os de código aberto (mcp-brasil, mcp-dadosbr,
+brasil-data-mcp). A lista completa dos 31 MCPs catalogados, com as ressalvas
+de cada um, está espelhada em `regras/links.txt`.
+
+## Quais fontes oficiais de CPF existem?
+
+As rotas oficiais se dividem em três classes: públicas (qualquer pessoa, com o
+documento do pesquisado), de próprio titular (login gov.br — use apenas com o
+titular ou com autorização formal) e por requerimento (certidões). A lista
+completa com boas práticas está espelhada em `regras/links-consulta-proprio-cpf.txt`.
+
+| Rota | O que devolve | Acesso |
+|---|---|---|
+| Receita Federal — consulta pública | Situação cadastral (regular/pendente/cancelada/nula/titular falecido) — CPF + nascimento + captcha | https://servicos.receita.fazenda.gov.br/servicos/cpf/consultasituacao/consultapublica.asp |
+| Cenprot Nacional | Protestos em cartório por CPF/CNPJ | https://site.cenprotnacional.org.br |
+| ONR — pesquisa de bens | Matrículas de imóveis por CPF/CNPJ (créditos pré-pagos) | https://registradores.onr.org.br |
+| Certidão de distribuição | Distribuições em TJ/TRF/TRT por nome/CPF | portais dos tribunais |
+| Consumidor.gov.br | Reclamações contra empresas | https://www.consumidor.gov.br |
+| Registrato (BCB) | Contas, chaves Pix e empréstimos no CPF — PRÓPRIO TITULAR | https://www.bcb.gov.br/meubc/registrato |
+| Meu INSS (CNIS) | Vínculos e contribuições — PRÓPRIO TITULAR | https://meu.inss.gov.br |
+| Carteira de Trabalho Digital | Vínculos de emprego — PRÓPRIO TITULAR | https://www.gov.br/trabalho-e-emprego/pt-br/servicos/carteira-de-trabalho-digital |
+| Serasa / Boa Vista / Quod / SPC | Score e negativação do próprio CPF | https://www.serasa.com.br |
+| PF / TSE / CNDT | Antecedentes, certidão eleitoral, débitos trabalhistas — por requerimento | https://www.gov.br/pf/pt-br/assuntos/antecedentes-criminais |
+
+A ferramenta `fontes_osint` devolve esta classificação em tempo de execução.
+
 ## Qual o fluxo típico de uma investigação?
 
-O ciclo validado na prática tem sete passos, cada um com a ferramenta daqui.
-Homônimos ficam sempre separados dos achados do pesquisado, e nenhuma linha é
-marcada como confirmada sem data exata batendo em duas bases.
+Regra de ouro do servidor: o documento (CPF/CNPJ) manda — a busca principal é
+sempre pelo documento, o nome é complemento, e homônimo se elimina cruzando
+CPF/CNPJ, nunca por conjetura. O ciclo validado tem oito passos:
 
 1. `cnj_validar` — valida o DV e o tribunal antes de qualquer consulta.
-2. `cnj_desmascarar` — máscara `000XXXX-XX...` gera candidatos com DV válido, verificados numa única query no DataJud (fingerprint).
-3. `datajud_processo` / `datajud_pesquisar` — capa e metadados por número, classe, assunto ou órgão.
-4. `datajud_buscar` (nome exato entre aspas) e `datajud_varrer` (uma consulta em vários tribunais) — achados por nome ou documento.
-5. `djen_intimacoes` — intimações com texto integral revelam fatos e processos correlatos.
-6. `brasilapi_cnpj` e `exa_buscar` — contexto societário e de web para ancorar anti-homônimos.
-7. Relatório no padrão obrigatório do prompt 8.5 (seção abaixo), com nível de confirmação por linha.
+2. Documento primeiro (OBRIGATÓRIO): `datajud_por_cpf`, `datajud_buscar`/`datajud_varrer` com CPF/CNPJ entre aspas, `esaj_buscar` DOCPARTE.
+3. `datajud_buscar` (nome entre aspas) e `datajud_varrer` — achados por nome: só entram na lista principal se o documento cruzar; senão, POSSÍVEL HOMÔNIMO.
+4. `cnj_desmascarar` com o loop — máscara `000XXXX-XX...` + `cpf` e/ou `nome`: gera candidatos com DV válido, verifica no DataJud e marca os vinculados ao pesquisado.
+5. `jusbrasil_buscar` — agregador (rota via browser quando o Cloudflare bloqueia); números mascarados voltam para o passo 4.
+6. `djen_intimacoes` — intimações com texto integral revelam fatos, documentos e processos correlatos.
+7. `datajud_processo` / `datajud_pesquisar` — capa e metadados por número, classe, assunto ou órgão; `brasilapi_cnpj` e `exa_buscar` para contexto societário e de web.
+8. Relatório no padrão obrigatório do prompt 8.5 (seção abaixo), com nível de confirmação por linha.
 
 ## Qual o padrão obrigatório de relatório?
 
@@ -393,6 +450,9 @@ vários tribunais mascaram o CPF da parte. Os detalhes estão na lista abaixo.
   tribunais — a própria resposta sugere a rota alternativa.
 - BrasilAPI bloqueia o User-Agent padrão do Node; o servidor já envia header
   de navegador.
+- O Jusbrasil bloqueia HTTP puro (Cloudflare 403): `jusbrasil_buscar` devolve
+  a rota via browser (MCP Playwright) e os números vêm mascarados — use o
+  loop do `cnj_desmascarar` com `cpf`/`nome`.
 - Escavador, CEIS/CNEP, TSE e Receita exigem login/captcha/chave — não
   implementados aqui; ver `GUIA_OSINT.md` para as rotas manuais.
 
@@ -438,3 +498,14 @@ detalha as rotas alternativas por tribunal.
 No Windows 10/11: `winget install --id OpenJS.NodeJS.LTS -e` e reabra o
 terminal; sem winget, use o MSI de https://nodejs.org. A ferramenta
 `guia_instalacao` devolve os comandos prontos para Windows, Linux e macOS.
+
+**Por que o agente deve buscar pelo CPF/CNPJ e não pelo nome?**
+Porque nome produz homônimos e documento não. O protocolo do servidor (em
+`fontes_osint`) é obrigatório: a busca principal é sempre pelo documento,
+todas as fontes se cruzam, e achado por nome só vale com o CPF/CNPJ batendo —
+sem isso é POSSÍVEL HOMÔNIMO, sempre separado.
+
+**Como atualizo o escrivão já instalado?**
+Peça `mcp_atualizar` ao agente: o servidor baixa o `server.js` mais recente
+do GitHub, guarda um backup `.bak` e se substitui. Depois reinicie o cliente
+MCP para a nova versão subir.

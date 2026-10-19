@@ -1,4 +1,5 @@
 const readline = require('readline');
+const fs = require('fs');
 
 const DATAJUD_BASE = 'https://api-publica.datajud.cnj.jus.br';
 const DATAJUD_WIKI = 'https://datajud-wiki.cnj.jus.br/api-publica/acesso/';
@@ -7,6 +8,8 @@ const DJEN_BASE = 'https://comunicaapi.pje.jus.br/api/v1/comunicacao';
 const BRASILAPI_CNPJ = 'https://brasilapi.com.br/api/cnpj/v1/';
 const ESAJ_SEARCH = 'https://esaj.tjsp.jus.br/cpopg/search.do';
 const EXA_SEARCH = 'https://api.exa.ai/search';
+const JUSBRASIL_BUSCA = 'https://www.jusbrasil.com.br/busca?q=';
+const UPDATE_URL = 'https://raw.githubusercontent.com/canalqb/escrivao-mcp/main/server.js';
 
 const TRIBUNAIS = {
   '401': 'api_publica_trf1', '402': 'api_publica_trf2', '403': 'api_publica_trf3',
@@ -149,6 +152,13 @@ function hitsToArray(dados) {
   return (dados && dados.hits && Array.isArray(dados.hits.hits)) ? dados.hits.hits : [];
 }
 
+function avisoAncora(consulta) {
+  const n = digitsOnly(consulta);
+  if (n.length === 20) return 'Busca por NUMERO de processo (ancora unica) - sem risco de homonimo.';
+  if (n.length === 11 || n.length === 14) return 'DOCUMENTO (CPF/CNPJ) como ancora: correto pela regra do servidor. Cruze os achados com as demais fontes (DataJud + DJEN + e-SAJ + BrasilAPI) antes de marcar CONFIRMADO.';
+  return 'AVISO OBRIGATORIO: busca por NOME produz HOMONIMOS. Regra do servidor: achado por nome so vale com o CPF/CNPJ do pesquisado cruzando (datajud_por_cpf, esaj_buscar DOCPARTE ou datajud_buscar com o documento formatado entre aspas); sem documento que bata = POSSIVEL HOMONIMO, sempre separado no relatorio (protocolo em fontes_osint).';
+}
+
 function parseMask(mascara) {
   const t = String(mascara || '').trim().toUpperCase().replace(/\s+/g, '');
   const re = /^([0-9X]{7})-?([0-9X]{2})\.?([0-9X]{4})\.?([0-9X])\.?([0-9X]{2})\.?([0-9X]{4})$/;
@@ -216,10 +226,20 @@ async function toolCnjValidar(a) {
 
 async function toolCnjDesmascarar(a) {
   const cands = maskCandidates(a.mascara, a.limite || 200);
+  const doc = a.cpf ? digitsOnly(a.cpf) : '';
+  if (doc && doc.length !== 11 && doc.length !== 14) throw new Error('cpf deve ter 11 digitos (CPF) ou 14 (CNPJ).');
+  const nome = String(a.nome || '').trim();
+  const cruzar = Boolean(doc) || Boolean(nome);
+  const consultar = a.consultar_datajud === true || cruzar;
   let out = `Mascara: ${a.mascara}\nCandidatos com DV valido: ${cands.length}\n`;
-  if (!a.consultar_datajud) {
+  if (cruzar) {
+    out += doc
+      ? `Loop de cruzamento ATIVO por documento (${doc.length === 11 ? 'CPF' : 'CNPJ'}).\n`
+      : `Loop de cruzamento ATIVO por nome ("${nome}") - nome e ancora fraca: prefira o documento.\n`;
+  }
+  if (!consultar) {
     out += cands.map(c => formatCnj(c.numero)).join('\n');
-    out += '\n\nDica: passe consultar_datajud=true para verificar quais existem no DataJud (uma unica query terms).';
+    out += '\n\nDica: passe consultar_datajud=true (ou cpf/nome para cruzar) para verificar quais existem no DataJud.';
     return out;
   }
   const nums = cands.map(c => c.numero);
@@ -227,19 +247,56 @@ async function toolCnjDesmascarar(a) {
   const chunks = [];
   for (let i = 0; i < nums.length; i += 200) chunks.push(nums.slice(i, i + 200));
   const encontrados = [];
+  const vistos = new Set();
   for (const chunk of chunks) {
     const dados = await datajudSearch(endpoint, { query: { terms: { numeroProcesso: chunk } }, size: chunk.length + 10 });
     for (const h of hitsToArray(dados)) {
       const p = h._source || {};
-      const assuntos = Array.isArray(p.assunto) ? p.assunto.map(x => normName(x)).filter(Boolean).join('; ') : normName(p.assunto);
-      encontrados.push(
-        `${formatCnj(String(p.numeroProcesso))} | ${p.tribunal || ''} | classe: ${normName(p.classe)} | assuntos: ${assuntos} | orgao: ${normName(p.orgaoJulgador)} | ultima mov.: ${lastMovDate(p)}`
-      );
+      const n20 = String(p.numeroProcesso || '');
+      if (!n20 || vistos.has(n20)) continue;
+      vistos.add(n20);
+      encontrados.push(p);
+    }
+  }
+  const ancorados = new Set();
+  let ancoraDescricao = '';
+  let totalAncora = 0;
+  if (cruzar) {
+    const querys = [];
+    if (doc) {
+      const fmt = doc.length === 11
+        ? `${doc.slice(0, 3)}.${doc.slice(3, 6)}.${doc.slice(6, 9)}-${doc.slice(9)}`
+        : `${doc.slice(0, 2)}.${doc.slice(2, 5)}.${doc.slice(5, 8)}/${doc.slice(8, 12)}-${doc.slice(12)}`;
+      querys.push({ label: `documento "${fmt}"`, q: `"${fmt}"` });
+    }
+    if (nome) querys.push({ label: `nome "${nome}"`, q: `"${nome}"` });
+    for (const qs of querys) {
+      const d = await datajudSearch(endpoint, { query: { query_string: { query: qs.q } }, size: 100 });
+      const hitsA = hitsToArray(d);
+      totalAncora += hitsA.length;
+      hitsA.forEach(h => ancorados.add(String((h._source || {}).numeroProcesso || '')));
+      ancoraDescricao += (ancoraDescricao ? ' + ' : '') + qs.label;
     }
   }
   out += `\nExistentes no DataJud (${endpoint}): ${encontrados.length}\n`;
-  out += encontrados.length ? encontrados.join('\n') : 'Nenhum dos candidatos existe no tribunal consultado.';
-  out += '\n\nProximo passo: fingerprint dos existentes (orgao+classe+assunto+datas) contra os metadados da fonte que mascarou o numero.';
+  if (encontrados.length) {
+    const linhas = encontrados.map(p => {
+      const assuntos = Array.isArray(p.assunto) ? p.assunto.map(x => normName(x)).filter(Boolean).join('; ') : normName(p.assunto);
+      const base = `${formatCnj(String(p.numeroProcesso))} | ${p.tribunal || ''} | classe: ${normName(p.classe)} | assuntos: ${assuntos} | orgao: ${normName(p.orgaoJulgador)} | ultima mov.: ${lastMovDate(p)}`;
+      if (!cruzar) return base;
+      return (ancorados.has(String(p.numeroProcesso)) ? '[VINCULO CONFIRMADO] ' : '[SEM ancora no pesquisado - possivel homonimo/outra pessoa] ') + base;
+    });
+    out += linhas.join('\n');
+  } else {
+    out += 'Nenhum dos candidatos existe no tribunal consultado.';
+  }
+  if (cruzar) {
+    const nVinc = encontrados.filter(p => ancorados.has(String(p.numeroProcesso || ''))).length;
+    out += `\n\nResumo do loop: ${encontrados.length} candidato(s) existem; ${nVinc} com vinculo (${ancoraDescricao}); a busca pela ancora localizou ${totalAncora} processo(s) do pesquisado no tribunal.`;
+    out += '\nRegra: sem documento (CPF/CNPJ) batendo, no maximo PROVAVEL por fingerprint - nunca CONFIRMADO.';
+  } else {
+    out += '\n\nProximo passo: fingerprint dos existentes (orgao+classe+assunto+datas) contra os metadados da fonte que mascarou - ou passe cpf/nome para o loop confirmar o vinculo.';
+  }
   return out;
 }
 
@@ -300,6 +357,7 @@ async function toolDjenIntimacoes(a) {
     return b;
   }).join('\n');
   out += '\nDica: os textos integrais das intimacoes frequentemente citam numeros de processos correlatos - mina de ouro para desmascarar.';
+  out += `\n\n${avisoAncora(a.nome_parte)}`;
   return out;
 }
 
@@ -339,6 +397,7 @@ async function toolDatajudBuscar(a) {
   let out = `DataJud ${endpoint}: ${total} resultado(s)\n`;
   out += hits.map(h => fmtResumo(h._source || {})).join('\n');
   if (!hits.length) out += 'Nenhum resultado. Dicas: nome exato entre aspas duplas ("NOME COMPLETO"), CPF formatado entre aspas ("000.000.000-00") ou numero CNJ de 20 digitos.';
+  out += `\n\n${avisoAncora(consulta)}`;
   return out;
 }
 
@@ -401,6 +460,7 @@ async function toolDatajudVarrer(a) {
   let out = `Varredura "${consulta}" em ${alvos.length} tribunal(is): ${ok} consultados, ${falhas} falha(s)\n\n`;
   out += linhas.join('\n');
   out += '\n\nDicas: nome exato entre aspas duplas elimina homonimos; CPF formatado entre aspas ("000.000.000-00") e o modo mais preciso. Para documento da parte use datajud_por_cpf por tribunal.';
+  out += `\n\n${avisoAncora(consulta)}`;
   return out;
 }
 
@@ -424,6 +484,11 @@ async function toolEsajBuscar(a) {
   const trecho = i >= 0 ? plano.slice(i, i + 3000) : plano.slice(0, 3000);
   let out = `e-SAJ TJSP - ${total} processo(s) encontrado(s) para "${valor}" (tipo ${tipo}):\n${trecho}`;
   if (numeros.length) out += `\n\nNumeros listados (${numeros.length}):\n${[...new Set(numeros)].join('\n')}`;
+  out += `\n\n${tipo === 'DOCPARTE'
+    ? 'DOCUMENTO como ancora: correto pela regra do servidor - cruze com DataJud/DJEN antes de marcar CONFIRMADO.'
+    : tipo === 'NMPARTE'
+      ? 'AVISO OBRIGATORIO: busca por NOME produz HOMONIMOS - filtre pelo CPF/CNPJ do pesquisado (DOCPARTE ou datajud_por_cpf); sem documento que bate = POSSIVEL HOMONIMO (protocolo em fontes_osint).'
+      : 'Busca por NUMERO: ancora unica.'}`;
   return out;
 }
 
@@ -444,6 +509,86 @@ async function toolExaBuscar(a) {
   return res.map(r => `${r.title || ''} — ${r.url || ''}\n  ${((r.highlights || [''])[0] || '').slice(0, 300)}`).join('\n');
 }
 
+async function toolJusbrasilBuscar(a) {
+  const consulta = String(a.consulta || '').trim();
+  if (!consulta) throw new Error('Informe a consulta: nome exato entre aspas duplas, CPF/CNPJ formatado entre aspas ou termo livre.');
+  const url = JUSBRASIL_BUSCA + encodeURIComponent(consulta);
+  const rotaBrowser = [
+    'Jusbrasil bloqueia HTTP puro (Cloudflare "Just a moment", 403) - use o BROWSER (MCP Playwright):',
+    `1. browser_navigate: ${url}`,
+    '2. browser_snapshot / browser_find: procure links de /processos/, /diarios/, /topicos/ e o padrao "Processo no.".',
+    '3. O Jusbrasil MASCARA numeros de processo (digitos ocultos como XXXX) conforme o plano - anote a mascara exata.',
+    '4. Alimente o loop: cnj_desmascarar com a mascara + cpf (e/ou nome) - o servidor gera os candidatos com DV valido, verifica no DataJud e marca o processo do pesquisado.',
+    '',
+    'Consulta ideal: CPF/CNPJ formatado entre aspas duplas (ancora por documento, regra do servidor); nome entre aspas so como complemento.'
+  ].join('\n');
+  let html = '';
+  let bloqueado = false;
+  try {
+    html = await fetchWithTimeout(url, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36', 'Accept': 'text/html', 'Accept-Language': 'pt-BR,pt;q=0.9' } }, 45000);
+  } catch (e) {
+    if (/HTTP 40[03]|HTTP 429/.test(String(e))) bloqueado = true;
+    else throw e;
+  }
+  if (!bloqueado && /Just a moment|challenges\.cloudflare|Enable JavaScript/.test(html)) bloqueado = true;
+  if (bloqueado) return rotaBrowser + '\n\n' + avisoAncora(consulta);
+  const itens = [];
+  const vistos = new Set();
+  const re = /<a[^>]+href="(https?:\/\/(?:[\w-]+\.)*jusbrasil\.com\.br\/[^"#?]+)"[^>]*>([^<]{4,180})<\/a>/g;
+  let m;
+  while ((m = re.exec(html)) && itens.length < 25) {
+    if (/\/(login|registro|assinaturas|planos|cadastrar)/.test(m[1])) continue;
+    const chave = m[1].replace(/\/$/, '');
+    if (vistos.has(chave)) continue;
+    vistos.add(chave);
+    itens.push(`- ${m[2].replace(/\s+/g, ' ').trim()}\n  ${m[1]}`);
+  }
+  const completos = [...new Set(html.match(/\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}/g) || [])];
+  const mascarados = [...new Set(html.match(/(?:\d{0,7}X{1,7}|X{2,7})-?(?:XX|\d{0,2})\.\d{4}\.\d\.\d{2}\.\d{4}/g) || [])];
+  let out = `Jusbrasil (via HTTP): "${consulta}"\n`;
+  if (itens.length) {
+    out += `\nResultados (${itens.length}):\n`;
+    out += itens.join('\n');
+  } else {
+    out += '\nSem itens extraidos via HTTP (a pagina renderiza via JavaScript e/ou limita bots).\n';
+    out += '\n' + rotaBrowser;
+  }
+  if (completos.length) out += `\n\nNumeros completos na pagina (${completos.length}):\n${completos.join('\n')}`;
+  if (mascarados.length) out += `\n\nNumeros MASCARADOS na pagina (${mascarados.length}) - use cnj_desmascarar (loop cpf/nome):\n${mascarados.join('\n')}`;
+  out += `\n\n${avisoAncora(consulta)}`;
+  return out;
+}
+
+async function toolMcpAtualizar(a) {
+  const url = (a && a.fonte ? String(a.fonte).trim() : '') || UPDATE_URL;
+  const novo = await fetchWithTimeout(url, { headers: { 'User-Agent': 'escrivao-mcp-updater' } }, 60000);
+  const vRe = /version:\s*'([0-9][0-9.]*)'/;
+  const caminho = __filename;
+  let atual = '';
+  try { atual = fs.readFileSync(caminho, 'utf8'); } catch (e) { /* primeira execucao sem leitura */ }
+  const vAtual = (atual.match(vRe) || [])[1] || '?';
+  const vNova = (novo.match(vRe) || [])[1] || '?';
+  if (atual && novo.trim() === atual.trim()) {
+    return `Servidor ja esta na versao mais recente (v${vAtual}). Nada a fazer.`;
+  }
+  let bak = '';
+  try {
+    if (atual) { bak = caminho + '.bak'; fs.writeFileSync(bak, atual); }
+  } catch (e) { bak = ''; }
+  try {
+    fs.writeFileSync(caminho, novo);
+  } catch (e) {
+    const alt = caminho + '.novo';
+    fs.writeFileSync(alt, novo);
+    return `Nao foi possivel substituir ${caminho} (${String(e && e.code ? e.code : e)}). Nova versao salva em ${alt} - substitua manualmente e reinicie o cliente MCP.`;
+  }
+  return [
+    `Atualizacao concluida: v${vAtual} -> v${vNova}${bak ? ` (backup: ${bak})` : ''}`,
+    'A instancia em memoria continua na versao antiga ate o processo terminar.',
+    `REINICIE o cliente MCP (opencode/kimi-code/Claude/Cursor) para a v${vNova} subir e confira com tools/list.`
+  ].join('\n');
+}
+
 async function toolEsajGuia() {
   return [
     'FLUXO VALIDADO - CONSULTA PUBLICA e-SAJ TJSP (sem captcha para numero de processo):',
@@ -462,6 +607,13 @@ async function toolEsajGuia() {
 
 async function toolFontesOsint() {
   return [
+    'PROTOCOLO OBRIGATORIO DE PESQUISA (vale para TODA consulta feita com este servidor):',
+    '1. DOCUMENTO MANDA: havendo CPF/CNPJ do pesquisado, a busca PRINCIPAL e pelo DOCUMENTO (datajud_por_cpf; datajud_buscar/datajud_varrer com o CPF formatado entre aspas; esaj_buscar DOCPARTE). Nome e apenas complemento.',
+    '2. HOMONIMO SE ELIMINA POR CPF/CNPJ: achado de busca por nome sem documento que bata = POSSIVEL HOMONIMO - nunca entra na lista principal do relatorio.',
+    '3. CRUZAMENTO OBRIGATORIO: nenhuma afirmacao de vinculo sem cruzar DataJud + DJEN + e-SAJ + BrasilAPI (CNPJ) + web (jusbrasil_buscar, exa_buscar).',
+    '4. CONFIRMADO so com documento (CPF/CNPJ) exato batendo; sem documento, no maximo PROVAVEL (fingerprint orgao+classe+assunto+datas).',
+    '5. NUMERO MASCARADO (XXXX): cnj_desmascarar com o LOOP - passe a mascara + cpf e/ou nome; o servidor gera candidatos, verifica no DataJud e marca os vinculados ao pesquisado. Vale para mascara de qualquer fonte (Jusbrasil, Escavador, documentos).',
+    '',
     'BASES PUBLICAS (onde achar):',
     '- API publica DataJud/CNJ: https://api-publica.datajud.cnj.jus.br (endpoint api_publica_{tjsp|tjpr|...}/_search; chave publica na wiki https://datajud-wiki.cnj.jus.br/api-publica/acesso/). LIMITACAO: campo "partes" vem vazio - classifique por orgao+classe+assunto+datas (fingerprint).',
     '- DJEN/CNJ: https://comunicaapi.pje.jus.br/api/v1/comunicacao?nomeParte=... - intimacoes com TEXTO INTEGRAL (sentencas completas); citam numeros correlatos.',
@@ -470,6 +622,21 @@ async function toolFontesOsint() {
     '- Diarios oficiais (DJSP e equivalentes): editais de citacao, publicacoes de sentenca.',
     '- Escavador: agregador (paywall; mascara numeros conforme plano; login 2FA; numeros RELACIONADOS costumam aparecer completos).',
     '- Pendentes com chave/captcha: CEIS/CNEP (API key gratuita), TSE (filiacao/doacoes), Receita Federal (captcha), cartorios/registro civil.',
+    '',
+    'FONTES OFICIAIS DE CPF (rotas validadas - classificadas por QUEM pode consultar; espelho completo em regras/links-consulta-proprio-cpf.txt):',
+    '- TERCEIRO (publicas, legais, com o documento do pesquisado):',
+    '  * Situacao cadastral na Receita (CPF + data de nascimento + CAPTCHA - rota browser com captcha manual): regular/pendente/cancelada/nula/titular falecido + data de inscricao: https://servicos.receita.fazenda.gov.br/servicos/cpf/consultasituacao/consultapublica.asp',
+    '  * Protestos em cartorio por CPF/CNPJ (Cenprot Nacional): https://site.cenprotnacional.org.br',
+    '  * Pesquisa de bens do ONR (matriculas por CPF/CNPJ, creditos pre-pagos): https://registradores.onr.org.br e https://ridigital.org.br',
+    '  * Certidao de distribuicao por tribunal (TJ/TRF/TRT) - localize via DataJud/e-SAJ aqui e formalize no portal do tribunal.',
+    '  * Reclamacoes contra EMPRESAS (Consumidor.gov.br, consulta por CNPJ/razao social): https://www.consumidor.gov.br',
+    '- PROPRIO TITULAR (login gov.br do pesquisado - use apenas com o titular ou autorizacao formal; NUNCA para terceiro sem base legal):',
+    '  * Registrato BCB (contas, chaves Pix, emprestimos no CPF): https://www.bcb.gov.br/meubc/registrato | Valores a Receber: https://valoresareceber.bcb.gov.br',
+    '  * Meu INSS/CNIS (vinculos e contribuicoes): https://meu.inss.gov.br | Carteira de Trabalho Digital: https://www.gov.br/trabalho-e-emprego/pt-br/servicos/carteira-de-trabalho-digital',
+    '  * Score/negativacao do proprio CPF: https://www.serasa.com.br | https://www.boavistaservicos.com.br | https://www.quod.com.br | https://www.spcbrasil.org.br',
+    '  * Certidao de situacao fiscal federal (PGFN): https://solucoes.receita.fazenda.gov.br/Servicos/certidaointernet/PF/Emitir',
+    '- POR REQUERIMENTO (terceiro sem login): antecedentes PF (https://www.gov.br/pf/pt-br/assuntos/antecedentes-criminais), certidoes eleitorais TSE (https://www.tse.jus.br/servicos-eleitorais/certidoes), CNDT/TST (https://www.tst.jus.br/certidao).',
+    '- Regra LGPD: rotas de PROPRIO TITULAR sem autorizacao sao vedadas; as de TERCEIRO acima sao publicas e legais - sempre registre data/hora da consulta.',
     'ATALHOS NACIONAIS (consulta por tribunal):',
     '- PJe navegador (todos os tribunais PJe): https://www.pje.jus.br/navegador/',
     '- PJe CNJ consulta publica: https://sustentacao.cloud.cnj.jus.br/pjecnj/ConsultaPublica',
@@ -521,6 +688,22 @@ async function toolGuiaNavegacao() {
     '- Perplexity (remoto): "https://mcp.perplexity.ai/mcp" - rodar "opencode mcp auth perplexity" uma vez.',
     '- REGRA: o escrivao cobre DataJud/DJEN/e-SAJ/CNPJ/mascara CNJ - NAO duplique essas funcoes em outro MCP; os companheiros entram como recursos complementares.',
     '',
+    'MCPS DE ENRIQUECIMENTO POR CPF/CNPJ (externos - verifique LGPD/custos antes de usar):',
+    '- MCP Brasil (70 APIs publicas: BrasilAPI/CNPJ, DataJud, TSE bens de candidatos, sancoes do Portal da Transparencia, TCU, imoveis da Uniao): https://github.com/Mcp-Brasil/mcp-brasil | uvx --from mcp-brasil python -m mcp_brasil.server',
+    '- ONR/RI Digital (OFICIAL: Pesquisa Nacional de Bens por CPF/CNPJ, Pesquisa Qualificada, Consulta de Indisponibilidade de Bens; creditos pre-pagos): https://ridigital.org.br',
+    '- ONR Mapa do Registro de Imoveis (conector MCP de terceiros, creditos pre-pagos): https://api.mcp.ai/p_onr_mapa_registro_imoveis',
+    '- mcp.ai Consultas (situacao cadastral CPF/CNPJ, Simples/MEI, SINTEGRA, certidoes CND Federal/CNDT/FGTS, TCU, sancoes OFAC/ONU/ICIJ; creditos pre-pagos): https://mcp.ai/consultas',
+    '- mcp-fiscal-brasil (CNPJ, CPF, Simples Nacional, NF-e, certidoes, due diligence de fornecedores): https://github.com/DeHor-Labs/mcp-fiscal-brasil',
+    '- mcp-dadosbr (OSINT: CNPJ, CEP, processos, contratos governamentais, indicadores): https://github.com/cristianoaredes/mcp-dadosbr',
+    '- apipj (dados cadastrais de CNPJ): https://apipj.com.br/mcp',
+    '- CPFHub (CPF: nome, genero, situacao cadastral na Receita Federal): https://www.cpfhub.io',
+    '- lakebrasil-mcp (153 ferramentas: Transparencia, TCU, DataJud, portais de dados abertos): https://glama.ai/mcp/servers/r4szqk0atg',
+    '- brasil-data-mcp (BrasilAPI sem chave: CNPJ, CEP, corretoras CVM, IBGE, feriados, dominios .br): https://github.com/alanpcf/brasil-data-mcp',
+    '- OpenCNPJ/OpenCEP (empresas e enderecos): https://lobehub.com/mcp?q=brazil',
+    '- CNJ SEEU - processos (servidor HOSPEDADO de terceiros): https://glama.ai/mcp/servers/z3jfob1ic1',
+    '- Catalogos para descobrir mais MCPs brasileiros: https://glama.ai | https://smithery.ai | https://lobehub.com/mcp?q=brazil | https://mcp.so/tags/brazil',
+    '- SEGURANCA/LGPD: servidores HOSPEDADOS recebem o que voce consulta - para dados sensiveis rode LOCAL os de codigo aberto (mcp-brasil, mcp-dadosbr, brasil-data-mcp, brasil-api-mcp). O mcp-dadosbr expoe mandados do BNMP (dados publicos do CNJ). Lista completa dos 31 catalogados em regras/links.txt.',
+    '',
     'LINKS EXTERNOS (recursos de apoio):',
     '- Escavador (agregador, paywall): https://www.escavador.com',
     '- Jusbrasil: https://www.jusbrasil.com.br',
@@ -568,7 +751,7 @@ async function toolGuiaRelatorios() {
     '',
     '3. TABELAS DE PROCESSOS (o coracao do relatorio):',
     '- Colunas padrao: numero CNJ | tribunal/foro | classe | assunto | orgao julgador | data ajuizamento | status | fonte | nivel de confirmacao.',
-    '- Nivel de confirmacao em 3 graus: CONFIRMADO (documento/fonte chaveada), PROVAVEL (fingerprint: orgao+classe+assunto+datas coerentes), POSSIVEL HOMONIMO (sem ancora anti-homonimo - marcar e separar).',
+    '- Nivel de confirmacao em 3 graus: CONFIRMADO (CPF/CNPJ do pesquisado batendo exatamente na fonte), PROVAVEL (sem documento, mas fingerprint orgao+classe+assunto+datas coerente), POSSIVEL HOMONIMO (sem ancora por documento - marcar e separar). Regra: sem documento cruzado, nunca CONFIRMADO.',
     '- Numeros mascarados da fonte original exibidos AO LADO do numero desmascarado (cadeia de evidencia).',
     '- JS interno: filtro por status e busca textual na pagina (input + listener em todas as linhas da tabela via data-attributes).',
     '',
@@ -625,7 +808,7 @@ async function toolGuiaInstalacao() {
     '',
     '6. TESTAR SEM CLIENTE (stdin JSON-RPC):',
     '   echo {"jsonrpc":"2.0","id":1,"method":"tools/list"} | node server.js',
-    '   Deve responder 16 ferramentas. Suite completa de teste no README (secao "Como valido o servidor sem cliente?").',
+    '   Deve responder 18 ferramentas. Suite completa de teste no README (secao "Como valido o servidor sem cliente?").',
     '',
     '7. REGISTRAR NO CLIENTE MCP (apos o teste passar):',
     '   node <caminho-absoluto>/escrivao-mcp/server.js  -  receitas por cliente (opencode, kimi-code, Claude Desktop, Cursor) no README.',
@@ -644,12 +827,14 @@ const TOOLS = [
   },
   {
     name: 'cnj_desmascarar',
-    description: 'Quebra numeros mascarados: recebe uma mascara com X (ex.: 000XXXX-XX.2024.8.26.0100), gera todos os candidatos com DV valido e, opcionalmente, verifica numa unica query terms quais existem no DataJud (orgao, classe, assunto e datas para fingerprint). Ferramenta generica.',
+    description: 'Quebra numeros mascarados: recebe uma mascara com X (ex.: 000XXXX-XX.2024.8.26.0100), gera todos os candidatos com DV valido e verifica numa unica query terms quais existem no DataJud. LOOP: passe cpf (CPF/CNPJ) e/ou nome para cruzar os candidatos com o pesquisado - o resultado marca cada processo como VINCULO CONFIRMADO ou SEM ancora (possivel homonimo). Vale para mascara de qualquer fonte (Jusbrasil, Escavador, documentos).',
     inputSchema: {
       type: 'object',
       properties: {
         mascara: { type: 'string', description: 'Mascara NNNNNNN-DD.AAAA.J.TR.OOOO com X nos digitos desconhecidos (ano/segmento/tribunal/foro devem ser conhecidos)' },
-        consultar_datajud: { type: 'boolean', description: 'Se true, consulta o DataJud com os candidatos (default: false)' },
+        consultar_datajud: { type: 'boolean', description: 'Se true, consulta o DataJud com os candidatos (default: false; passa a true quando cpf/nome informados)' },
+        cpf: { type: 'string', description: 'CPF (11) ou CNPJ (14) do pesquisado - ativa o loop de cruzamento (ancora preferida)' },
+        nome: { type: 'string', description: 'Nome exato do pesquisado - ancora secundaria quando nao houver documento' },
         limite: { type: 'number', description: 'Maximo de candidatos (default 200, max 2000)' }
       },
       required: ['mascara']
@@ -690,7 +875,7 @@ const TOOLS = [
   },
   {
     name: 'datajud_buscar',
-    description: 'Busca textual livre no DataJud (query_string do Elastic): nome exato entre aspas duplas ("NOME COMPLETO"), CPF formatado entre aspas ("000.000.000-00"), numero de 20 digitos (match exato) ou termo qualquer. O TJSP costuma responder lento (a ferramenta faz 3 tentativas). A API publica omite as PARTES em muitos processos.',
+    description: 'Busca textual livre no DataJud (query_string do Elastic): nome exato entre aspas duplas ("NOME COMPLETO"), CPF formatado entre aspas ("000.000.000-00"), numero de 20 digitos (match exato) ou termo qualquer. O TJSP costuma responder lento (a ferramenta faz 3 tentativas). A API publica omite as PARTES em muitos processos. REGRA DO SERVIDOR: havendo CPF/CNPJ do pesquisado, a ancora e o documento entre aspas - achado por nome so vale com documento cruzando.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -704,7 +889,7 @@ const TOOLS = [
   },
   {
     name: 'datajud_por_cpf',
-    description: 'Busca processos pelo CPF/CNPJ da parte no DataJud (campo partes.pessoa.documentoReplicado). Muitos tribunais mascaram esse campo e retornam 0 - nesse caso a resposta sugere a rota alternativa (datajud_buscar com o documento formatado entre aspas).',
+    description: 'Busca processos pelo CPF/CNPJ da parte no DataJud (campo partes.pessoa.documentoReplicado). Muitos tribunais mascaram esse campo e retornam 0 - nesse caso a resposta sugere a rota alternativa (datajud_buscar com o documento formatado entre aspas). Rota de ancora por documento - OBRIGATORIA sempre que existir CPF/CNPJ do pesquisado.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -718,7 +903,7 @@ const TOOLS = [
   },
   {
     name: 'djen_intimacoes',
-    description: 'Consulta intimacoes/comunicacoes oficiais (DJEN/CNJ) pelo nome da parte. Retorna textos (frequentemente sentencas integrais) que citam numeros de processos correlatos - tecnica chave para desmascarar numeros ocultos.',
+    description: 'Consulta intimacoes/comunicacoes oficiais (DJEN/CNJ) pelo nome da parte. Retorna textos (frequentemente sentencas integrais) que citam numeros de processos correlatos - tecnica chave para desmascarar numeros ocultos. O retorno traz o aviso anti-homonimo: cruze pelo CPF/CNPJ.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -746,7 +931,7 @@ const TOOLS = [
   },
   {
     name: 'datajud_varrer',
-    description: 'Varre UMA consulta em VARIOS tribunais de uma vez (uma chamada, N buscas). Ideal para nome exato entre aspas ou CPF formatado entre aspas - economiza dezenas de chamadas individuais. Default: 11 tribunais (tjsp, tjpr, tjsc, tjba, tjpi, tjmg, tjrs, tjrj, trt2, trt9, trt15); passe tribunais="tjsp,tjpr" para escolher ou todos_tribunais=true para todos os mapeados. Erros por tribunal nao abortam a varredura.',
+    description: 'Varre UMA consulta em VARIOS tribunais de uma vez (uma chamada, N buscas). Ideal para nome exato entre aspas ou CPF formatado entre aspas - economiza dezenas de chamadas individuais. Default: 11 tribunais (tjsp, tjpr, tjsc, tjba, tjpi, tjmg, tjrs, tjrj, trt2, trt9, trt15); passe tribunais="tjsp,tjpr" para escolher ou todos_tribunais=true para todos os mapeados. Erros por tribunal nao abortam a varredura. REGRA: CPF/CNPJ entre aspas e a consulta preferida; achado por nome exige cruzamento por documento.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -761,7 +946,7 @@ const TOOLS = [
   },
   {
     name: 'esaj_buscar',
-    description: 'Consulta anonima do 1o grau do TJSP (e-SAJ) por nome da parte (NMPARTE), CPF/CNPJ (DOCPARTE) ou numero (NUMPROC), via HTTP direto. LIMITACAO: a consulta anonima SUPRIME partes de processos criminais (sigilo legal).',
+    description: 'Consulta anonima do 1o grau do TJSP (e-SAJ) por nome da parte (NMPARTE), CPF/CNPJ (DOCPARTE) ou numero (NUMPROC), via HTTP direto. LIMITACAO: a consulta anonima SUPRIME partes de processos criminais (sigilo legal). REGRA: com CPF/CNPJ use DOCPARTE (ancora); NMPARTE (nome) produz possiveis homonimos.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -788,7 +973,7 @@ const TOOLS = [
   },
   {
     name: 'fontes_osint',
-    description: 'Guia rapido: bases publicas de pesquisa (onde achar), rotas por tribunal, tecnicas validadas (como buscar) e regras de etica/LGPD.',
+    description: 'Guia rapido: bases publicas de pesquisa (onde achar), rotas por tribunal, tecnicas validadas (como buscar) e regras de etica/LGPD. ABRE COM O PROTOCOLO OBRIGATORIO: documento (CPF/CNPJ) primeiro, cruzamento total das fontes, homonimo eliminado por documento.',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
     _run: toolFontesOsint
   },
@@ -809,6 +994,30 @@ const TOOLS = [
     description: 'Comandos prontos para instalar tudo do zero: Node.js via winget (Windows 10/11), alternativas (choco/scoop/MSI, apt/dnf/brew), obtencao deste servidor (git clone ou download do server.js), teste via stdin e registro nos clientes MCP. Use quando o usuario ou o agente nao possuir Node ou o escrivao.',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
     _run: toolGuiaInstalacao
+  },
+  {
+    name: 'jusbrasil_buscar',
+    description: 'Busca no Jusbrasil (agregador de processos, diarios e noticias): tenta via HTTP e, quando o Cloudflare bloqueia (403), devolve a rota pronta via browser (MCP Playwright) com a URL montada. Os numeros de processo do Jusbrasil vem MASCARADOS (XXXX) - alimente o loop do cnj_desmascarar com cpf/nome.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        consulta: { type: 'string', description: 'Nome completo entre aspas duplas, CPF/CNPJ formatado entre aspas ou termo livre' }
+      },
+      required: ['consulta']
+    },
+    _run: toolJusbrasilBuscar
+  },
+  {
+    name: 'mcp_atualizar',
+    description: 'Autoatualizacao do servidor: baixa a ultima versao do server.js direto do GitHub (canalqb/escrivao-mcp), guarda backup (.bak) e substitui o arquivo local; a nova versao sobe apos reiniciar o cliente MCP.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        fonte: { type: 'string', description: 'URL alternativa do server.js (opcional; default: GitHub oficial)' }
+      },
+      additionalProperties: false
+    },
+    _run: toolMcpAtualizar
   }
 ];
 
@@ -816,7 +1025,7 @@ function send(obj) { process.stdout.write(JSON.stringify(obj) + '\n'); }
 
 async function handle(msg) {
   if (msg.method === 'initialize') {
-    return { protocolVersion: '2024-11-05', capabilities: { tools: {} }, serverInfo: { name: 'escrivao', version: '1.7.0' } };
+    return { protocolVersion: '2024-11-05', capabilities: { tools: {} }, serverInfo: { name: 'escrivao', version: '1.8.0' } };
   }
   if (msg.method === 'ping') return {};
   if (msg.method === 'tools/list') return { tools: TOOLS.map(t => ({ name: t.name, description: t.description, inputSchema: t.inputSchema })) };
