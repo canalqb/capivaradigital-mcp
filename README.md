@@ -414,16 +414,17 @@ passos:
 ## Qual o padrão obrigatório de relatório?
 
 OBRIGATÓRIO: todo relatório ou dossiê gerado com dados deste servidor segue o
-prompt 8.5, espelhado em `regras/prompt_8_5.md` (original em
-https://docs.google.com/document/d/1hRoAQEZnKufWdUnzwTxuuwjbAA05sAfTf2oY1MnIky4/edit).
-O formato padrão é UM único arquivo HTML autocontido — apenas HTML, CSS e JS
-internos, sem PHP, sem arquivos separados, sem CDN — que abre offline; outro
-formato (PDF, DOCX etc.) só quando você pedir explicitamente.
+prompt 8.5 (espelhado em `regras/prompt_8_5.md`) E as estruturas do
+`master_rules.md` adaptadas ao HTML estático — sem PHP. O formato padrão é UM
+único arquivo HTML autocontido — apenas HTML, CSS e JS internos, sem PHP, sem
+arquivos separados, sem CDN — que abre offline; outro formato (PDF, DOCX etc.)
+só quando você pedir explicitamente.
 
 - Cabeçalho com nome do pesquisado, data de geração e TL;DR de 3 bullets (registros, confirmações, pendências).
 - Seções com título em forma de pergunta e resposta curta (40-60 palavras) antes do detalhe; FAQ ao final; zero emojis; PT-BR objetivo.
 - Tabela de processos: número CNJ | tribunal/foro | classe | assunto | órgão julgador | ajuizamento | status | fonte | nível de confirmação — com filtro por status e busca textual via JS interno.
 - Níveis de confirmação: CONFIRMADO (fonte chaveada, datas exatas em 2+ bases), PROVÁVEL (fingerprint coerente), POSSÍVEL HOMÔNIMO (sem âncora — PROIBIDO na lista principal; sempre em seção separada).
+- Estruturas do master_rules.md: semântica W3C (`<main>`, `<section>`, `<article>`), WCAG AA com contraste, temas claro e escuro com alternância + persistência (localStorage), CSS sem duplicatas, zero `alert()` (JS interno usa showToast) e títulos `<h2>` em pergunta com resposta de 40-60 palavras.
 - Cadeia de evidência: número mascarado ao lado do desmascarado; toda afirmação cita fonte e data-hora; HTML/PDF brutos salvos.
 - Pendências obrigatórias com o próximo passo concreto de cada item.
 - A ferramenta `guia_relatorios` devolve este padrão completo em tempo de execução.

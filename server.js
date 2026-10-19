@@ -735,7 +735,7 @@ async function toolGuiaNavegacao() {
 
 async function toolGuiaRelatorios() {
   return [
-    'OBRIGACAO (prompt 8.5): todo relatorio/dossie gerado com dados deste servidor segue OBRIGATORIAMENTE o padrao 8.5 - espelho local em regras/prompt_8_5.md; protocolo central em regras/master_rules.md (original no Drive, ver guia_navegacao).',
+    'OBRIGACAO (prompt 8.5 + master_rules.md): todo relatorio/dossie gerado com dados deste servidor segue OBRIGATORIAMENTE o padrao 8.5 E as estruturas do master_rules.md adaptadas ao HTML estatico (SEM PHP) - espelhos locais em regras/prompt_8_5.md e regras/master_rules.md (originais no Drive, ver guia_navegacao).',
     'FORMATO PADRAO: UM unico arquivo HTML autocontido - apenas HTML, CSS e JS INTERNOS (tags <style> e <script> embutidas), sem PHP, sem arquivos separados, sem CDN - abrindo offline; outro formato (PDF, DOCX etc.) SOMENTE quando o usuario pedir explicitamente.',
     '',
     'TECNICAS DE RELATORIO (validadas na pratica - dossies de investigacao judicial):',
@@ -744,6 +744,14 @@ async function toolGuiaRelatorios() {
     '- UM arquivo .html com CSS e JS EMBUTIDOS (tags <style> e <script> internas); NUNCA PHP, nunca arquivos separados, nunca CDN externo - o relatorio abre offline em qualquer navegador.',
     '- <meta charset="utf-8"> obrigatorio; titulo com nome do pesquisado e data de geracao no <title> e no cabecalho.',
     '- Estrutura semantica: <header>, <nav> com ancora por secao, <main>, <section id> por tema, <footer> com data/hora da geracao e aviso de uso interno.',
+    '- ESTRUTURAS OBRIGATORIAS DO master_rules.md ADAPTADAS AO RELATORIO (sem PHP):',
+    '  * Semantica W3C: <main>, <section>, <article> (alem de <header>/<nav>/<footer>).',
+    '  * Acessibilidade: ARIA labels e WCAG AA - contraste garantido (fundo escuro -> fonte clara; fundo claro -> fonte escura) em todos os estados.',
+    '  * Temas claro E escuro: obrigatorios, com alternancia dinamica (botao no cabecalho) e persistencia via localStorage.',
+    '  * JS interno: ZERO alert()/confirm()/prompt() - aviso via showToast() (toast em CSS/JS embutidos).',
+    '  * CSS sem duplicatas: cada seletor em um bloco unico; duplicatas aceitaveis apenas para dark mode ([data-theme="dark"]), media queries e pseudo-classes (:hover/:focus).',
+    '  * Titulos <h2> em forma de pergunta com resposta direta de 40-60 palavras logo abaixo (Answer Target do master_rules + prompt 8.5).',
+    '  * Idioma: PT-BR obrigatorio em todo o relatorio.',
     '',
     '2. PADRAO DE CONTEUDO (adaptacao do prompt 8.5 ao dossie):',
     '- Cabecalho: TL;DR com 3 bullets (total de registros, confirmacoes, pendencias).',
@@ -987,7 +995,7 @@ const TOOLS = [
   },
   {
     name: 'guia_relatorios',
-    description: 'Tecnicas validadas para gerar relatorios/dossies de investigacao judicial: HTML unico autocontido (CSS/JS internos, sem PHP), padrao de conteudo adaptado do prompt 8.5 (TL;DR, secoes em pergunta, FAQ), tabelas de processos com nivel de confirmacao (CONFIRMADO/PROVAVEL/POSSIVEL HOMONIMO), secao de pendencias, cadeia de evidencia, anti-homonimos, etica e checklist de entrega.',
+    description: 'Tecnicas validadas para gerar relatorios/dossies de investigacao judicial: HTML unico autocontido (CSS/JS internos, sem PHP), padrao de conteudo 8.5 (TL;DR, secoes em pergunta, FAQ), estruturas do master_rules.md (semantica W3C, WCAG AA, temas claro/escuro com persistencia, CSS sem duplicatas, zero alert), tabelas de processos com nivel de confirmacao (CONFIRMADO/PROVAVEL/POSSIVEL HOMONIMO), secao de pendencias, cadeia de evidencia, anti-homonimos, etica e checklist de entrega.',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
     _run: toolGuiaRelatorios
   },
@@ -1027,7 +1035,7 @@ function send(obj) { process.stdout.write(JSON.stringify(obj) + '\n'); }
 
 async function handle(msg) {
   if (msg.method === 'initialize') {
-    return { protocolVersion: '2024-11-05', capabilities: { tools: {} }, serverInfo: { name: 'escrivao', version: '1.9.0' } };
+    return { protocolVersion: '2024-11-05', capabilities: { tools: {} }, serverInfo: { name: 'escrivao', version: '1.10.0' } };
   }
   if (msg.method === 'ping') return {};
   if (msg.method === 'tools/list') return { tools: TOOLS.map(t => ({ name: t.name, description: t.description, inputSchema: t.inputSchema })) };
