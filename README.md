@@ -1,6 +1,6 @@
 # escrivao
 
-> Treze ferramentas de OSINT judicial brasileiro em um único arquivo Node.
+> Quatorze ferramentas de OSINT judicial brasileiro em um único arquivo Node.
 
 O escrivao é um servidor MCP (Model Context Protocol) autocontido para pesquisa
 em registros públicos judiciais brasileiros: DataJud/CNJ, DJEN, e-SAJ (TJSP),
@@ -97,12 +97,13 @@ confirmar instalação, contagem de ferramentas e saúde da rede em segundos.
 cmd /c "node <caminho>\escrivao-mcp\server.js < teste.jsonl"
 ```
 
-## Quais são as 13 ferramentas?
+## Quais são as 14 ferramentas?
 
 Uma paleta enxuta cobrindo o ciclo completo de uma pesquisa judicial: validar o
 número, desmascarar o que está oculto, consultar por número, nome, documento ou
-varredura multi-tribunal, ler intimações e complementar com CNPJ e web. A tabela
-abaixo resume cada ferramenta e sua fonte.
+varredura multi-tribunal, ler intimações e complementar com CNPJ, web e
+navegação por browser automatizado. A tabela abaixo resume cada ferramenta e
+sua fonte.
 
 | Ferramenta | O que faz | Fonte |
 |---|---|---|
@@ -119,6 +120,7 @@ abaixo resume cada ferramenta e sua fonte.
 | `brasilapi_cnpj` | CNPJ formatado: razão social, sócios (QSA), CNAE, situação, endereço | BrasilAPI |
 | `exa_buscar` | Busca semântica web: notícias, menções, homônimos (requer EXA_API_KEY) | Exa |
 | `fontes_osint` | Playbook interno: bases, atalhos, rotas por tribunal, técnicas e ética/LGPD | — |
+| `guia_navegacao` | Guia de navegação: links das regras do mantenedor (master rules, pasta de regras, prompt 8.5), fluxo validado com o MCP Playwright (captchas manuais, armadilhas do e-SAJ) e módulos de Python para scripts locais | — |
 
 ## Que atalhos de consulta pública existem?
 

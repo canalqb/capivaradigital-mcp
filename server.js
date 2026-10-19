@@ -494,6 +494,56 @@ async function toolFontesOsint() {
   ].join('\n');
 }
 
+async function toolGuiaNavegacao() {
+  return [
+    'REGRAS E PROMPTS DO MANTENEDOR (ler ANTES de gerar relatorio/documento):',
+    '- Master Rules (protocolo central, ponto de partida obrigatorio): https://drive.google.com/file/d/1h9sjA3ZfBFGiczqyy8HjsZjaUzI4nYIo/view',
+    '- Pasta de regras (LLMs): https://drive.google.com/drive/folders/1U5U9QNx__hVio5GTKSVflZP9-b_E0OLm',
+    '- Prompt 8.5 ("Criar um post" - padrao de relatorio/conteudo): https://docs.google.com/document/d/1hRoAQEZnKufWdUnzwTxuuwjbAA05sAfTf2oY1MnIky4/edit',
+    '  Resumo do padrao 8.5: TL;DR de 3 bullets no topo; pattern interrupt curto (ate 15 palavras, sem exclamacao); titulos em forma de pergunta (H2) com resposta de 40-60 palavras; zero caracteres decorativos/emojis; FAQ ao final; PT-BR.',
+    '',
+    'NAVEGACAO POR BROWSER AUTOMATIZADO (quando HTTP puro falha: captcha, JS, login):',
+    '- Cliente: MCP Playwright (@playwright/mcp) - ferramentas browser_navigate, browser_snapshot, browser_find, browser_click, browser_type, browser_fill_form, browser_select_option, browser_network_requests, browser_take_screenshot, browser_evaluate.',
+    '- Fluxo padrao: (1) browser_navigate ate a URL; (2) browser_snapshot para ver a acessibilidade da pagina; (3) browser_find para localizar o campo/botao; (4) browser_type/browser_fill_form para preencher; (5) browser_click para submeter; (6) browser_snapshot/browser_find para ler o resultado.',
+    '- CAPTCHAS: nao contorne - deixe o usuario resolver manualmente na tela (e-SAJ por nome, TJBA slider, Receita) e siga depois dele resolver.',
+    '- Armadilhas validadas: acesso DIRETO a URL de processo do e-SAJ (show.do) falha com "Nao foi possivel validar o seu acesso" - abra SEMPRE a partir da lista de resultados ou do formulario (ver esaj_tjsp_guia).',
+    '- Turnstile/Cloudflare (ex.: eproc TJSC): recarregar a pagina e resubmeter costuma resolver.',
+    '- Outros navegadores uteis: browser_tabs (multi-abas), browser_navigate_back, browser_wait_for (esperar texto carregar), browser_press_key.',
+    '',
+    'MCPS COMPANHEIROS - AUTOINSTALACAO (nada e pre-instalado: o npx/uvx baixa na primeira execucao):',
+    '- Playwright (browser automatizado, oficial Microsoft): comando "npx -y @playwright/mcp" - autoinstala o pacote; na PRIMEIRA execucao baixa o browser Chromium (demora varios minutos, so acontece uma vez). Resolve sites com captcha/JS: e-SAJ, TSE, Receita, infoRegistro.',
+    '- DuckDuckGo (busca web SEM chave): comando "uvx duckduckgo-mcp-server" - exige o Python uv (Windows: scoop install uv; ou pip install uv). Ferramentas: search, fetch_content, expand_link.',
+    '- anymd (leitor de PDFs/docs -> Markdown): comando "npx -y @sylphx/anymd" (Rust local, sem chave). Ferramentas: anymd_read, anymd_search, anymd_outline, anymd_inspect.',
+    '- datajud dedicado (alternativa Node compilada): "node ~/.mcp-servers/datajud-mcp-server/dist/index.js" com env TRANSPORT=stdio.',
+    '- Tavily (busca profunda, 1000 creditos/mes gratis): remoto "https://mcp.tavily.com/mcp/?tavilyApiKey={env:TAVILY_API_KEY}" - chave em https://app.tavily.com.',
+    '- Firecrawl (scraping profundo, 500 crawls gratis): "npx -y firecrawl-mcp-server" com env FIRECRAWL_API_KEY - chave em https://firecrawl.dev.',
+    '- Exa (busca neural): ja embutido aqui (exa_buscar, env EXA_API_KEY) OU "npx -y exa-mcp-server" - chave em https://exa.ai.',
+    '- Perplexity (remoto): "https://mcp.perplexity.ai/mcp" - rodar "opencode mcp auth perplexity" uma vez.',
+    '- REGRA: o escrivao cobre DataJud/DJEN/e-SAJ/CNPJ/mascara CNJ - NAO duplique essas funcoes em outro MCP; os companheiros entram como recursos complementares.',
+    '',
+    'LINKS EXTERNOS (recursos de apoio):',
+    '- Escavador (agregador, paywall): https://www.escavador.com',
+    '- Jusbrasil: https://www.jusbrasil.com.br',
+    '- DataJud docs/chave: https://datajud-wiki.cnj.jus.br/api-publica/acesso/',
+    '- PJe consulta publica: https://sustentacao.cloud.cnj.jus.br/pjecnj/ConsultaPublica e https://www.pje.jus.br/navegador/',
+    '- DJEN API: https://comunicaapi.pje.jus.br/api/v1/comunicacao',
+    '- BrasilAPI: https://brasilapi.com.br',
+    '- Olho Juridico: https://olhojuridico.com/consulta-processual',
+    '- Consulta CPF/CNPJ gratuitos (repos): https://github.com/jansenfelipe/cpf-gratis e https://github.com/TechThings/consultasbr',
+    '- Playwright MCP: https://github.com/microsoft/playwright-mcp',
+    '- DuckDuckGo MCP: https://github.com/pleary/python-mcp-duckduckgo (ou pacote duckduckgo-mcp-server no PyPI)',
+    '- Busca semantica/repos de referencia: https://github.com/topics/semantic-search e https://github.com/jonas-elias/jurisprudencia-sc-busca-semantica',
+    '',
+    'MODULOS DE PYTHON (quando o agente precisar de script local):',
+    '- requests: HTTP simples (GET/POST em APIs como DataJud, DJEN, BrasilAPI) - sempre com timeout e headers de navegador.',
+    '- playwright (pip install playwright + playwright install): automacao de browser fora do MCP - sync_playwright para scripts pontuais; reutilize os seletores CSS das guias (esaj_tjsp_guia).',
+    '- pandas: ler/consolidar CSVs de resultados (ex.: export de consulta por nome).',
+    '- python-docx / reportlab: gerar documentos de saida quando HTML nao basta.',
+    '- Padrao anti-bloqueio: User-Agent de navegador, timeout generoso (TJSP responde lento), retry com espera (3-5s) e nunca paralelismo agressivo contra portais publicos.',
+    '- O servidor Node (server.js) cobre o dia a dia sem Python; use scripts Python apenas para ETL/exportacao/relatorios, nunca duplicando ferramenta que ja existe aqui (regra de pasta unica).'
+  ].join('\n');
+}
+
 const TOOLS = [
   {
     name: 'cnj_validar',
@@ -650,6 +700,12 @@ const TOOLS = [
     description: 'Guia rapido: bases publicas de pesquisa (onde achar), rotas por tribunal, tecnicas validadas (como buscar) e regras de etica/LGPD.',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
     _run: toolFontesOsint
+  },
+  {
+    name: 'guia_navegacao',
+    description: 'Guia de navegacao por browser automatizado: links das regras do mantenedor (master rules, pasta de regras, prompt 8.5 de relatorio), fluxo validado com o MCP Playwright (snapshot/find/fill/click, captchas manuais, armadilhas do e-SAJ) e modulos de Python para scripts locais (requests, playwright, pandas).',
+    inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+    _run: toolGuiaNavegacao
   }
 ];
 
@@ -657,7 +713,7 @@ function send(obj) { process.stdout.write(JSON.stringify(obj) + '\n'); }
 
 async function handle(msg) {
   if (msg.method === 'initialize') {
-    return { protocolVersion: '2024-11-05', capabilities: { tools: {} }, serverInfo: { name: 'escrivao', version: '1.2.0' } };
+    return { protocolVersion: '2024-11-05', capabilities: { tools: {} }, serverInfo: { name: 'escrivao', version: '1.3.0' } };
   }
   if (msg.method === 'ping') return {};
   if (msg.method === 'tools/list') return { tools: TOOLS.map(t => ({ name: t.name, description: t.description, inputSchema: t.inputSchema })) };
