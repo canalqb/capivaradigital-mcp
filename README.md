@@ -245,6 +245,18 @@ validação de documentos:
 - https://github.com/Juliano2105/radar-processos
 - https://github.com/claujs/buscaprocessos-api
 
+### Busca semântica (links validados)
+- https://github.com/topics/semantic-search — topic geral (filtros: `?l=html&o=desc&s=updated`, `?l=java`)
+- https://github.com/topics/semantic-search-algorithm
+- https://github.com/topics/pdf-semantic-search
+- https://github.com/smkbarbosa/context-ia-manager
+- https://github.com/edilsonmaia/searchme
+- https://github.com/DaniloCorreia1/semantic_search
+- https://github.com/jonas-elias/jurisprudencia-sc-busca-semantica — jurisprudência TJSC
+- https://docs.crewai.com/v1.15.28/pt-BR/tools/search-research/githubsearchtool — CrewAI GithubSearchTool
+- https://manticoresearch.com/blog/github-semantic-search/
+- https://help.vtex.com/pt/docs/tutorials/intelligent-search-busca-semantica-beta
+
 ## Como uso na prática?
 
 Peça em linguagem natural ao seu agente, citando a ferramenta desejada. Os

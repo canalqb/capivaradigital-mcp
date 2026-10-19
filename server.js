@@ -533,6 +533,10 @@ async function toolGuiaNavegacao() {
     '- Playwright MCP: https://github.com/microsoft/playwright-mcp',
     '- DuckDuckGo MCP: https://github.com/pleary/python-mcp-duckduckgo (ou pacote duckduckgo-mcp-server no PyPI)',
     '- Busca semantica/repos de referencia: https://github.com/topics/semantic-search e https://github.com/jonas-elias/jurisprudencia-sc-busca-semantica',
+    '- BUSCA SEMANTICA (links validados do mantenedor):',
+    '  https://github.com/topics/semantic-search (topic geral) | https://github.com/topics/semantic-search?l=html&o=desc&s=updated (HTML) | https://github.com/topics/semantic-search?l=java (Java) | https://github.com/topics/semantic-search-algorithm | https://github.com/topics/pdf-semantic-search',
+    '  https://github.com/smkbarbosa/context-ia-manager | https://github.com/edilsonmaia/searchme | https://github.com/DaniloCorreia1/semantic_search | https://github.com/jonas-elias/jurisprudencia-sc-busca-semantica (jurisprudencia TJSC)',
+    '  https://docs.crewai.com/v1.15.28/pt-BR/tools/search-research/githubsearchtool (CrewAI GithubSearchTool) | https://manticoresearch.com/blog/github-semantic-search/ | https://help.vtex.com/pt/docs/tutorials/intelligent-search-busca-semantica-beta',
     '',
     'MODULOS DE PYTHON (quando o agente precisar de script local):',
     '- requests: HTTP simples (GET/POST em APIs como DataJud, DJEN, BrasilAPI) - sempre com timeout e headers de navegador.',
@@ -765,7 +769,7 @@ function send(obj) { process.stdout.write(JSON.stringify(obj) + '\n'); }
 
 async function handle(msg) {
   if (msg.method === 'initialize') {
-    return { protocolVersion: '2024-11-05', capabilities: { tools: {} }, serverInfo: { name: 'escrivao', version: '1.4.0' } };
+    return { protocolVersion: '2024-11-05', capabilities: { tools: {} }, serverInfo: { name: 'escrivao', version: '1.5.0' } };
   }
   if (msg.method === 'ping') return {};
   if (msg.method === 'tools/list') return { tools: TOOLS.map(t => ({ name: t.name, description: t.description, inputSchema: t.inputSchema })) };
