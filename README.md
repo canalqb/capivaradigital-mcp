@@ -373,6 +373,33 @@ sensíveis, rode localmente os de código aberto (mcp-brasil, mcp-dadosbr,
 brasil-data-mcp). A lista completa dos 31 MCPs catalogados, com as ressalvas
 de cada um, está espelhada em `regras/links.txt`.
 
+## Quais ferramentas de redes sociais e contato existem?
+
+O escrivão não duplica OSINT de redes sociais — ele linka as ferramentas
+validadas do GitHub (nativas ou como MCP) e as regras de uso no dossiê. A
+ferramenta `guia_navegacao` devolve esta lista em tempo de execução.
+
+| Ferramenta | O que faz | Acesso |
+|---|---|---|
+| sherlock-mcp (MCP) | Username em 400+ redes sociais via MCP | https://github.com/Burnsedia/sherlock-mcp |
+| osint-mcp-server (MCP) | 37 ferramentas/12 fontes: Sherlock + Osintgram (Instagram) | https://github.com/pasing-group/osint-mcp-server |
+| osint-mcp (MCP) | 26 ferramentas OSINT gratuitas expostas como MCP | https://pypi.org/project/osint-mcp/ |
+| awesome-osint-mcp-servers | Catálogo curado de MCPs de OSINT | https://github.com/soxoj/awesome-osint-mcp-servers |
+| sherlock | Username em 400+ redes | https://github.com/sherlock-project/sherlock |
+| social-analyzer | Nome/username em 1000+ sites (API/CLI/web) | https://github.com/qeeqbox/social-analyzer |
+| holehe | E-mail → conta registrada em 120+ sites | https://github.com/megadose/holehe |
+| maigret | Username → dossiê de 6K sites, gera relatório HTML | https://github.com/soxoj/maigret |
+| GHunt | Conta Google a partir do e-mail | https://github.com/mxrch/GHunt |
+| mosint | E-mail: vazamentos, redes, servidores | https://github.com/alpkeskin/mosint |
+| phoneinfoga | Telefone: carreira, reputação, social | https://github.com/sundowndev/phoneinfoga |
+| osint-toolkit | Combo: Sherlock+Maigret+GHunt+Holehe+Ignorant+Telegram | https://github.com/d4t4n3rdsec/osint-toolkit |
+| omniscan | CLI unificada: username/e-mail/telefone → todos os tools | https://pypi.org/project/omniscan/ |
+
+**Regras no dossiê:** perfil achado por nome/username/e-mail/telefone é
+POSSÍVEL HOMÔNIMO até cruzar com CPF/CNPJ; redes sociais e currículo são dados
+AUTODECLARADOS (nota de credibilidade); "quão seguro é o usuário" é indicativo
+de vazamentos/exposição, nunca sentença.
+
 ## Quais fontes oficiais de CPF existem?
 
 As rotas oficiais se dividem em três classes: públicas (qualquer pessoa, com o
@@ -428,6 +455,8 @@ só quando você pedir explicitamente.
 - Tabela de processos: número CNJ | tribunal/foro | classe | assunto | órgão julgador | ajuizamento | status | fonte | nível de confirmação — com filtro por status e busca textual via JS interno.
 - Níveis de confirmação: CONFIRMADO (fonte chaveada, datas exatas em 2+ bases), PROVÁVEL (fingerprint coerente), POSSÍVEL HOMÔNIMO (sem âncora — PROIBIDO na lista principal; sempre em seção separada).
 - Estruturas do master_rules.md: semântica W3C (`<main>`, `<section>`, `<article>`), WCAG AA com contraste, temas claro e escuro com alternância + persistência (localStorage), CSS sem duplicatas, zero `alert()` (JS interno usa showToast) e títulos `<h2>` em pergunta com resposta de 40-60 palavras.
+- Ordem de montagem: PRIMEIRO a estrutura pelos `.md` de `regras/` (master_rules.md primeiro), DEPOIS o conteúdo finalizado pelo prompt 8.5.
+- Seções obrigatórias do dossiê (sempre que existirem dados): redes sociais, processos relacionados ao CPF, currículo declarado, tabela de processos, cruzamento entre empregos e processos, análise de perfil, quão seguro é o usuário e relacionamentos (pais, filhos, irmãos, cônjuge) — cada qual com fonte e nota de credibilidade; **homônimos não são postados** (no máximo, seção "Descartados", nunca como o pesquisado).
 - Cadeia de evidência: número mascarado ao lado do desmascarado; toda afirmação cita fonte e data-hora; HTML/PDF brutos salvos.
 - Pendências obrigatórias com o próximo passo concreto de cada item.
 - A ferramenta `guia_relatorios` devolve este padrão completo em tempo de execução.
