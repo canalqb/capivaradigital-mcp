@@ -144,7 +144,7 @@ confirmar instalação, contagem de ferramentas e saúde da rede em segundos.
 cmd /c "node <caminho>\escrivao-mcp\server.js < teste.jsonl"
 ```
 
-## Quais são as 20 ferramentas?
+## Quais são as 22 ferramentas?
 
 Uma paleta enxuta cobrindo o ciclo completo de uma pesquisa judicial: validar o
 número, desmascarar o que está oculto, consultar por número, nome, documento ou
@@ -167,10 +167,12 @@ ferramenta e sua fonte.
 | `esaj_tjsp_guia` | Receita do fluxo e-SAJ por número com seletores CSS (para Playwright) | e-SAJ TJSP |
 | `dje_sp_buscar` | Busca textual no Diário da Justiça Eletrônica do TJSP (DJE-SP, base de 01/10/2007 até a última edição publicada): nome entre aspas, termo ou número, com janela de datas, caderno, até 100 hits (10 páginas de 10) e URL do PDF oficial de cada publicação | DJE-SP TJSP |
 | `brasilapi_cnpj` | CNPJ formatado: razão social, sócios (QSA), CNAE, situação, endereço | BrasilAPI |
+| `ciclo_pf_pj` | Ciclo PF<->PJ COMPLETO em uma chamada: DataJud multi-tribunal (documento entre aspas) + e-SAJ DOCPARTE + DJE-SP (base integral) + BrasilAPI (CNPJ: QSA com CPFs mascarados), com receita reversa CPF→CNPJ e veredito único de hits por fonte | Multi |
 | `exa_buscar` | Busca semântica web: notícias, menções, homônimos (requer EXA_API_KEY) | Exa |
 | `fontes_osint` | Playbook interno: bases, atalhos, rotas por tribunal, técnicas e ética/LGPD | — |
 | `guia_navegacao` | Guia de navegação: links das regras do mantenedor (master rules, pasta de regras, prompt 8.5), fluxo validado com o MCP Playwright (captchas manuais, armadilhas do e-SAJ) e módulos de Python para scripts locais | — |
-| `guia_relatorios` | Técnicas de relatório/dossiê: HTML único autocontido (CSS/JS internos, sem PHP), padrão 8.5 adaptado, níveis de confirmação (CONFIRMADO/PROVÁVEL/POSSÍVEL HOMÔNIMO), pendências com próximo passo, cadeia de evidência, anti-homônimos e checklist de entrega | — |
+| `guia_relatorios` | Técnicas de relatório/dossiê: HTML único autocontido (CSS/JS internos, sem PHP), padrão 8.5 adaptado, níveis de confirmação (CONFIRMADO/PROVÁVEL/POSSÍVEL HOMÔNIMO), pendências com próximo passo, cadeia de evidência, anti-homônimos e checklist de entrega; `escopo="exclusivo cpf"` devolve as normas do modo dossiê-exclusivo-por-documento (padrão negativo de homônimos) | — |
+| `regras_ler` | Conteúdo INTEGRAL dos .md de regras/ (whitelist: master_rules, prompt_8_5 etc.) para agentes que acessam por protocolo, sem filesystem do servidor; aviso de que o prompt 8.5 é genérico de blog e fallback para instalações sem a pasta | — |
 | `guia_instalacao` | Comandos prontos para instalar do zero: Node.js via winget (Windows 10/11), alternativas (choco/scoop/MSI, apt/dnf/brew), obtenção do servidor (git clone ou download do `server.js`), teste via stdin e registro nos clientes | — |
 | `jusbrasil_buscar` | Busca no Jusbrasil: HTTP quando passa; quando o Cloudflare bloqueia (403), devolve a rota pronta via browser (MCP Playwright) com a URL montada; números mascarados alimentam o loop do `cnj_desmascarar` | Jusbrasil |
 | `mcp_atualizar` | Autoatualização: baixa o `server.js` mais recente do GitHub, guarda backup (.bak) e substitui o arquivo; a nova versão sobe ao reiniciar o cliente | GitHub |

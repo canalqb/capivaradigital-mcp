@@ -159,6 +159,23 @@ Cobre o que a API pública omite (partes, nomes, desfechos por extenso).
   processo cruzando (DataJud/e-SAJ) ou o documento do pesquisado; precatórias
   listam RÉU com nome completo — cruzar antes de atribuir.
 
+### 5.10 Ciclo PF<->PJ em uma chamada (e templates via protocolo)
+- **`ciclo_pf_pj({ cpf_cnpj })`** executa o ciclo inteiro (§5.1.1) em uma
+  chamada: DataJud multi-tribunal com o documento entre aspas + e-SAJ DOCPARTE
+  + DJE-SP (base integral) + BrasilAPI (CNPJ → razão social e CPFs mascarados
+  do QSA com rota de quebra), fechando com VEREDITO único (hits por fonte) e
+  próximos passos. Entrada CPF devolve a receita reversa CPF→CNPJ validada:
+  razão social de ME costuma embutir o CPF do titular + busca web
+  `"NOME" "CPF" CNPJ`. Execute ANTES de fechar qualquer dossie.
+- **`regras_ler({ arquivo })`** devolve o conteúdo integral dos .md de
+  regras/ (whitelist: master_rules, prompt_8_5 etc.) para agentes que acessam o
+  servidor só por protocolo — o guia_relatorios deixa de prometer arquivos
+  que o agente não pode ler. Aviso embutido: o prompt 8.5 original é genérico
+  de blog/YouTube; use apenas as seções aplicáveis ao dossiê.
+- **Modo dossiê exclusivo:** `guia_relatorios({ escopo: "exclusivo cpf" })`
+  devolve só as normas do dossiê de um único documento, com o PADRÃO NEGATIVO
+  de homônimos (nenhuma seção de descartados sem pedido explícito do cliente).
+
 ## 6. Histórico técnico rápido (para não repetir erros)
 
 - DataJud: `terms` sem campo = HTTP 400; `match.numeroProcesso` só com 20
@@ -175,6 +192,9 @@ Cobre o que a API pública omite (partes, nomes, desfechos por extenso).
   "01/07/2025" e "Tue Jul 01 ... 2025" conforme o locale do nó (o parser
   aceita ambos); a paginação é AJAX (`trocaDePagina.do`) com estado na sessão
   (cookie + jsessionid) — não é stateless.
+- DJE-SP (2): o hidden `dtLimiteFim` TAMBÉM alterna de formato entre nós
+  ("2025-07-22" e "22/07/2025") — normalize com o mesmo conversor de datas,
+  nunca confie num formato único.
 - PowerShell 5.1: remove aspas duplas em padrões regex (usar `\x22`); UTF-8
   com BOM em arquivos Markdown.
 

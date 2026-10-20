@@ -1,5 +1,6 @@
 const readline = require('readline');
 const fs = require('fs');
+const path = require('path');
 
 const DATAJUD_BASE = 'https://api-publica.datajud.cnj.jus.br';
 const DATAJUD_WIKI = 'https://datajud-wiki.cnj.jus.br/api-publica/acesso/';
@@ -162,8 +163,8 @@ function hitsToArray(dados) {
 function avisoAncora(consulta) {
   const n = digitsOnly(consulta);
   if (n.length === 20) return 'Busca por NUMERO de processo (ancora unica) - sem risco de homonimo.';
-  if (n.length === 11 || n.length === 14) return 'DOCUMENTO (CPF/CNPJ) como ancora: correto pela regra do servidor. CICLO OBRIGATORIO PF<->PJ: com CPF, procure os CNPJs vinculados (brasilapi_cnpj - razao social costuma embutir o CPF do titular); com CNPJ, extraia os CPFs do QSA e procure os processos dessas pessoas. Cruze os achados com as demais fontes (DataJud + DJEN + e-SAJ + BrasilAPI) antes de marcar CONFIRMADO.';
-  return 'PROIBICAO: busca por NOME produz HOMONIMOS. Achado por nome so vale com o CPF/CNPJ do pesquisado cruzando (datajud_por_cpf, esaj_buscar DOCPARTE ou datajud_buscar com o documento formatado entre aspas); sem documento que bata = POSSIVEL HOMONIMO - PROIBIDO apresenta-lo como sendo do pesquisado ou mistura-lo na lista principal; use secao separada (protocolo em fontes_osint).';
+  if (n.length === 11 || n.length === 14) return 'DOCUMENTO (CPF/CNPJ) como ancora: correto pela regra do servidor. Ciclo PF<->PJ completo em uma chamada: ciclo_pf_pj. Cruze com as demais fontes antes de marcar CONFIRMADO.';
+  return 'HOMONIMO: achado por nome so vale com o CPF/CNPJ do pesquisado cruzando (ciclo_pf_pj, datajud_por_cpf, esaj_buscar DOCPARTE); sem documento = POSSIVEL HOMONIMO, PROIBIDO apresenta-lo como sendo do pesquisado. Protocolo completo: fontes_osint.';
 }
 
 function cpfDvs(base9) {
@@ -655,6 +656,14 @@ function djeNormData(v, fallback) {
   throw new Error('Data invalida: "' + v + '" - use dd/mm/aaaa ou aaaa-mm-dd.');
 }
 
+function djeHiddenValue(html, nome) {
+  const re = new RegExp('<input\\b[^>]*\\bname="' + nome + '"[^>]*>');
+  const m = html.match(re);
+  if (!m) return '';
+  const v = m[0].match(/\bvalue="([^"]*)"/);
+  return v ? v[1] : '';
+}
+
 async function djeFetch(url, options, ms, jar) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), ms || 90000);
@@ -746,11 +755,12 @@ async function toolDjeSpBuscar(a) {
   const mAct = form.match(/action="([^"]*consultaAvancada\.do[^"]*)"/);
   if (!mAct) throw new Error('Pagina de busca do DJE-SP mudou de formato (action nao encontrada).');
   const actionUrl = 'https://esaj.tjsp.jus.br' + mAct[1].replace(new RegExp('&am' + 'p;', 'g'), String.fromCharCode(38));
-  const mLim = form.match(/name="dtLimiteFim"[^>]*value="(\d{4})-(\d{2})-(\d{2})"/);
-  const ultimoDia = mLim ? mLim[3] + '/' + mLim[2] + '/' + mLim[1] : '';
+  const limRaw = djeHiddenValue(form, 'dtLimiteFim') || djeHiddenValue(form, 'dtDiario');
+  let ultimoDia = '';
+  if (limRaw) { try { ultimoDia = djeNormData(limRaw, ''); } catch (e) { ultimoDia = ''; } }
   const dtFim = djeNormData(a.data_fim, ultimoDia);
   const dtIni = djeNormData(a.data_inicio, dtFim);
-  if (!dtFim || !dtIni) throw new Error('Informe data_inicio e data_fim (dd/mm/aaaa) - nao foi possivel deduzir a janela (a base comeca em 01/10/2007).');
+  if (!dtFim || !dtIni) throw new Error('Nao foi possivel deduzir a janela de datas do DJE-SP nesta resposta - informe data_inicio e data_fim (dd/mm/aaaa; a base comeca em 01/10/2007).');
   const body = new URLSearchParams();
   for (const tag of form.matchAll(/<input\b[^>]*>/g)) {
     const nm = tag[0].match(/\bname="([^"]+)"/);
@@ -903,7 +913,7 @@ async function toolMcpAtualizar(a) {
     `Atualizacao concluida: v${vAtual} -> v${vNova}${bak ? ` (backup: ${bak})` : ''}`,
     'A instancia em memoria continua na versao antiga ate o processo terminar.',
     'Atualizacao sem git: este metodo baixa direto do GitHub raw e funciona em qualquer instalacao.',
-    `REINICIE o cliente MCP (opencode/kimi-code/Claude/Cursor) para a v${vNova} subir e confira com tools/list.`
+    `REINICIE o cliente MCP para a v${vNova} subir - comandos por cliente: opencode: encerre a sessao/processo e abra de novo; kimi-code: reinicie o cliente e confira com /mcp; Claude Desktop: feche e reabra o app; Cursor: reinicie o painel MCP. Confira a versao com tools/list.`
   ].join('\n');
 }
 
@@ -931,7 +941,8 @@ async function toolFontesOsint() {
     '3. CRUZAMENTO OBRIGATORIO: nenhuma afirmacao de vinculo sem cruzar DataJud + DJEN + e-SAJ + BrasilAPI (CNPJ) + web (jusbrasil_buscar, exa_buscar).',
     '4. CONFIRMADO so com documento (CPF/CNPJ) exato batendo; sem documento, no maximo PROVAVEL (fingerprint orgao+classe+assunto+datas).',
     '5. NUMERO MASCARADO (XXXX): cnj_desmascarar com o LOOP - passe a mascara + cpf e/ou nome; o servidor gera candidatos, verifica no DataJud e marca os vinculados ao pesquisado. Vale para mascara de qualquer fonte (Jusbrasil, Escavador, documentos). CPF MASCARADO (ate 3 digitos ocultos, ex.: ***.NNN.NNN-** ou o bloco de 6 antes do DV): cpf_desmascarar - loop 000-999 + DV modulo 11 + verificacao EM LOTE no DataJud; devolve CPFs com processos e nomes para o USUARIO validar; apos validar, o dossie pesquisa TUDO pelo CPF, nunca pelo nome.',
-    '6. CICLO OBRIGATORIO PF<->PJ: pesquisado com CPF -> SEMPRE procure os CNPJs vinculados (razao social costuma embutir o CPF do titular; consulte cada CNPJ com brasilapi_cnpj e datajud_por_cpf). Pesquisado com CNPJ -> SEMPRE extraia os CPFs do QSA (brasilapi_cnpj) e procure os processos dessas pessoas fisicas - o CNPJ processa e e processado pelas pessoas por tras dele. O ciclo e CPF -> CNPJ -> CPF, sempre.',
+    '6. CICLO OBRIGATORIO PF<->PJ: execute com ciclo_pf_pj({ cpf_cnpj }) - UMA chamada roda DataJud multi-tribunal (documento entre aspas) + e-SAJ DOCPARTE + DJE-SP (base integral) + BrasilAPI (CNPJ->QSA) e devolve veredito unico. Pesquisado com CPF -> SEMPRE procure os CNPJs vinculados: nao ha busca reversa CPF->CNPJ em API publica - receita validada: (a) razao social de ME costuma EMBUTIR o CPF do titular; (b) busca web \'"NOME COMPLETO" "CPF" CNPJ\' (exa_buscar/jusbrasil_buscar); (c) com o CNPJ: brasilapi_cnpj + ciclo_pf_pj. Pesquisado com CNPJ -> SEMPRE extraia os CPFs do QSA (mascarados: cpf_desmascarar) e procure os processos dessas pessoas. O ciclo e CPF -> CNPJ -> CPF, sempre.',
+    '7. CONFIRMACAO RAPIDA POR NUMERO: datajud_pesquisar (terms com o numero de 20 digitos) confirma a existencia do processo em segundos (1 hit por fingerprint) - use antes do datajud_processo para checagens rapidas de existencia.',
     '',
     'BASES PUBLICAS (onde achar):',
     '- API publica DataJud/CNJ: https://api-publica.datajud.cnj.jus.br (endpoint api_publica_{tjsp|tjpr|...}/_search; chave publica na wiki https://datajud-wiki.cnj.jus.br/api-publica/acesso/). LIMITACAO: campo "partes" vem vazio - classifique por orgao+classe+assunto+datas (fingerprint).',
@@ -1070,9 +1081,23 @@ async function toolGuiaNavegacao() {
   ].join('\n');
 }
 
-async function toolGuiaRelatorios() {
+async function toolGuiaRelatorios(a) {
+  const escopo = String((a && a.escopo) || '').trim().toLowerCase();
+  if (escopo === 'exclusivo cpf' || escopo === 'exclusivo_cpf' || escopo === 'dossie exclusivo') {
+    return [
+      'NORMAS DO MODO "DOSSIE EXCLUSIVO POR DOCUMENTO" (guia_relatorios escopo="exclusivo cpf"):',
+      '1. O dossie e EXCLUSIVO do documento validado pelo cliente (CPF/CNPJ informado). Toda a lista principal e ancorada nesse documento.',
+      '2. PADRAO NEGATIVO - HOMONIMOS: NAO publique secao de homonimos/descartados. Crie "Descartados (possiveis homonimos)" SOMENTE se o cliente pedir com essas palavras. Achado sem documento que bata fica FORA do relatorio (nem em anexo, nem em nota) - no maximo anote internamente.',
+      '3. PADRAO NEGATIVO - TERCEIROS: nenhum CPF, nome ou dado de terceiro em texto integral no dossie; terceiros (empregadores, socios, co-reus, familiares) entram SO como contexto minimo com fonte, e familiares somente com ancora propria.',
+      '4. Antes de entregar, PERGUNTE ao cliente: "deseja incluir a secao de descartados (possiveis homonimos)?" - o default e NAO.',
+      '5. Niveis: CONFIRMADO so com o documento do pesquisado batendo; sem documento, PROVAVEL no maximo (fingerprint); homonimo, nada.',
+      '6. Ciclo PF<->PJ completo: ciclo_pf_pj (CPF acha CNPJs vinculados / CNPJ acha CPFs do QSA) antes de fechar a analise.',
+      '7. Checklist final: ( ) nada de homonimo publicado; ( ) nenhum dado de terceiro em texto integral; ( ) pendencias com proximo passo; ( ) data de geracao no rodape.',
+      'Guia tecnico completo (HTML, secoes, WCAG, temas): chame guia_relatorios sem escopo.'
+    ].join('\n');
+  }
   return [
-    'OBRIGACAO (prompt 8.5 + master_rules.md): todo relatorio/dossie gerado com dados deste servidor segue OBRIGATORIAMENTE o padrao 8.5 E as estruturas do master_rules.md adaptadas ao HTML estatico (SEM PHP) - espelhos locais em regras/prompt_8_5.md e regras/master_rules.md (originais no Drive, ver guia_navegacao).',
+    'OBRIGACAO (padrao 8.5 + master_rules.md): todo relatorio/dossie gerado com dados deste servidor segue OBRIGATORIAMENTE o padrao 8.5 E as estruturas do master_rules.md adaptadas ao HTML estatico (SEM PHP). CONTEUDO INTEGRAL dos .md: ferramenta regras_ler (whitelist: master_rules, prompt_8_5 etc.) - se a pasta regras/ nao existir na instalacao (instalacao so-server.js), monte pelo RESUMO deste guia, que e autocontido. AVISO: o prompt_8_5 original e GENERICO de blog/YouTube (thumbnail, hashtags, monetizacao) - use dele apenas o que aplicavel ao dossie (Answer Target, FAQ, temas claro/escuro, CSS sem duplicatas).',
     'ORDEM OBRIGATORIA DE MONTAGEM DO HTML: (1) PRIMEIRO monte a pagina aplicando os .md aplicaveis da pasta regras/, comecando pelo master_rules.md (semantica W3C, WCAG AA, temas claro/escuro com persistencia, CSS sem duplicatas, zero alert, PT-BR); (2) DEPOIS finalize o CONTEUDO com o padrao do prompt 8.5 (regras/prompt_8_5.md): TL;DR de 3 bullets, titulos em forma de pergunta com resposta de 40-60 palavras, FAQ ao final, zero emojis.',
     'FORMATO PADRAO: UM unico arquivo HTML autocontido - apenas HTML, CSS e JS INTERNOS (tags <style> e <script> embutidas), sem PHP, sem arquivos separados, sem CDN - abrindo offline; outro formato (PDF, DOCX etc.) SOMENTE quando o usuario pedir explicitamente.',
     '',
@@ -1106,7 +1131,7 @@ async function toolGuiaRelatorios() {
     '4. SECOES OBRIGATORIAS DO DOSSIE (monte TODAS que tiverem dados; sem dados, declare a ausencia nas pendencias):',
     '   a) Redes sociais: perfis achados por NOME/E-MAIL/TELEFONE/username (ferramentas em guia_navegacao) - sempre com a nota: dado AUTODECLARADO, credibilidade menor que registro publico.',
     '   b) Processos relacionados ao CPF: a tabela principal (secao 3) ancorada no documento validado pelo usuario.',
-    '   c) NAO SERAO POSTADOS HOMONIMOS: achado sem ancora de documento fica FORA do relatorio principal - no maximo, secao apartada "Descartados (possiveis homonimos)" se o cliente pedir; nunca apresentado como o pesquisado.',
+    '   c) PADRAO NEGATIVO - HOMONIMOS: NAO publique secao de homonimos/descartados. Crie "Descartados (possiveis homonimos)" SOMENTE se o cliente pedir com essas palavras. O dossie e EXCLUSIVO do documento validado; terceiros so entram com documento proprio E pedido do cliente - sem isso, fora do relatorio (nem em anexo).',
     '   d) Curriculo declarado: formacao, empregos e experiencias declaradas pelo proprio pesquisado (LinkedIn, redes sociais, sites) - marcadas como AUTODECLARADO, separadas do que o registro publico comprova.',
     '   e) Tabela de processos: a secao 3 (o coracao do dossie).',
     '   f) Cruzamento entre empregos e processos: para cada vinculo de trabalho (processos trabalhistas revelam empregador+periodo; QSA/CNPJ revela societario; CNIS quando disponivel), cruzar empregador x periodo x processo - ex.: reclamante de TRT contra ex-empregador no mesmo periodo em que consta do QSA; socio de CNPJ que figura em processo da empresa. Cada cruzamento cita empregador, CNPJ e periodo.',
@@ -1127,6 +1152,7 @@ async function toolGuiaRelatorios() {
     '7. ANTI-HOMONIMOS (PROIBICAO de homonimo na lista principal):',
     '- Prioridade SEMPRE: CPF/CNPJ exato > documento embutido em registro (razao social de CNPJ) > qualificacao judicial (nascimento, genitora, RG) > mascara de CPF compativel > contexto (cidade+profissao+familiares co-reus).',
     '- Busca por nome: SEMPRE entre aspas duplas ("NOME COMPLETO") no DataJud; varrer varios tribunais (datajud_varrer) e cruzar.',
+    '- PADRAO NEGATIVO: sem pedido EXPLICITO do cliente, NENHUMA secao de homonimos/descartados no relatorio (item 4c); pergunte ao cliente antes de incluir qualquer descarte.',
     '',
     '8. ETICA NO RELATORIO:',
     '- Presuncao de inocencia para recursos pendentes (CF art. 5, LVII); NUNCA identificar menores (ECA); proteger vitimas de violencia domestica (Lei 11.340/2006).',
@@ -1134,10 +1160,126 @@ async function toolGuiaRelatorios() {
     '- Familiares: incluir somente com documento/ancora propria, nunca por conjetura.',
     '',
     '9. CHECKLIST FINAL ANTES DE ENTREGAR:',
-    '( ) todos os numeros CNJ validados (cnj_validar); ( ) niveis de confirmacao marcados; ( ) pendencias com proximo passo; ( ) filtro/busca JS funcionando; ( ) data de geracao no rodape; ( ) nenhum dado de homonimo na lista principal (PROIBICAO); ( ) ciclo PF<->PJ executado (CPF achou CNPJs vinculados / CNPJ achou CPFs do QSA); ( ) arquivo abre offline.',
+    '( ) todos os numeros CNJ validados (cnj_validar); ( ) niveis de confirmacao marcados; ( ) pendencias com proximo passo; ( ) filtro/busca JS funcionando; ( ) data de geracao no rodape; ( ) nenhum dado de homonimo na lista principal (PROIBICAO); ( ) nenhuma secao de homonimo publicada, salvo pedido EXPLICITO do cliente; ( ) nenhum CPF/nome/dado de terceiro em texto integral; ( ) ciclo PF<->PJ executado (ciclo_pf_pj: CPF achou CNPJs vinculados / CNPJ achou CPFs do QSA); ( ) arquivo abre offline.',
     '',
     'REUSO: este servidor NAO gera o HTML - o agente gera seguindo estas regras. Use fontes_osint (onde/como buscar), guia_navegacao (browser/instalacao) e este guia (como apresentar).'
   ].join('\n');
+}
+
+// --- regras_ler: conteudo integral dos .md da pasta regras/ (whitelist) ---
+// Resolve a FALHA 1 do QA de 20/10/2026: agentes por protocolo nao leem filesystem.
+// Whitelist obrigatoria: nenhum caminho arbitrario do servidor e acessivel.
+
+const REGRAS_WHITELIST = {
+  master_rules: 'master_rules.md',
+  prompt_8_5: 'prompt_8_5.md',
+  analise_arquivos_vs_readme: 'analise_arquivos_vs_readme.md',
+  arquivos_ausentes_readme: 'arquivos_ausentes_readme.md',
+  implementation_plan_upgrade_rules: 'implementation_plan_upgrade_rules.md',
+  log_solucoes: 'log_solucoes.md',
+  regra_llms_windows_blogger_xml_entities: 'regra_llms_windows_blogger_xml_entities.md',
+  task_upgrade_rules: 'task_upgrade_rules.md'
+};
+
+async function toolRegrasLer(a) {
+  const lista = Object.keys(REGRAS_WHITELIST).map(k => '- ' + k + '  (regras/' + REGRAS_WHITELIST[k] + ')').join('\n');
+  let alvo = String((a && a.arquivo) || '').trim().toLowerCase();
+  if (alvo.endsWith('.md')) alvo = alvo.slice(0, -3);
+  if (!alvo) {
+    return 'Use regras_ler({ arquivo: "<chave>" }) para o conteudo INTEGRAL dos .md de regras/. Whitelist (so estes - nenhum outro caminho do servidor e acessivel):\n' + lista +
+      '\n\nAVISO: prompt_8_5.md e o prompt GENERICO de blog/YouTube (thumbnail, hashtags, monetizacao). As normas APLICAVEIS a dossie judicial (Answer Target, FAQ, temas claro/escuro, CSS sem duplicatas, secoes a-i) estao resumidas no guia_relatorios - ao ler o integral, use apenas o que aplicavel.' +
+      '\n\nOrdem de montagem de dossie (padrao do servidor): (1) master_rules (estruturas/sintaxe); (2) guia_relatorios (adaptacao ao dossie + checklist); (3) prompt_8_5 apenas como referencia de conteudo.';
+  }
+  const arq = REGRAS_WHITELIST[alvo];
+  if (!arq) throw new Error('Arquivo fora da whitelist: "' + alvo + '". Opcoes:\n' + lista);
+  let texto;
+  try {
+    texto = fs.readFileSync(path.join(__dirname, 'regras', arq), 'utf8');
+  } catch (e) {
+    return [
+      'A pasta regras/ NAO existe nesta instalacao (instalacao apenas-server.js via mcp_atualizar).',
+      'COMO PROCEDER: (1) o RESUMO aplicavel ao dossie e autocontido no guia_relatorios - monte por ele;',
+      '(2) para os .md integrais, clone o repo github.com/canalqb/escrivao-mcp (pasta regras/) e rode o server.js de dentro do clone.',
+      'Detalhe tecnico: ' + String(e && e.code ? e.code : e)
+    ].join('\n');
+  }
+  const LIMITE = 70000;
+  let out = '=== regras/' + arq + ' (' + texto.length + ' chars) ===\n';
+  if (alvo === 'prompt_8_5') out += 'AVISO: prompt generico de BLOG/YouTube - use apenas as secoes aplicaveis ao dossie (Answer Target, FAQ, temas, CSS sem duplicatas); ignore thumbnail/hashtags/monetizacao. Resumo adaptado: guia_relatorios.\n\n';
+  if (texto.length > LIMITE) return out + texto.slice(0, LIMITE) + '\n\n[TRUNCADO em ' + LIMITE + ' de ' + texto.length + ' chars]';
+  return out + texto;
+}
+
+// --- ciclo_pf_pj: o ciclo PF<->PJ inteiro em uma chamada ---
+// Resolve a FALHA 3 do QA de 20/10/2026: o ciclo era lembrado mas executado
+// pela metade. Aqui: DataJud multi-tribunal + e-SAJ DOCPARTE + DJE-SP +
+// BrasilAPI (CNPJ->QSA) + receita reversa (CPF->CNPJ) + veredito unico.
+
+function formatDocPf(n11) {
+  return n11.slice(0, 3) + '.' + n11.slice(3, 6) + '.' + n11.slice(6, 9) + '-' + n11.slice(9);
+}
+
+function formatDocPj(n14) {
+  return n14.slice(0, 2) + '.' + n14.slice(2, 5) + '.' + n14.slice(5, 8) + '/' + n14.slice(8, 12) + '-' + n14.slice(12);
+}
+
+async function toolCicloPfPj(a) {
+  const doc = digitsOnly(a && a.cpf_cnpj);
+  const docFormatado = doc.length === 11 ? formatDocPf(doc) : doc.length === 14 ? formatDocPj(doc) : '';
+  if (!docFormatado) throw new Error('Informe cpf_cnpj: CPF (11 digitos) ou CNPJ (14 digitos) do pesquisado.');
+  const tribunaisArg = a && a.tribunais ? a.tribunais : undefined;
+  const partes = [];
+  const erros = [];
+  let varreduraOut = '', esajOut = '', djeOut = '', pjOut = '';
+
+  try {
+    varreduraOut = await toolDatajudVarrer({ consulta: '"' + docFormatado + '"', tribunais: tribunaisArg, tamanho: 10 });
+    partes.push('=== 1. DataJud - documento entre aspas (varredura multi-tribunal) ===\n' + varreduraOut);
+  } catch (e) { erros.push('DataJud: ' + String(e && e.message ? e.message : e).slice(0, 200)); }
+
+  try {
+    esajOut = await toolEsajBuscar({ nome_ou_doc: docFormatado, tipo: 'DOCPARTE' });
+    partes.push('\n=== 2. e-SAJ TJSP - DOCPARTE (documento) ===\n' + esajOut);
+  } catch (e) { erros.push('e-SAJ: ' + String(e && e.message ? e.message : e).slice(0, 200)); }
+
+  try {
+    djeOut = await toolDjeSpBuscar({ nome_ou_texto: '"' + docFormatado + '"', data_inicio: '01/10/2007', max_paginas: 2 });
+    partes.push('\n=== 3. DJE-SP - documento entre aspas (base integral 01/10/2007 ate hoje) ===\n' + djeOut);
+  } catch (e) { erros.push('DJE-SP: ' + String(e && e.message ? e.message : e).slice(0, 200)); }
+
+  if (doc.length === 14) {
+    try {
+      pjOut = await toolBrasilapiCnpj({ cnpj: docFormatado });
+      partes.push('\n=== 4. BrasilAPI - CNPJ (razao social + QSA) ===\n' + pjOut);
+      const mascarados = [...new Set(String(pjOut).match(/\*{3}\.\d{3}\.\d{3}-(?:\*\*|XX|xx)/g) || [])];
+      if (mascarados.length) {
+        partes.push('\nQSA com CPF MASCARADO (' + mascarados.length + '): ' + mascarados.join(', ') + '\n-> quebre com cpf_desmascarar (loop 000-999 + DV + verificacao em lote no DataJud) e valide com o cliente quem e o pesquisado; apos validar, rode ciclo_pf_pj no CPF de cada socio relevante.');
+      }
+    } catch (e) { erros.push('BrasilAPI: ' + String(e && e.message ? e.message : e).slice(0, 200)); }
+  } else {
+    partes.push('\n=== 4. Ciclo PF->PJ (entrada e CPF) ===\nNao existe busca reversa CPF->CNPJ em API publica. RECEITA VALIDADA (QA 20/10/2026):\n(a) razoes sociais de ME/empresas individuais costumam EMBUTIR o CPF do titular ("NOME 12345678901 - ME") - procure o numero formatado em razoes sociais;\n(b) busca web: exa_buscar ou jusbrasil_buscar com \'"NOME COMPLETO" "CPF" CNPJ\';\n(c) com cada CNPJ achado: brasilapi_cnpj (QSA + razao social) e ciclo_pf_pj no CNPJ (processos da PJ + CPFs do QSA).');
+  }
+
+  const totaisDatajud = [];
+  let somaDatajud = 0;
+  for (const m of varreduraOut.matchAll(/^\[([a-z0-9]+)\] (\d+)(?: resultado|\b)/gim)) {
+    const t = Number(m[2]);
+    if (t > 0) { somaDatajud += t; totaisDatajud.push(m[1] + ': ' + t); }
+  }
+  const mEsaj = esajOut.match(/(\d+)\s*Processos?\s*encontrados?/i);
+  const esajTotal = mEsaj ? Number(mEsaj[1]) : (/:\s*0 processos/i.test(esajOut) ? 0 : -1);
+  const mDje = djeOut.match(/Total: (\d+) publicacoes/);
+  const djeTotal = mDje ? Number(mDje[1]) : -1;
+
+  let veredito = '\n=== VEREDITO DO CICLO (' + docFormatado + ') ===\n';
+  veredito += '- DataJud por documento (' + (tribunaisArg ? String(tribunaisArg) : 'tribunais padrao') + '): ' + (totaisDatajud.length ? somaDatajud + ' hit(s) em ' + totaisDatajud.join(', ') : somaDatajud + ' hit(s)') + '\n';
+  veredito += '- e-SAJ DOCPARTE: ' + (esajTotal < 0 ? 'nao lido' : esajTotal + ' processo(s)') + '\n';
+  veredito += '- DJE-SP: ' + (djeTotal < 0 ? 'nao lido' : djeTotal + ' publicacao(oes)') + '\n';
+  if (erros.length) veredito += '- FONTES COM ERRO (ver pendencias): ' + erros.join(' | ') + '\n';
+  veredito += 'PROXIMOS PASSOS: valide cada numero com cnj_validar + datajud_processo; niveis de confirmacao em guia_relatorios; se 0 em tudo, registre o NEGATIVO como evidencia (controle positivo documentado) e amplie tribunais (datajud_varrer todos_tribunais) antes de concluir ausencia.';
+  partes.push(veredito);
+  partes.push(avisoAncora(docFormatado));
+  return partes.join('\n');
 }
 
 async function toolGuiaInstalacao() {
@@ -1170,7 +1312,7 @@ async function toolGuiaInstalacao() {
     '',
     '6. TESTAR SEM CLIENTE (stdin JSON-RPC):',
     '   echo {"jsonrpc":"2.0","id":1,"method":"tools/list"} | node server.js',
-    '   Deve responder 19 ferramentas. Suite completa de teste no README (secao "Como valido o servidor sem cliente?").',
+    '   Deve responder ' + TOOLS.length + ' ferramentas (contagem dinamica desta versao). Suite completa de teste no README (secao "Como valido o servidor sem cliente?").',
     '',
     '7. REGISTRAR NO CLIENTE MCP (apos o teste passar):',
     '   node <caminho-absoluto>/escrivao-mcp/server.js  -  receitas por cliente (opencode, kimi-code, Claude Desktop, Cursor) no README.',
@@ -1382,9 +1524,40 @@ const TOOLS = [
   },
   {
     name: 'guia_relatorios',
-    description: 'Tecnicas validadas para gerar relatorios/dossies de investigacao judicial: HTML unico autocontido (CSS/JS internos, sem PHP), montado PRIMEIRO pelos .md de regras/ (master_rules.md) e FINALIZADO pelo padrao 8.5; secoes obrigatorias do dossie (redes sociais, processos por CPF, nao postar homonimos, curriculo declarado, tabela de processos, cruzamento empregos x processos, analise de perfil, quao seguro e o usuario, relacionamentos com ancora), estruturas do master_rules.md (semantica W3C, WCAG AA, temas claro/escuro, CSS sem duplicatas, zero alert), niveis de confirmacao (CONFIRMADO/PROVAVEL/POSSIVEL HOMONIMO), pendencias, cadeia de evidencia, anti-homonimos, etica e checklist de entrega.',
-    inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+    description: 'Tecnicas validadas para gerar relatorios/dossies de investigacao judicial: HTML unico autocontido (CSS/JS internos, sem PHP), montado PRIMEIRO pelos .md de regras/ (master_rules.md) e FINALIZADO pelo padrao 8.5; secoes obrigatorias do dossie (redes sociais, processos por CPF, nao postar homonimos, curriculo declarado, tabela de processos, cruzamento empregos x processos, analise de perfil, quao seguro e o usuario, relacionamentos com ancora), estruturas do master_rules.md (semantica W3C, WCAG AA, temas claro/escuro, CSS sem duplicatas, zero alert), niveis de confirmacao (CONFIRMADO/PROVAVEL/POSSIVEL HOMONIMO), pendencias, cadeia de evidencia, anti-homonimos, etica e checklist de entrega. escopo="exclusivo cpf" devolve SO as normas do modo dossie-exclusivo-por-documento (padrao negativo de homonimos).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        escopo: { type: 'string', description: '"exclusivo cpf": normas filtradas para dossie de um unico documento (sem secoes de homonimos). Sem escopo: guia tecnico completo.' }
+      },
+      additionalProperties: false
+    },
     _run: toolGuiaRelatorios
+  },
+  {
+    name: 'regras_ler',
+    description: 'Conteudo INTEGRAL dos .md da pasta regras/ (whitelist: master_rules, prompt_8_5 e demais). Resolve o acesso por protocolo: agentes sem filesystem do servidor leem aqui os templates que o guia_relatorios cita. AVISO: prompt_8_5 e generico de blog/YouTube - use apenas o aplicavel ao dossie. Se a pasta regras/ nao existir (instalacao so-server.js), devolve instrucoes de fallback.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        arquivo: { type: 'string', description: 'Chave da whitelist: master_rules | prompt_8_5 | analise_arquivos_vs_readme | arquivos_ausentes_readme | implementation_plan_upgrade_rules | log_solucoes | regra_llms_windows_blogger_xml_entities | task_upgrade_rules (sem argumento: lista as opcoes)' }
+      },
+      additionalProperties: false
+    },
+    _run: toolRegrasLer
+  },
+  {
+    name: 'ciclo_pf_pj',
+    description: 'Ciclo PF<->PJ COMPLETO em uma chamada: DataJud multi-tribunal com o documento entre aspas + e-SAJ DOCPARTE + DJE-SP (base integral) + BrasilAPI (se CNPJ: razao social e CPFs mascarados do QSA com rota de quebra). Entrada CPF devolve a receita reversa CPF->CNPJ validada (razao social com CPF embutido + busca web). Termina com VEREDITO unico (hits por fonte) e proximos passos. Use ANTES de fechar qualquer dossie.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        cpf_cnpj: { type: 'string', description: 'CPF (11 digitos) ou CNPJ (14 digitos) do pesquisado, com ou sem pontuacao' },
+        tribunais: { type: 'string', description: 'Lista de tribunais separada por virgula (default: 11 principais). Ex.: tjsp,tjpr,tjsc' }
+      },
+      required: ['cpf_cnpj']
+    },
+    _run: toolCicloPfPj
   },
   {
     name: 'guia_instalacao',
@@ -1422,7 +1595,7 @@ function send(obj) { process.stdout.write(JSON.stringify(obj) + '\n'); }
 
 async function handle(msg) {
   if (msg.method === 'initialize') {
-    return { protocolVersion: '2024-11-05', capabilities: { tools: {} }, serverInfo: { name: 'escrivao', version: '1.14.0' } };
+    return { protocolVersion: '2024-11-05', capabilities: { tools: {} }, serverInfo: { name: 'escrivao', version: '1.15.0' } };
   }
   if (msg.method === 'ping') return {};
   if (msg.method === 'tools/list') return { tools: TOOLS.map(t => ({ name: t.name, description: t.description, inputSchema: t.inputSchema })) };
