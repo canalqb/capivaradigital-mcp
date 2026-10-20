@@ -16,6 +16,7 @@ validado na prática por múltiplas sessões de investigação. Companheiro do
 | **API pública DataJud/CNJ** (`api-publica.datajud.cnj.jus.br`) | Metadados de processos de todos os tribunais: número, classe, assuntos, órgão, movimentos com datas | POST `_search`; chave pública documentada na wiki (o `server.js` descobre sozinho) | **Campo `partes` vem vazio/oculto**; use números + fingerprint ou query_string com nome/CPF entre aspas |
 | **DJEN/CNJ** (`comunicaapi.pje.jus.br`) | Intimações e comunicações com **texto integral** (sentenças completas, fatos, endereços, números correlatos) | GET por `nomeParte` | Cobertura por tribunal varia; melhor fonte de contexto narrativo |
 | **e-SAJ TJSP** (`esaj.tjsp.jus.br/cpopg`) | 1º grau TJSP: busca por nome (`NMPARTE`), documento (`DOCPARTE`), número (`NUMPROC`) e capa/movimentos dos processos | HTTP direto (`esaj_buscar`) ou formulário com Playwright (`esaj_tjsp_guia`) | **Anônimo suprime partes de processos criminais**; `show.do` por URL direta é bloqueado |
+| **DJE-SP** (`esaj.tjsp.jus.br/cdje`) | Diário da Justiça Eletrônico do TJSP, base textual de 01/10/2007 até hoje: decisões, editais, precatórias, intimações com nomes de partes | `dje_sp_buscar` (nome entre aspas + janela de datas; devolve snippet e URL do PDF oficial de cada publicação) | Homônimos exigem cruzamento por CPF/número; caderno precisa ser escolhido (interior = 18/13/15) |
 | **PJe/eproc dos tribunais** | Autos completos por tribunal | Ver rotas por tribunal (§2) | Cada tribunal tem regra própria de sigilo/captcha |
 | **PJe CNJ — consulta pública** (`sustentacao.cloud.cnj.jus.br/pjecnj/ConsultaPublica`) | Consulta nacional PJe | Portal web | Cobertura parcial |
 | **Diários oficiais** (DJSP e pares) | Editais de citação, publicação de sentenças, leilões | Sites/e-Diários; busca por texto | PDFs grandes; registrar data de publicação |
@@ -138,6 +139,26 @@ origem (precatórias), não da consulta.
 - Duas fontes independentes para cada fato crítico;
 - Anotar o que foi ELIMINADO e por quê (evita retrabalho e vieses).
 
+### 5.9 Mineração do DJE-SP (diário oficial textual)
+O DJE-SP (`esaj.tjsp.jus.br/cdje`) é a fonte primária do TJSP: todo ato
+publicado (decisões, sentenças, editais, intimações, precatórias) desde
+01/10/2007, com busca textual **gratuita e anônima** — sem captcha, sem login.
+Cobre o que a API pública omite (partes, nomes, desfechos por extenso).
+
+- **Ferramenta:** `dje_sp_buscar` (nome entre aspas + janela de datas + caderno;
+  até 10 páginas de 10 hits por chamada; devolve snippet, números citados e a
+  URL do PDF oficial — anônima — de cada publicação).
+- **Cadernos:** 1º grau Interior = **18/13/15** (Partes I/II/III); Capital =
+  12/20; 2ª Instância = 11/19; Administrativo = 10; Editais = 14; todos = -11.
+- **Método:** varra janelas curtas (dias/semanas) com o nome exato entre aspas;
+  leia o PDF de cada hit; registre data de publicação + caderno + página.
+- **Limites:** só TJSP (nada de TRT/TRF/TRE/ outros estados); datas futuras à
+  última edição retornam zero (o servidor informa a última edição no campo
+  `dtLimiteFim` do formulário).
+- **Anti-homônimo:** publicação que cita o pesquisado só vale com o número do
+  processo cruzando (DataJud/e-SAJ) ou o documento do pesquisado; precatórias
+  listam RÉU com nome completo — cruzar antes de atribuir.
+
 ## 6. Histórico técnico rápido (para não repetir erros)
 
 - DataJud: `terms` sem campo = HTTP 400; `match.numeroProcesso` só com 20
@@ -149,6 +170,11 @@ origem (precatórias), não da consulta.
 - Escavador: sessão persiste após login; busca de nome exato via
   `escavador.com/busca?q="NOME"&tipoBusca=envolvidos`.
 - BrasilAPI: bloqueia User-Agent padrão do Node — enviar header de navegador.
+- DJE-SP: o POST da busca exige `dadosConsulta.cdCaderno` (sem ele o servidor
+  devolve o formulário sem erro); a data do resultado alterna entre
+  "01/07/2025" e "Tue Jul 01 ... 2025" conforme o locale do nó (o parser
+  aceita ambos); a paginação é AJAX (`trocaDePagina.do`) com estado na sessão
+  (cookie + jsessionid) — não é stateless.
 - PowerShell 5.1: remove aspas duplas em padrões regex (usar `\x22`); UTF-8
   com BOM em arquivos Markdown.
 

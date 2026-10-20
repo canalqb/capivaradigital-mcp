@@ -144,7 +144,7 @@ confirmar instalação, contagem de ferramentas e saúde da rede em segundos.
 cmd /c "node <caminho>\escrivao-mcp\server.js < teste.jsonl"
 ```
 
-## Quais são as 19 ferramentas?
+## Quais são as 20 ferramentas?
 
 Uma paleta enxuta cobrindo o ciclo completo de uma pesquisa judicial: validar o
 número, desmascarar o que está oculto, consultar por número, nome, documento ou
@@ -165,6 +165,7 @@ ferramenta e sua fonte.
 | `djen_intimacoes` | Intimações por nome da parte, com texto integral (sentenças completas citam números correlatos) | DJEN/CNJ |
 | `esaj_buscar` | Consulta anônima do 1º grau do TJSP por nome/CPF/número via HTTP (anônimo suprime partes criminais); agora lista também os números de processo encontrados | e-SAJ TJSP |
 | `esaj_tjsp_guia` | Receita do fluxo e-SAJ por número com seletores CSS (para Playwright) | e-SAJ TJSP |
+| `dje_sp_buscar` | Busca textual no Diário da Justiça Eletrônica do TJSP (DJE-SP, base de 01/10/2007 até a última edição publicada): nome entre aspas, termo ou número, com janela de datas, caderno, até 100 hits (10 páginas de 10) e URL do PDF oficial de cada publicação | DJE-SP TJSP |
 | `brasilapi_cnpj` | CNPJ formatado: razão social, sócios (QSA), CNAE, situação, endereço | BrasilAPI |
 | `exa_buscar` | Busca semântica web: notícias, menções, homônimos (requer EXA_API_KEY) | Exa |
 | `fontes_osint` | Playbook interno: bases, atalhos, rotas por tribunal, técnicas e ética/LGPD | — |
@@ -193,6 +194,7 @@ pedem login ou captcha, o que está sinalizado no `GUIA_OSINT.md`.
 | DJEN — comunicações/intimações | https://comunicaapi.pje.jus.br/api/v1/comunicacao |
 | BrasilAPI — CNPJ gratuito | https://brasilapi.com.br |
 | e-SAJ TJSP — consulta pública | https://esaj.tjsp.jus.br/cpopg |
+| DJE-SP — Diário da Justiça Eletrônico do TJSP (busca avançada textual, 2007 até hoje; use a ferramenta `dje_sp_buscar`) | https://esaj.tjsp.jus.br/cdje/consultaAvancada.do |
 | Escavador — agregador (paywall) | https://www.escavador.com |
 | Jusbrasil — agregador (paywall) | https://www.jusbrasil.com.br |
 

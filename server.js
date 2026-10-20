@@ -7,6 +7,9 @@ const DATAJUD_KEY_FALLBACK = 'cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1Rdn
 const DJEN_BASE = 'https://comunicaapi.pje.jus.br/api/v1/comunicacao';
 const BRASILAPI_CNPJ = 'https://brasilapi.com.br/api/cnpj/v1/';
 const ESAJ_SEARCH = 'https://esaj.tjsp.jus.br/cpopg/search.do';
+const DJE_SEARCH = 'https://esaj.tjsp.jus.br/cdje/consultaAvancada.do';
+const DJE_TROCA_PG = 'https://esaj.tjsp.jus.br/cdje/trocaDePagina.do';
+const DJE_PDF = 'https://esaj.tjsp.jus.br/cdje/getPaginaDoDiario.do';
 const EXA_SEARCH = 'https://api.exa.ai/search';
 const JUSBRASIL_BUSCA = 'https://www.jusbrasil.com.br/busca?q=';
 const UPDATE_URL = 'https://raw.githubusercontent.com/canalqb/escrivao-mcp/main/server.js';
@@ -604,6 +607,208 @@ async function toolEsajBuscar(a) {
   return out;
 }
 
+// --- DJE-SP (Diario da Justica Eletronico do TJSP) ---
+// Pipeline validado: GET consultaAvancada.do (sessao+campos ocultos) ->
+// POST consultaAvancada.do;jsessionid=... (busca) ->
+// POST trocaDePagina.do pagina=N (fragmentos AJAX) ->
+// PDF oficial anonimo em getPaginaDoDiario.do?...&uuidCaptcha=
+
+const DJE_CADERNOS = {
+  '-11': 'Todos os cadernos',
+  '10': 'Caderno 1 - Administrativo',
+  '11': 'Caderno 2 - Judicial - 2a Instancia - Entrada e Distribuicao - Parte I',
+  '19': 'Caderno 2 - Judicial - 2a Instancia - Processamento - Parte II',
+  '12': 'Caderno 3 - Judicial - 1a Instancia - Capital - Parte I',
+  '20': 'Caderno 3 - Judicial - 1a Instancia - Capital - Parte II',
+  '18': 'Caderno 4 - Judicial - 1a Instancia - Interior - Parte I',
+  '13': 'Caderno 4 - Judicial - 1a Instancia - Interior - Parte II',
+  '15': 'Caderno 4 - Judicial - 1a Instancia - Interior - Parte III',
+  '14': 'Caderno 5 - Editais e Leiloes'
+};
+
+const DJE_MESES = { Jan: '01', Feb: '02', Mar: '03', Apr: '04', May: '05', Jun: '06', Jul: '07', Aug: '08', Sep: '09', Oct: '10', Nov: '11', Dec: '12' };
+
+function djeDecodeEnt(s) {
+  const mapa = {
+    nbsp: ' ', amp: String.fromCharCode(38), lt: String.fromCharCode(60), gt: String.fromCharCode(62), quot: String.fromCharCode(34),
+    aacute: '\u00e1', eacute: '\u00e9', iacute: '\u00ed', oacute: '\u00f3', uacute: '\u00fa',
+    atilde: '\u00e3', otilde: '\u00f5', ccedil: '\u00e7', acirc: '\u00e2', ecirc: '\u00ea', ocirc: '\u00f4', agrave: '\u00e0',
+    Aacute: '\u00c1', Eacute: '\u00c9', Iacute: '\u00cd', Oacute: '\u00d3', Uacute: '\u00da', Ccedil: '\u00c7'
+  };
+  return String(s).replace(/&(#39|[a-zA-Z]+);/g, function (m, g) {
+    if (g === '#39') return "'";
+    return Object.prototype.hasOwnProperty.call(mapa, g) ? mapa[g] : m;
+  });
+}
+
+function djeStripTags(s) {
+  return djeDecodeEnt(String(s).replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').trim();
+}
+
+function djeNormData(v, fallback) {
+  const s = String(v || '').trim();
+  if (!s) return fallback || '';
+  let m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (m) return m[3] + '/' + m[2] + '/' + m[1];
+  m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (m) return s;
+  throw new Error('Data invalida: "' + v + '" - use dd/mm/aaaa ou aaaa-mm-dd.');
+}
+
+async function djeFetch(url, options, ms, jar) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), ms || 90000);
+  try {
+    const opts = Object.assign({}, options, { signal: ctrl.signal });
+    opts.headers = Object.assign({}, opts.headers || {});
+    const ck = Object.keys(jar).map(k => k + '=' + jar[k]).join('; ');
+    if (ck) opts.headers.Cookie = ck;
+    const res = await fetch(url, opts);
+    let setCk = [];
+    if (typeof res.headers.getSetCookie === 'function') setCk = res.headers.getSetCookie();
+    else {
+      const raw = res.headers.get('set-cookie');
+      if (raw) setCk = raw.split(/,(?=[^ ;,]+=)/);
+    }
+    for (const c of setCk) {
+      const par = c.split(';')[0];
+      const eq = par.indexOf('=');
+      if (eq > 0) jar[par.slice(0, eq).trim()] = par.slice(eq + 1).trim();
+    }
+    const text = await res.text();
+    if (!res.ok) throw new Error('HTTP ' + res.status + ': ' + text.slice(0, 300));
+    return text;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function djeParseHits(html) {
+  const mCont = html.match(/Resultados\s*<strong>([^<]+)<\/strong>\s*de\s*(\d+)/i);
+  const cont = mCont ? { faixa: mCont[1].trim(), total: Number(mCont[2]) } : null;
+  const hits = [];
+  const blocos = html.split('<tr class="fundocinza1">').slice(1);
+  for (const bloco of blocos) {
+    const mUrl = bloco.match(/popup\('(\/cdje\/consultaSimples\.do\?[^']+)'\)/);
+    if (!mUrl) continue;
+    const q = new URLSearchParams(mUrl[1].split('?')[1]);
+    const hit = {
+      cdVolume: q.get('cdVolume') || '',
+      nuDiario: q.get('nuDiario') || '',
+      cdCaderno: q.get('cdCaderno') || '',
+      nuSeqpagina: q.get('nuSeqpagina') || '',
+      data: '',
+      caderno: '',
+      ocorrencias: '',
+      snippet: '',
+      processos: []
+    };
+    const mLinha = bloco.match(/popup\('([^']*)'\)[^>]*>\s*([^<]+?)\s*<\/a>/);
+    if (mLinha) {
+      const linha = mLinha[2].replace(/\s+/g, ' ').trim();
+      const mBr = linha.match(/(\d{2}\/\d{2}\/\d{4})\s+-\s+(.+)$/);
+      const mEn = linha.match(/^[A-Za-z]{3}\s+([A-Za-z]{3})\s+(\d{2})\s+[\d:]+\s+GMT[^\s]*\s+(\d{4})\s+-\s+(.+)$/);
+      if (mBr) {
+        hit.data = mBr[1];
+        hit.caderno = djeStripTags(mBr[2]);
+      } else if (mEn) {
+        hit.data = mEn[2] + '/' + (DJE_MESES[mEn[1]] || '??') + '/' + mEn[3];
+        hit.caderno = djeStripTags(mEn[4]);
+      } else {
+        hit.caderno = djeStripTags(linha);
+      }
+    }
+    const mOc = bloco.match(/\((\d+)\s+ocorr[^)]*\)/);
+    if (mOc) hit.ocorrencias = mOc[1];
+    const mSnip = bloco.match(/<tr class="ementaClass2">\s*<td[^>]*>([\s\S]*?)<\/td>/);
+    if (mSnip) hit.snippet = djeStripTags(mSnip[1]).slice(0, 700);
+    const fontes = hit.snippet + ' ' + hit.caderno;
+    hit.processos = [...new Set(fontes.match(/\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}/g) || [])];
+    hits.push(hit);
+  }
+  return { cont: cont, hits: hits };
+}
+
+async function toolDjeSpBuscar(a) {
+  const termo = String(a.nome_ou_texto || a.termo || '').trim();
+  if (!termo) throw new Error('Informe nome_ou_texto: nome exato entre aspas ("NOME COMPLETO"), termo livre ou numero de processo.');
+  const caderno = String(a.cd_caderno || '-11');
+  if (!DJE_CADERNOS[caderno]) throw new Error('cd_caderno invalido: ' + caderno + '. Opcoes: ' + Object.keys(DJE_CADERNOS).map(k => k + '=' + DJE_CADERNOS[k]).join('; '));
+  const maxPaginas = Math.min(Math.max(Number(a.max_paginas) || 1, 1), 10);
+  const jar = {};
+  const headers = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+    'Accept': 'text/html,application/xhtml+xml',
+    'Referer': DJE_SEARCH,
+    'Origin': 'https://esaj.tjsp.jus.br'
+  };
+  const form = await djeFetch(DJE_SEARCH, { headers: headers }, 60000, jar);
+  const mAct = form.match(/action="([^"]*consultaAvancada\.do[^"]*)"/);
+  if (!mAct) throw new Error('Pagina de busca do DJE-SP mudou de formato (action nao encontrada).');
+  const actionUrl = 'https://esaj.tjsp.jus.br' + mAct[1].replace(new RegExp('&am' + 'p;', 'g'), String.fromCharCode(38));
+  const mLim = form.match(/name="dtLimiteFim"[^>]*value="(\d{4})-(\d{2})-(\d{2})"/);
+  const ultimoDia = mLim ? mLim[3] + '/' + mLim[2] + '/' + mLim[1] : '';
+  const dtFim = djeNormData(a.data_fim, ultimoDia);
+  const dtIni = djeNormData(a.data_inicio, dtFim);
+  if (!dtFim || !dtIni) throw new Error('Informe data_inicio e data_fim (dd/mm/aaaa) - nao foi possivel deduzir a janela (a base comeca em 01/10/2007).');
+  const body = new URLSearchParams();
+  for (const tag of form.matchAll(/<input\b[^>]*>/g)) {
+    const nm = tag[0].match(/\bname="([^"]+)"/);
+    if (!nm) continue;
+    const nome = nm[1];
+    if (nome === 'consultar' || nome === 'Limpar' || nome === 'download' || nome === 'pagina' || nome.indexOf('dadosConsulta.') === 0) continue;
+    const vl = tag[0].match(/\bvalue="([^"]*)"/);
+    body.set(nome, vl ? vl[1] : '');
+  }
+  body.set('dadosConsulta.dtInicio', dtIni);
+  body.set('dadosConsulta.dtFim', dtFim);
+  body.set('dadosConsulta.pesquisaLivre', termo);
+  body.set('dadosConsulta.cdCaderno', caderno);
+  body.set('secoes', '');
+  body.set('cadernosCad', '');
+  body.set('consultar', 'Consultar');
+  let html = await djeFetch(actionUrl, {
+    method: 'POST',
+    headers: Object.assign({}, headers, { 'Content-Type': 'application/x-www-form-urlencoded' }),
+    body: body.toString()
+  }, 120000, jar);
+  let r = djeParseHits(html);
+  if (!r.cont) {
+    const semScripts = html.replace(/<script[\s\S]*?<\/script>/gi, ' ');
+    if (/nenhum registro correspondente/i.test(semScripts)) {
+      let zero = 'DJE-SP: 0 publicacoes para ' + termo + ' entre ' + dtIni + ' e ' + dtFim + ' (caderno: ' + DJE_CADERNOS[caderno] + ').';
+      if (ultimoDia) zero += '\nUltima edicao publicada na base: ' + ultimoDia + ' (janelas futuras retornam zero).';
+      zero += '\nATENCAO: 0 aqui e INDICIO, nao prova - o DJE-SP so publica decisoes do TJSP (nao cobre Justica do Trabalho/Federal/Eleitoral nem outros estados).';
+      return zero;
+    }
+    throw new Error('Resposta inesperada do DJE-SP (sem marcador de resultados). Confira o intervalo de datas (base: 01/10/2007 a ' + (ultimoDia || 'hoje') + ') e o termo.');
+  }
+  const total = r.cont.total;
+  const todas = r.hits.slice();
+  const totalPaginas = Math.max(1, Math.ceil(total / 10));
+  for (let pg = 2; pg <= Math.min(maxPaginas, totalPaginas); pg++) {
+    const frag = await djeFetch(DJE_TROCA_PG, {
+      method: 'POST',
+      headers: Object.assign({}, headers, { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest' }),
+      body: 'pagina=' + pg
+    }, 60000, jar);
+    const rf = djeParseHits(frag);
+    for (const h of rf.hits) todas.push(h);
+  }
+  let out = 'DJE-SP (Diario da Justica Eletronico do TJSP) - busca por ' + termo + ' | janela ' + dtIni + ' a ' + dtFim + ' | caderno: ' + DJE_CADERNOS[caderno] + '\n';
+  if (ultimoDia) out += 'Ultima edicao publicada na base: ' + ultimoDia + '\n';
+  out += 'Total: ' + total + ' publicacoes | lidas: ' + todas.length + ' (paginas 1-' + Math.min(maxPaginas, totalPaginas) + ' de ' + totalPaginas + '; cada pagina = 10 hits; aumente max_paginas ate 10 para ler mais)\n';
+  todas.forEach((h, i) => {
+    out += '\n[' + (i + 1) + '] ' + (h.data || 'data?') + ' - ' + (h.caderno || 'caderno?') + (h.ocorrencias ? ' | ocorrencias na pagina: ' + h.ocorrencias : '') + '\n';
+    out += '    PDF oficial: ' + DJE_PDF + '?cdVolume=' + h.cdVolume + '&nuDiario=' + h.nuDiario + '&cdCaderno=' + h.cdCaderno + '&nuSeqpagina=' + h.nuSeqpagina + '&uuidCaptcha=\n';
+    if (h.processos.length) out += '    Processos citados: ' + h.processos.join(', ') + '\n';
+    if (h.snippet) out += '    ' + h.snippet + '\n';
+  });
+  out += '\nCOMO USAR: o PDF e a pagina oficial do diario (URL anonima - baixe com curl/ferramenta de leitura). Snippets citam numeros de processo: valide com cnj_validar e confirme com datajud_processo. Publicacoes que citam o pesquisado por nome EXIGEM cruzamento por CPF/CNPJ ou pelo numero do processo.\n';
+  out += avisoAncora(termo);
+  return out;
+}
+
 async function toolExaBuscar(a) {
   const chave = process.env.EXA_API_KEY;
   if (!chave) return 'EXA_API_KEY nao configurada no ambiente. Obtenha em https://dashboard.exa.ai e defina (Windows: setx EXA_API_KEY "sua-chave").';
@@ -1135,6 +1340,22 @@ const TOOLS = [
     _run: toolEsajBuscar
   },
   {
+    name: 'dje_sp_buscar',
+    description: 'Busca textual no Diario da Justica Eletronico de Sao Paulo (DJE-SP/TJSP), cobrindo 01/10/2007 ate a ultima edicao publicada. Pipeline validado: POST consultaAvancada.do + paginacao AJAX trocaDePagina.do. Busque nome exato entre aspas ("NOME COMPLETO"), termo livre ou numero de processo; devolve data, caderno, pagina, snippet, numeros de processo citados e a URL do PDF oficial (anonima) de cada publicacao. REGRA ANTI-HOMONIMO: publicacao que cita o pesquisado por nome EXIGE cruzamento por CPF/CNPJ ou numero do processo.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        nome_ou_texto: { type: 'string', description: 'Termo de busca: nome exato entre aspas ("NOME COMPLETO"), frase ou numero de processo' },
+        data_inicio: { type: 'string', description: 'dd/mm/aaaa ou aaaa-mm-dd (default: igual a data_fim)' },
+        data_fim: { type: 'string', description: 'dd/mm/aaaa ou aaaa-mm-dd (default: ultima edicao publicada)' },
+        cd_caderno: { type: 'string', description: '-11 todos (default) | 10 Administrativo | 11/19 Judicial 2a Instancia | 12/20 Judicial 1a Inst Capital | 18/13/15 Judicial 1a Inst Interior | 14 Editais' },
+        max_paginas: { type: 'number', description: 'Paginas de 10 hits a ler por chamada (1 a 10, default 1)' }
+      },
+      required: ['nome_ou_texto']
+    },
+    _run: toolDjeSpBuscar
+  },
+  {
     name: 'exa_buscar',
     description: 'Busca semantica na web (Exa API): noticias, menções, redes sociais, homonimos. Requer a variavel de ambiente EXA_API_KEY (gratuita em https://dashboard.exa.ai).',
     inputSchema: {
@@ -1201,7 +1422,7 @@ function send(obj) { process.stdout.write(JSON.stringify(obj) + '\n'); }
 
 async function handle(msg) {
   if (msg.method === 'initialize') {
-    return { protocolVersion: '2024-11-05', capabilities: { tools: {} }, serverInfo: { name: 'escrivao', version: '1.13.0' } };
+    return { protocolVersion: '2024-11-05', capabilities: { tools: {} }, serverInfo: { name: 'escrivao', version: '1.14.0' } };
   }
   if (msg.method === 'ping') return {};
   if (msg.method === 'tools/list') return { tools: TOOLS.map(t => ({ name: t.name, description: t.description, inputSchema: t.inputSchema })) };
