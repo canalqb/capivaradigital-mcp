@@ -1326,6 +1326,61 @@ async function toolGuiaInstalacao() {
   ].join('\n');
 }
 
+async function toolGuiaDossie(args) {
+  const so = args && args.fase;
+  const FASES = [
+    ['FASE 0 - REGRA DOS PEDIDOS DO TITULAR (obrigatoria, validada em campo 2026-10-20/21)',
+     'TODO pedido do titular da investigacao nesta sessao vira ETAPA EXECUTAVEL do protocolo: se ele pediu empresas em que trabalhou, o agente pesquisa vinculos empregaticios (fase 5); se pediu o artigo do crime, pesquisa enquadramento (fase 6); se pediu redes sociais, fase 5; se pediu numeros mascarados, fase 3. Nenhum pedido e respondido com "nao e possivel" antes de executar TODAS as rotas publicas gratuitas desta lista e declarar os limites com fonte.'],
+    ['FASE 1 - ANCORA: SEMPRE POR DOCUMENTO, NUNCA POR NOME',
+     '1. A busca e SEMPRE por CPF/CNPJ (datajud_por_cpf, esaj_buscar DOCPARTE, datajud_buscar com documento entre aspas) - precisao por documento, homonimo nunca na lista principal.',
+     '2. CPF mascarado (ex.: QSA ***.123.456-**): cpf_desmascarar gera os candidatos com DV valido e verifica em lote no DataJud; o USUARIO escolhe o nome certo; dai em diante pesquisa-se SO pelo CPF.',
+     '3. ciclo_pf_pj (1a chamada de todo dossie): DataJud multi-tribunal + e-SAJ DOCPARTE + DJE-SP + rota reversa CPF->CNPJ.'],
+    ['FASE 2 - CICLO PF<->PJ FORCADO (regra do mantenedor: CNPJ SEMPRE com o CPF)',
+     '1. Com o CPF, procure TODOS os CNPJs vinculados (razao social costuma embutir iniciais+CPF; validar no BrasilAPI).',
+     '2. Validou o CNPJ? Extraia o QSA (brasilapi_cnpj) e confira o CPF mascarado (ancora de bloco, ex. ***381258**).',
+     '3. Com o CNPJ, extraia os CPFs do QSA e pesquise os processos DELES (datajud_por_cpf) - achados de terceiros do QSA so entram minimizados e sem dados pessoais.',
+     '4. Controle negativo: 0 processos da PJ tambem e EVIDENCIA - documente (tribunais consultados, data, fonte).'],
+    ['FASE 3 - MASCARAS DE PROCESSO: LOOP CNJ + CONTRA-PROVA',
+     '1. Toda mascara de agregador (Escavador/Jusbrasil/documentos) entra no cnj_desmascarar com consultar_datajud=true + cpf/nome para cruzamento.',
+     '2. CONTRA-PROVA DEFINITIVA (aprendida 2026-10-21): se o feito for TJSP, o esaj_buscar DOCPARTE pelo CPF e a palavra final - se a mascara nao aparece por documento no e-SAJ, NAO e do pesquisado (homonimo), mesmo que o DataJud publico nao a tenha indexado ainda (processos novos atrasam).',
+     '3. Marcado "SEM ANCORA" no loop = PROIBIDO publicar como sendo do pesquisado.',
+     '4. Agregadores combinam 2-3+ homonimos por nome comum - o numero agregado deles NUNCA e o numero do dossie.'],
+    ['FASE 4 - VARREDURA MULTI-TRIBUNAL E DIARIOS',
+     '1. datajud_varrer por documento (default 11 principais; amplie com trt1,trt2,trt15,trf3 - varredura todos_tribunais pode dar timeout no TJSP: repita em janelas menores e documente a pendencia).',
+     '2. dje_sp_buscar por nome (triagem interna; so publica com documento cruzado) e por NUMERO de processo (ancora unica, sem risco de homonimo).',
+     '3. djen_intimacoes por nome: textos integrais citam processos correlatos e despachos - mina de ouro para desmascarar; homonimo exigido.'],
+    ['FASE 5 - REDES SOCIAIS, CURRICULO DECLARADO E VINCULOS EMPREGATICIOS',
+     '1. LinkedIn/web (exa_buscar, buscadores): classificar cada perfil como COMPATIVEL (coerente com CNAE/empresa/geografia, mas SEM documento = nao atribuir) ou DESCARTADO (historico incompativel). Publicar descartes apenas como lista resumida.',
+     '2. VINCULOS EMPREGATICIOS (pedido tipico): (a) CONFIRMADO por ancora = apenas a propria empresa do QSA; (b) COMPATIVEL = cargos declarados em perfil publico, SEM nome de empregador; (c) controle negativo = 0 processos trabalhistas por CPF nos TRTs (so assim empregador aparece em via publica); (d) LIMITE DECLARADO: CAGED/Rais sao bases fechadas - nenhuma fonte publica gratuita lista empregadores CLT; escreva isso no dossie.',
+     '3. Curriculo de agregadores (Beege etc.) e AUTODECLARADO - pode conter qualquer coisa; trate como hipotese a validar, nunca como fato.'],
+    ['FASE 6 - DETALHES DO CRIME (quando ha feito criminal confirmado)',
+     '1. Enquadramento: o artigo tipico vem da classe/assunto (ex. Furto = Art. 155 CP, Roubo = Art. 157 CP); o tipo exato (caput x majorado/qualificado) SO consta da denuncia nos autos.',
+     '2. Rotas publicas para circunstancias: datajud_processo incluir_json=true (orgao de origem, mandados e resultado da citacao, cartas preocatorias, audiencias), esaj_buscar NUMPROC (partes, defesa, movimentacao integral), dje_sp_buscar por numero. O TEOR DA DENUNCIA nao e publico: exige autos (advogado) ou certidao de objetos e pendencias - declare a pendencia.',
+     '3. Rito como hipotese: procedimento ORDINARIO em vara comum (em vez de sumarissimo/JECRIM) sugere circunstancias que afastam o juizado - MARCAR COMO HIPOTESE, nunca como fato.',
+     '4. Presuncao de inocencia (CF art. 5, LVII) em toda linha do dossie; suspensao/andamento nunca e desfecho.'],
+    ['FASE 7 - FAMILIARES E TERCEIROS',
+     '1. Conjuges e filhos MAIORES podem ser citados e pesquisados; MENORES nunca (independe de pedido).',
+     '2. Terceiros (familiares, vitimas, testemunhas) entram MINIMIZADOS (iniciais), sem dados pessoais, e so com ancora.'],
+    ['FASE 8 - VALIDACAO DE CURRICULO/CERTIFICACOES (quando existir curriculo declarado)',
+     '1. Curso superior: e-MEC (consulta publica de IES/cursos), registro em conselho profissional (CRM/CREA/OAB/CFA etc. - consultas publicas por nome).',
+     '2. Certificacoes de TI/idiomas: so validar quando o emissor tem verificador publico; sem verificador = nao validavel por via publica (declarar).',
+     '3. Cruzar curriculo x processos x empresas: incoerencia documentada e achado relevante.'],
+    ['FASE 9 - MONTAGEM DO DOSSIE',
+     '1. Dossie x METODO separados: tecnica de pesquisa NUNCA no dossie do documento (vive no relatorio de metodo); no dossie so dados + fontes.',
+     '2. Template: HTML unico autocontido (CSS/JS internos, sem PHP), classes post-*, FontAwesome CDN, JSON-LD, nav por ancoras, filtro JS, tema claro/escuro, footer com data + LGPD + presuncao de inocencia; creditos: criacao = "Escrivao-MCP Gerenciamento de consultas publicas", CanalQb so como autor do prompt 8.5 e hospedador do MCP; titular = "titular da investigacao".',
+     '3. Secoes: TL;DR 3 bullets com nivel; identidade (ancora dupla); CNPJs; redes/curriculo/vinculos; tabela de processos CONFIRMADOS com coluna de confirmacao; movimentacao integral; detalhes do crime; analise de perfil; pendencias COM proximo passo; fontes; FAQ. Zero emojis, PT-BR.',
+     '4. Validar antes de entregar: parser HTML sem erros, JS sem erro de sintaxe, JSON-LD parseavel, grep de homonimos.'],
+    ['FASE 10 - FECHAMENTO',
+     '1. Pendencias com proximo passo concreto (uma por lacuna).',
+     '2. Registro da sessao em log interno do projeto (nao no MCP - zero dados reais aqui).',
+     '3. Niveis: CONFIRMADO (ancora de documento) / PROVAVEL (fingerprint) / POSSIVEL HOMONIMO (nunca na lista principal).']
+  ];
+  let out = FASES.map(f => f.join('\n')).join('\n\n');
+  const header = 'PROTOCOLO DE DOSSIE COMPLETO POR DOCUMENTO (v1.16.0) - regra obrigatoria para TODOS os agentes que usam o escrivao. Execute as fases em ordem; nenhum pedido do titular fica sem resposta ou sem rota tentada. Fonte: sessoes reais 18-21/10/2026 (dossies validados). Zero dados reais neste texto.\n\n';
+  if (so) { const f = FASES.find(x => x[0].indexOf(so.toUpperCase()) > -1); return header + (f ? f.join('\n') : 'Fase nao encontrada. Fases: 0,1,2,3,4,5,6,7,8,9,10 (use fase="FASE 6" etc.).'); }
+  return header + out + '\n\nVEJA TAMBEM: guia_relatorios (template/niveis), fontes_osint (protocolo anti-homonimo), guia_navegacao (browser), ciclo_pf_pj (execucao da fase 1-2).';
+}
+
 const TOOLS = [
   {
     name: 'cnj_validar',
@@ -1523,6 +1578,18 @@ const TOOLS = [
     _run: toolGuiaNavegacao
   },
   {
+    name: 'guia_dossie',
+    description: 'PROTOCOLO DE DOSSIE COMPLETO POR DOCUMENTO (v1.16.0): regra obrigatoria para todo agente - TODOS os pedidos do titular da investigacao (empresas em que trabalhou, artigo do crime, redes sociais, curriculo, mascaras) viram etapa executavel deste checklist de 11 fases: ancora por documento, ciclo PF<->PJ forcado (CNPJ sempre com o CPF), loop de mascaras CNJ com contra-prova no e-SAJ DOCPARTE, varredura multi-tribunal e diarios, redes/curriculo/vinculos empregaticios (com limite declarado do CAGED/Rais), detalhes do crime (artigo pelo assunto + rito como hipotese + denuncia exige autos), familiares maiores/terceiros minimizados, validacao de curriculo/certificados (e-MEC/conselhos), montagem (dossie x metodo separados, template HTML autocontido, creditos oficiais) e fechamento com pendencias. Use ANTES de iniciar qualquer dossie de novo CPF/CNPJ.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        fase: { type: 'string', description: 'Opcional: devolve so uma fase (ex.: "FASE 6" para detalhes de crime, "FASE 5" para vinculos empregaticios). Sem argumento: protocolo completo.' }
+      },
+      additionalProperties: false
+    },
+    _run: toolGuiaDossie
+  },
+  {
     name: 'guia_relatorios',
     description: 'Tecnicas validadas para gerar relatorios/dossies de investigacao judicial: HTML unico autocontido (CSS/JS internos, sem PHP), montado PRIMEIRO pelos .md de regras/ (master_rules.md) e FINALIZADO pelo padrao 8.5; secoes obrigatorias do dossie (redes sociais, processos por CPF, nao postar homonimos, curriculo declarado, tabela de processos, cruzamento empregos x processos, analise de perfil, quao seguro e o usuario, relacionamentos com ancora), estruturas do master_rules.md (semantica W3C, WCAG AA, temas claro/escuro, CSS sem duplicatas, zero alert), niveis de confirmacao (CONFIRMADO/PROVAVEL/POSSIVEL HOMONIMO), pendencias, cadeia de evidencia, anti-homonimos, etica e checklist de entrega. escopo="exclusivo cpf" devolve SO as normas do modo dossie-exclusivo-por-documento (padrao negativo de homonimos).',
     inputSchema: {
@@ -1595,7 +1662,7 @@ function send(obj) { process.stdout.write(JSON.stringify(obj) + '\n'); }
 
 async function handle(msg) {
   if (msg.method === 'initialize') {
-    return { protocolVersion: '2024-11-05', capabilities: { tools: {} }, serverInfo: { name: 'escrivao', version: '1.15.0' } };
+    return { protocolVersion: '2024-11-05', capabilities: { tools: {} }, serverInfo: { name: 'escrivao', version: '1.16.0' } };
   }
   if (msg.method === 'ping') return {};
   if (msg.method === 'tools/list') return { tools: TOOLS.map(t => ({ name: t.name, description: t.description, inputSchema: t.inputSchema })) };
