@@ -1,4 +1,4 @@
-# escrivao
+﻿# escrivao
 
 > Dezenove ferramentas de OSINT judicial brasileiro em um único arquivo Node.
 
@@ -144,11 +144,12 @@ confirmar instalação, contagem de ferramentas e saúde da rede em segundos.
 cmd /c "node <caminho>\escrivao-mcp\server.js < teste.jsonl"
 ```
 
-## Quais são as 23 ferramentas?
+## Quais são as 26 ferramentas?
 
 Uma paleta enxuta cobrindo o ciclo completo de uma pesquisa judicial: validar o
 número, desmascarar o que está oculto, consultar por número, nome, documento ou
-varredura multi-tribunal, ler intimações e complementar com CNPJ, web, navegação
+varredura multi-tribunal (com escopos prontos por ramo), ler intimações e
+complementar com CNPJ, web, redes sociais/telefone, navegação
 por browser automatizado e instalação do zero. A tabela abaixo resume cada
 ferramenta e sua fonte.
 
@@ -158,10 +159,11 @@ ferramenta e sua fonte.
 | `cnj_desmascarar` | Quebra máscaras `000XXXX-XX.AAAA.J.TR.OOOO`: candidatos com DV válido, verificação numa única query `terms` no DataJud e LOOP — com `cpf`/`nome` cruza os candidatos com o pesquisado e marca VÍNCULO CONFIRMADO ou SEM âncora | DataJud |
 | `cpf_desmascarar` | Quebra CPF mascarado (até 3 dígitos ocultos, ex. `***.123.456-**` ou o bloco de 6 antes do DV): loop 000-999 + DV módulo 11 + verificação em lote no DataJud; devolve CPFs com processos e nomes para o **usuário validar** — depois o dossiê pesquisa tudo pelo CPF, nunca pelo nome | DataJud |
 | `datajud_processo` | Capa do processo por número CNJ (tribunal detectado automaticamente) | DataJud |
-| `datajud_pesquisar` | Pesquisa estruturada: lista de números (terms), classe, assunto ou órgão julgador | DataJud |
-| `datajud_buscar` | Busca textual livre (query_string): nome exato entre aspas duplas, CPF formatado entre aspas, número; 3 tentativas para tribunais lentos | DataJud |
-| `datajud_por_cpf` | Por CPF/CNPJ da parte (campo `documentoReplicado`); sugere rota alternativa quando o tribunal mascara | DataJud |
-| `datajud_varrer` | Varre UMA consulta em VÁRIOS tribunais numa única chamada (default 11 tribunais; erros por tribunal não abortam a varredura) | DataJud |
+| `datajud_pesquisar` | Pesquisa estruturada: lista de números (terms), classe (nome ou **código**), assunto (nome ou código), órgão (nome ou código), grau e **faixa de ajuizamento** (data_inicio/data_fim); ordenação e **cursor search_after** (`ordenar=atualizacao` + `apartir_de`) para paginar além dos 10.000 hits | DataJud |
+| `datajud_buscar` | Busca textual livre (query_string): nome exato entre aspas duplas, CPF formatado entre aspas, número; ordena por ajuizamento e mostra as partes quando o tribunal as indexa; 3 tentativas para tribunais lentos | DataJud |
+| `datajud_por_cpf` | Por CPF/CNPJ da parte nos campos `partes.documento` **e** `documentoReplicado`, nas **duas grafias** (com e sem pontuação) via `bool.should`; sugere rota alternativa quando o tribunal mascara | DataJud |
+| `datajud_por_nome` | Por **nome completo exato** da parte (match_phrase nos dois formatos de indexação, `partes.nome` e `partes.pessoa.nome`), com polo opcional (ATIVO/PASSIVO, cobrindo Autor/Réu) e ajuizamento decrescente; tribunais que omitem partes: resposta sugere `datajud_buscar` com o nome entre aspas | DataJud |
+| `datajud_varrer` | Varre UMA consulta em VÁRIOS tribunais numa única chamada, **paralela (5 por vez)**; escopos prontos: `escopo=tj/trf/trt/tre/superiores/militares/todos`; erros por tribunal não abortam a varredura | DataJud |
 | `djen_intimacoes` | Intimações por nome da parte, com texto integral (sentenças completas citam números correlatos) | DJEN/CNJ |
 | `esaj_buscar` | Consulta anônima do 1º grau do TJSP por nome/CPF/número via HTTP (anônimo suprime partes criminais); agora lista também os números de processo encontrados | e-SAJ TJSP |
 | `esaj_tjsp_guia` | Receita do fluxo e-SAJ por número com seletores CSS (para Playwright) | e-SAJ TJSP |
@@ -169,6 +171,8 @@ ferramenta e sua fonte.
 | `brasilapi_cnpj` | CNPJ formatado: razão social, sócios (QSA), CNAE, situação, endereço | BrasilAPI |
 | `ciclo_pf_pj` | Ciclo PF<->PJ COMPLETO em uma chamada: DataJud multi-tribunal (documento entre aspas) + e-SAJ DOCPARTE + DJE-SP (base integral) + BrasilAPI (CNPJ: QSA com CPFs mascarados), com receita reversa CPF→CNPJ e veredito único de hits por fonte | Multi |
 | `exa_buscar` | Busca semântica web: notícias, menções, homônimos (requer EXA_API_KEY) | Exa |
+| `social_buscar_usuario` | Scanner **gratuito de perfis por username** em dezenas de redes, com a base pública do WhatsMyName (verificação de marcadores m_code/m_string vs e_code/e_string), sem chave de API; achados com URL + inconclusivos/falhas separados | WhatsMyName |
+| `telefone_consultar` | Telefone BR: DDD → UF e cidades via BrasilAPI, tipo de linha, rota WhatsApp (wa.me), Numtrace e Social Searcher | BrasilAPI |
 | `fontes_osint` | Playbook interno: bases, atalhos, rotas por tribunal, técnicas e ética/LGPD | — |
 | `guia_navegacao` | Guia de navegação: links das regras do mantenedor (master rules, pasta de regras, prompt 8.5), fluxo validado com o MCP Playwright (captchas manuais, armadilhas do e-SAJ) e módulos de Python para scripts locais | — |
 | `guia_dossie` | **Protocolo de dossiê completo por documento** (v1.16.0): checklist obrigatório de 11 fases — todo pedido do titular (empresas em que trabalhou, artigo do crime, redes/currículo, máscaras) vira etapa executável; âncora por documento, ciclo PF↔PJ forçado, contra-prova de máscaras no e-SAJ DOCPARTE, vínculos empregatícios com limite do CAGED/Rais declarado, detalhes de crime (rito como hipótese), validação de currículo (e-MEC/conselhos), dossiê×método separados e fechamento com pendências. Use antes de iniciar qualquer dossiê novo | — |
@@ -380,12 +384,16 @@ de cada um, está espelhada em `regras/links.txt`.
 
 ## Quais ferramentas de redes sociais e contato existem?
 
-O escrivão não duplica OSINT de redes sociais — ele linka as ferramentas
-validadas do GitHub (nativas ou como MCP) e as regras de uso no dossiê. A
-ferramenta `guia_navegacao` devolve esta lista em tempo de execução.
+Duas vieram para DENTRO do escrivão (zero dependência, sem chave):
+`social_buscar_usuario` (username na base pública do WhatsMyName) e
+`telefone_consultar` (DDD/cidades via BrasilAPI + rotas de WhatsApp/Numtrace).
+O restante ele linka — as ferramentas validadas do GitHub (nativas ou como MCP)
+e as regras de uso no dossiê. A ferramenta `fontes_osint` devolve a lista em
+tempo de execução.
 
 | Ferramenta | O que faz | Acesso |
 |---|---|---|
+| WhatsMyName | A base consumida por `social_buscar_usuario` (JSON público de sites + marcadores) | https://github.com/WebBreacher/WhatsMyName |
 | sherlock-mcp (MCP) | Username em 400+ redes sociais via MCP | https://github.com/Burnsedia/sherlock-mcp |
 | osint-mcp-server (MCP) | 37 ferramentas/12 fontes: Sherlock + Osintgram (Instagram) | https://github.com/pasing-group/osint-mcp-server |
 | osint-mcp (MCP) | 26 ferramentas OSINT gratuitas expostas como MCP | https://pypi.org/project/osint-mcp/ |
@@ -394,11 +402,34 @@ ferramenta `guia_navegacao` devolve esta lista em tempo de execução.
 | social-analyzer | Nome/username em 1000+ sites (API/CLI/web) | https://github.com/qeeqbox/social-analyzer |
 | holehe | E-mail → conta registrada em 120+ sites | https://github.com/megadose/holehe |
 | maigret | Username → dossiê de 6K sites, gera relatório HTML | https://github.com/soxoj/maigret |
+| snoop | Username em 500+ sites (Python, desde 2019) | https://github.com/snooppr/snoop |
+| blackbird | Username e e-mail em centenas de sites (Go) | https://github.com/antoniaci/blackbird |
+| nexfil | Username em 350+ plataformas (Go, rápido) | https://github.com/thewhiteh4t/nexfil |
+| UserFinder | Username + e-mail + número de telefone em 150+ sites | https://github.com/mishakorzik/UserFinder |
+| yesitsme | Username + e-mail + IP + telefone em centenas de fontes | https://github.com/0x0be/yesitsme |
 | GHunt | Conta Google a partir do e-mail | https://github.com/mxrch/GHunt |
 | mosint | E-mail: vazamentos, redes, servidores | https://github.com/alpkeskin/mosint |
 | phoneinfoga | Telefone: carreira, reputação, social | https://github.com/sundowndev/phoneinfoga |
+| WhatsApp-OSINT | Coleta de dados públicos de perfis do WhatsApp | https://github.com/kinghacker0/WhatsApp-OSINT |
 | osint-toolkit | Combo: Sherlock+Maigret+GHunt+Holehe+Ignorant+Telegram | https://github.com/d4t4n3rdsec/osint-toolkit |
 | omniscan | CLI unificada: username/e-mail/telefone → todos os tools | https://pypi.org/project/omniscan/ |
+
+Interfaces web (sem instalação, use com Playwright/browser):
+
+| Serviço | O que faz | Acesso |
+|---|---|---|
+| Social Searcher | Busca de menções sociais por termo | https://www.social-searcher.com/google-social-search/ |
+| sherlock-osint.com | Scanner de username comercial (alternativa paga; as ferramentas acima cobrem o mesmo terreno de graça) | https://sherlock-osint.com/pt-br |
+| Footprint IQ | Escaneamento profundo de perfil | https://footprintiq.app/free-scan |
+| Numtrace | Consulta de telefone (página dinâmica) | https://numtrace.com/pt-br/phone-page |
+
+Curadorias e coleções OSINT:
+
+| Coleção | Conteúdo | Acesso |
+|---|---|---|
+| Awesome-OSINT-List | Lista curada de ferramentas OSINT por categoria | https://github.com/Astrosp/Awesome-OSINT-List |
+| OSINT-Github-profiles | Perfis GitHub de pesquisadores OSINT | https://github.com/cipher387/OSINT-Github-profiles |
+| OSINTAnonymous | Recursos e guias de OSINT anonimizado | https://github.com/CScorza/OSINTAnonymous |
 
 **Regras no dossiê:** perfil achado por nome/username/e-mail/telefone é
 POSSÍVEL HOMÔNIMO até cruzar com CPF/CNPJ; redes sociais e currículo são dados
@@ -478,18 +509,29 @@ https://drive.google.com/drive/folders/1U5U9QNx__hVio5GTKSVflZP9-b_E0OLm
 ## Quais as limitações conhecidas?
 
 Toda fonte pública tem lacunas, e conhecê-las evita conclusões erradas: a API
-pública do DataJud omite as partes de muitos processos, o TJSP às vezes
-responde devagar, a consulta anônima do e-SAJ suprime partes criminais e
-vários tribunais mascaram o CPF da parte. Os detalhes estão na lista abaixo.
+pública do DataJud omite as partes em vários tribunais (outros indexam como
+campo de partes), o TJSP às vezes responde devagar, a consulta anônima do e-SAJ
+suprime partes criminais e vários tribunais mascaram o CPF da parte. Os
+detalhes estão na lista abaixo.
 
-- A API pública do DataJud **omite as partes** de muitos processos: classifique
-  por fingerprint (órgão + classe + assunto + datas) ou use `datajud_buscar`
-  com o nome/CPF entre aspas.
-- O TJSP responde devagar às vezes (504) — as ferramentas tentam 3x com espera.
+- A API pública do DataJud **omite as partes em vários tribunais** — mas vários
+  **indexam** o campo `partes` (nome, polo, documento, advogados):
+  use `datajud_por_nome`/`datajud_por_cpf`; onde omite, classifique por
+  fingerprint (órgão + classe + assunto + datas) ou `datajud_buscar` com o
+  nome/CPF entre aspas.
+- O **STF não possui endpoint na API pública** (404) — processos do STF só no
+  portal oficial; os escopos da varredura cobrem TJs, TRFs, TRTs, TREs,
+  superiores (STJ/TST/TSE/STM) e militares.
+- O TJSP responde devagar às vezes (504) — as ferramentas tentam 3x com espera
+  (erros de cliente determinísticos, tipo 400, não são reintentados).
 - A consulta anônima do e-SAJ **suprime partes de processos criminais** (sigilo
   legal); ver `esaj_tjsp_guia` para o fluxo por número via formulário.
-- `datajud_por_cpf` depende do campo `documentoReplicado`, mascarado em vários
-  tribunais — a própria resposta sugere a rota alternativa.
+- `datajud_por_cpf` depende de campos mascarados em vários tribunais — a
+  própria resposta sugere a rota alternativa.
+- `social_buscar_usuario` varre uma amostra da base WhatsMyName (limite
+  configurável) e pode listar inconclusivos: alguns sites bloqueiam bots ou
+  mudam os marcadores — perfis reais podem aparecer como inconclusivos; nunca
+  trate "não encontrado" como prova de ausência.
 - BrasilAPI bloqueia o User-Agent padrão do Node; o servidor já envia header
   de navegador.
 - O Jusbrasil bloqueia HTTP puro (Cloudflare 403): `jusbrasil_buscar` devolve

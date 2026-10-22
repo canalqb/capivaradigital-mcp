@@ -116,10 +116,20 @@ correlatos não visíveis em índices** (ex.: a condenação anterior citada com
 maus antecedentes; números de origem/precedentes).
 
 ### 5.5 DataJud por documento/nome
-- `datajud_por_cpf` usa o campo `documentoReplicado` — muitos tribunais mascaram.
+- **Dois formatos de partes:** os índices da API pública usam `partes.nome` /
+  `partes.polo` / `partes.documento` (formato consulta-processual) **ou**
+  `partes.pessoa.*` (formato MTD), conforme o tribunal — as ferramentas cobrem
+  ambos via `bool.should`: `datajud_por_nome` (nome COMPLETO exato em
+  match_phrase nos dois caminhos, polo opcional ATIVO/PASSIVO cobrindo os
+  rótulos Autor/Réu, ajuizamento decrescente) e `datajud_por_cpf`
+  (`partes.documento` + `documentoReplicado`, **nas duas grafias** — com e sem
+  pontuação).
+- `documentoReplicado` é mascarado em muitos tribunais.
 - Alternativa: `datajud_buscar` com o CPF **formatado entre aspas duplas**
   (`"000.000.000-00"`) ou o nome exato entre aspas — a query_string varre os
   textos dos autos e das partes visíveis.
+- Zero resultados não é erro: tribunais que omitem as partes retornam 0 — a
+  resposta sugere `datajud_buscar` ou a consulta pública do tribunal.
 
 ### 5.6 e-SAJ TJSP (sem captcha)
 1. Busca: `esaj_buscar` (HTTP) — nome, documento ou número;
@@ -176,6 +186,25 @@ Cobre o que a API pública omite (partes, nomes, desfechos por extenso).
   devolve só as normas do dossiê de um único documento, com o PADRÃO NEGATIVO
   de homônimos (nenhuma seção de descartados sem pedido explícito do cliente).
 
+### 5.11 Redes sociais e telefone (OSINT de perfil)
+- **`social_buscar_usuario({ usuario, limite })`**: varre o nick na base pública
+  do WhatsMyName (GitHub raw, cache em memória) — para cada site monta a URL
+  (`{account}`) e confere os marcadores de existência (`m_code`/`m_string`)
+  contra os de ausência (`e_code`/`e_string`). Paralelo (8 por vez), timeout
+  de 12 s por site; limite configurável (default 40, max 150 sites).
+- **`telefone_consultar({ telefone })`**: digita, identifica DDD/tipo, consulta
+  UF + cidades do DDD na BrasilAPI e monta as rotas complementares (wa.me,
+  Numtrace — página dinâmica, use Playwright —, Social Searcher).
+- **Anti-homônimo de nick:** perfil EXISTENTE ≠ perfil DA PESSOA — valide por
+  bio, foto, cidade, vínculos e datas; no dossiê, os achados de rede social
+  entram como AUTODECLARADOS e o vínculo exige âncora (CPF/CNPJ cruzando ou
+  contexto forte).
+- **Inconclusivos:** sites que bloqueiam bots ou mudaram os marcadores
+  aparecem como inconclusivos — "não encontrado" NUNCA é prova de ausência.
+- **Equivalentes locais (Python/Go, mais sites):** sherlock, maigret, snoop,
+  blackbird, nexfil, UserFinder, yesitsme, social-analyzer — e as curadorias
+  Awesome-OSINT-List, OSINT-Github-profiles, OSINTAnonymous (ver README).
+
 ## 6. Histórico técnico rápido (para não repetir erros)
 
 - DataJud: `terms` sem campo = HTTP 400; `match.numeroProcesso` só com 20
@@ -197,6 +226,12 @@ Cobre o que a API pública omite (partes, nomes, desfechos por extenso).
   nunca confie num formato único.
 - PowerShell 5.1: remove aspas duplas em padrões regex (usar `\x22`); UTF-8
   com BOM em arquivos Markdown.
+- PowerShell 5.1 (2): `curl.exe` com JSON INLINE perde as aspas internas e a
+  API responde 400 — sempre teste HTTP POST com `-d @arquivo.json`.
+- DataJud (endpoints): STF NÃO existe na API pública (404); o TRE do DF é
+  `api_publica_tre-df` (a wiki lista "tre-dft", que dá 404); TSE/STM/TREs e
+  os militares (tjmmg/tjmrs/tjmsp) respondem 200. Erros de cliente 4xx
+  determinísticos (exceto 429) não valem retry — a ferramenta falha rápido.
 
 ## 7. ÉTICA, LGPD E SEGURANÇA JURÍDICA
 - **Fontes públicas apenas.** Não contorne paywall ou autenticação alheia.

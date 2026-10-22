@@ -14,6 +14,8 @@ const DJE_PDF = 'https://esaj.tjsp.jus.br/cdje/getPaginaDoDiario.do';
 const EXA_SEARCH = 'https://api.exa.ai/search';
 const JUSBRASIL_BUSCA = 'https://www.jusbrasil.com.br/busca?q=';
 const UPDATE_URL = 'https://raw.githubusercontent.com/canalqb/escrivao-mcp/main/server.js';
+const WMN_DATA_URL = 'https://raw.githubusercontent.com/WebBreacher/WhatsMyName/main/wmn-data.json';
+const BRASILAPI_DDD = 'https://brasilapi.com.br/api/ddd/v1/';
 
 const TRIBUNAIS = {
   '401': 'api_publica_trf1', '402': 'api_publica_trf2', '403': 'api_publica_trf3',
@@ -35,7 +37,8 @@ const TRIBUNAIS = {
   '819': 'api_publica_tjrj', '820': 'api_publica_tjrn', '821': 'api_publica_tjrs',
   '822': 'api_publica_tjro', '823': 'api_publica_tjrr', '824': 'api_publica_tjsc',
   '825': 'api_publica_tjse', '826': 'api_publica_tjsp', '827': 'api_publica_tjto',
-  '200': 'api_publica_stj', '500': 'api_publica_tst'
+  '200': 'api_publica_stj', '500': 'api_publica_tst',
+  '600': 'api_publica_tse', '700': 'api_publica_stm'
 };
 
 let cachedKey = null;
@@ -58,8 +61,8 @@ function resolveEndpoint(tribunal) {
   if (!tribunal) throw new Error('Informe o tribunal (ex.: tjsp ou codigo CNJ como 826).');
   const t = String(tribunal).trim().toLowerCase().replace(/\s+/g, '');
   if (TRIBUNAIS[t]) return TRIBUNAIS[t];
-  if (/^(tj|trf|trt|tst|stj|stf|tse|stm)[a-z0-9]{0,4}$/.test(t)) return 'api_publica_' + t;
-  throw new Error(`Tribunal desconhecido: ${tribunal}. Use sigla (tjsp, tjpr, tjsc, trt15, trf3...) ou codigo CNJ (826, 816, 824...).`);
+  if (/^(tj|trf|trt|tst|stj|stf|tse|stm|tre)[a-z0-9-]{0,5}$/.test(t)) return 'api_publica_' + t;
+  throw new Error(`Tribunal desconhecido: ${tribunal}. Use sigla (tjsp, tjpr, tjsc, trt15, tre-sp, trf3...) ou codigo CNJ (826, 816, 824...). Nota: STF nao possui endpoint na API publica (404).`);
 }
 
 function endpointFromNumero(n20) {
@@ -77,6 +80,18 @@ async function fetchWithTimeout(url, options, ms) {
     const text = await res.text();
     if (!res.ok) throw new Error(`HTTP ${res.status}: ${text.slice(0, 400)}`);
     return text;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function fetchRaw(url, options, ms) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), ms || 15000);
+  try {
+    const res = await fetch(url, Object.assign({ redirect: 'follow' }, options, { signal: ctrl.signal }));
+    const text = await res.text();
+    return { status: res.status, ok: res.ok, text };
   } finally {
     clearTimeout(timer);
   }
@@ -114,11 +129,13 @@ async function datajudSearch(endpoint, body) {
         cachedKey = key = DATAJUD_KEY_FALLBACK;
         continue;
       }
+      // erro de cliente deterministico (exceto 429 rate): nao adianta repetir a mesma query
+      if (/HTTP 4\d\d/.test(String(e)) && !/HTTP 429/.test(String(e))) throw e;
       if (tentativa < 3) await new Promise(r => setTimeout(r, 5000));
     }
   }
   const msg = String(lastErr && lastErr.message ? lastErr.message : lastErr);
-  if (/HTTP 50[234]/.test(msg)) throw new Error(`${msg} - gateway do tribunal lento/sobrecarregado (TRANSIENTE): aguarde e repita a consulta.`);
+  if (/HTTP 50[234]/.test(msg)) throw new Error(`${msg} - gateway do tribunal lento/sobrecarregado (TRANSIENTE): aguarde e repita; para o TJSP as rotas alternativas sao esaj_buscar (DOCPARTE/NMPARTE) e dje_sp_buscar (base integral do diario).`);
   if (/HTTP 429/.test(msg)) throw new Error(`${msg} - limite de requisicoes (429): aguarde alguns minutos antes de nova consulta.`);
   if (/HTTP 403/.test(msg)) throw new Error(`${msg} - bloqueio de acesso (403): tente mais tarde ou a consulta publica do tribunal (rotas em guia_navegacao/fontes_osint).`);
   throw lastErr;
@@ -140,6 +157,13 @@ function lastMovDate(p) {
   return '';
 }
 
+function fmtData(d) {
+  const s = String(d || '');
+  const m = s.match(/^(\d{4})(\d{2})(\d{2})/);
+  if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+  return s.slice(0, 10);
+}
+
 function summarizeProcess(p, incluirJson) {
   const assuntos = Array.isArray(p.assunto) ? p.assunto.map(a => normName(a)).filter(Boolean).join('; ') : normName(p.assunto);
   const movs = Array.isArray(p.movimentos) ? p.movimentos : [];
@@ -149,8 +173,12 @@ function summarizeProcess(p, incluirJson) {
   out += `Classe: ${normName(p.classe)}\n`;
   out += `Assunto(s): ${assuntos}\n`;
   out += `Orgao julgador: ${normName(p.orgaoJulgador)}\n`;
-  out += `Grau: ${p.grau || p['@grau'] || ''}\n`;
+  out += `Grau: ${p.grau || p['@grau'] || ''} | Sistema: ${normName(p.sistema)} | Formato: ${normName(p.formato)} | Nivel de sigilo: ${p.nivelSigilo != null ? p.nivelSigilo : 'n/d'}\n`;
+  out += `Ajuizado: ${fmtData(p.dataAjuizamento)} | Ultima atualizacao (DataJud): ${String(p.dataHoraUltimaAtualizacao || '').slice(0, 10)}\n`;
   out += `Ultima movimentacao: ${lastMovDate(p)}\n`;
+  const partesLinhas = partesToLines(p);
+  if (partesLinhas.length) out += `Partes:\n${partesLinhas.slice(0, 14).join('\n')}\n`;
+  else out += `Partes: NAO indexadas neste tribunal (a API publica omite em varios casos) - use fingerprint orgao+classe+assunto+datas.\n`;
   if (ultimos) out += `Movimentos recentes:\n${ultimos}\n`;
   if (incluirJson) out += `\nJSON _source:\n${JSON.stringify(p).slice(0, 12000)}`;
   return out;
@@ -191,6 +219,40 @@ function nomesDePartes(src) {
       const pessoas = p && Array.isArray(p.pessoa) ? p.pessoa : (p && p.pessoa ? [p.pessoa] : []);
       for (const pes of pessoas) {
         if (pes && pes.nome) out.push(`${normName(pes.nome)} (${p && p.tipo ? p.tipo : 'parte'})`);
+      }
+    }
+    return out;
+  } catch (e) { return []; }
+}
+
+function partesToLines(src) {
+  try {
+    const partes = src && src.partes;
+    if (!Array.isArray(partes)) return [];
+    const out = [];
+    const push = (nome, polo, doc, advogados) => {
+      if (!nome) return;
+      let l = `- ${normName(nome)} [${String(polo || 'PARTE').toUpperCase()}]`;
+      if (doc) l += ` | doc: ${doc}`;
+      out.push(l);
+      if (Array.isArray(advogados)) {
+        for (const ad of advogados) {
+          if (ad && (ad.nome || ad.nomeAdvogado)) {
+            const nm = normName(ad.nome || ad.nomeAdvogado);
+            const oab = ad.oabAdvogado || ad.oab || ad.inscricao || '';
+            out.push(`    advogado: ${nm}${oab ? ' | OAB: ' + oab : ''}`);
+          }
+        }
+      }
+    };
+    for (const p of partes) {
+      if (!p) continue;
+      if (p.nome) {
+        push(p.nome, p.polo || p.tipo, p.documento, p.advogados);
+      } else if (Array.isArray(p.pessoa)) {
+        for (const pes of p.pessoa) push(pes && pes.nome, p.polo || p.tipo, pes && (pes.documentoReplicado || pes.documento), pes && pes.advogados);
+      } else if (p.pessoa) {
+        push(p.pessoa.nome, p.polo || p.tipo, p.pessoa.documentoReplicado || p.pessoa.documento, p.pessoa.advogados);
       }
     }
     return out;
@@ -344,7 +406,7 @@ async function toolDatajudProcesso(a) {
   const endpoint = a.tribunal ? resolveEndpoint(a.tribunal) : endpointFromNumero(n);
   const dados = await datajudSearch(endpoint, { query: { match: { numeroProcesso: n } }, size: 5 });
   const hits = hitsToArray(dados);
-  if (!hits.length) return `Nenhum processo encontrado no ${endpoint} para ${formatCnj(n)}.\nNota: a API publica omite as PARTES do processo; use classe/orgao/datas para fingerprint.`;
+  if (!hits.length) return `Nenhum processo encontrado no ${endpoint} para ${formatCnj(n)}.\nNota: a API publica omite as PARTES em varios tribunais; quando o tribunal as indexa, elas sao exibidas abaixo. Sem partes, use classe/orgao/datas para fingerprint.`;
   return hits.map(h => summarizeProcess(h._source || {}, a.incluir_json)).join('\n' + '='.repeat(50) + '\n');
 }
 
@@ -358,21 +420,49 @@ async function toolDatajudPesquisar(a) {
     must.push({ terms: { numeroProcesso: clean } });
   }
   if (a.classe) must.push({ match: { 'classe.nome': a.classe } });
+  if (a.classe_codigo) must.push({ match: { 'classe.codigo': Number(a.classe_codigo) } });
   if (a.assunto) must.push({ match: { 'assunto.nome': a.assunto } });
+  if (a.assunto_codigo) must.push({ match: { 'assunto.codigo': Number(a.assunto_codigo) } });
   if (a.orgao) must.push({ match: { 'orgaoJulgador.nome': a.orgao } });
-  if (!must.length) throw new Error('Informe ao menos um filtro: numeros, classe, assunto ou orgao.');
-  const size = Math.min(Number(a.tamanho) || 20, 100);
-  const from = ((Number(a.pagina) || 1) - 1) * size;
-  const body = { size, from, query: must.length === 1 ? must[0] : { bool: { must } } };
+  if (a.orgao_codigo) must.push({ match: { 'orgaoJulgador.codigo': Number(a.orgao_codigo) } });
+  if (a.grau) must.push({ match: { grau: String(a.grau).trim().toUpperCase() } });
+  if (a.data_inicio || a.data_fim) {
+    const r = {};
+    const di = String(a.data_inicio || '').trim();
+    const df = String(a.data_fim || '').trim();
+    if (di) r.gte = /^\d{4}-\d{2}-\d{2}$/.test(di) ? di + '||/d' : di;
+    if (df) r.lte = /^\d{4}-\d{2}-\d{2}$/.test(df) ? df + '||/d' : df;
+    must.push({ range: { dataAjuizamento: r } });
+  }
+  if (!must.length) throw new Error('Informe ao menos um filtro: numeros, classe, classe_codigo, assunto, assunto_codigo, orgao, orgao_codigo, grau, data_inicio ou data_fim (datas de AJUIZAMENTO, formato AAAA-MM-DD).');
+  const size = Math.min(Number(a.tamanho) || 20, 1000);
+  const body = { size, query: must.length === 1 ? must[0] : { bool: { must } } };
+  const ordenar = String(a.ordenar || '').trim().toLowerCase();
+  if (a.apartir_de != null && a.apartir_de !== '') {
+    body.sort = [{ '@timestamp': { order: 'asc' } }];
+    body.search_after = [Number(a.apartir_de)];
+  } else if (ordenar === 'ajuizamento_desc') {
+    body.sort = [{ dataAjuizamento: { order: 'desc' } }];
+  } else if (ordenar === 'ajuizamento_asc') {
+    body.sort = [{ dataAjuizamento: { order: 'asc' } }];
+  } else if (ordenar === 'atualizacao') {
+    body.sort = [{ '@timestamp': { order: 'asc' } }];
+  } else {
+    body.from = ((Number(a.pagina) || 1) - 1) * size;
+  }
   const dados = await datajudSearch(endpoint, body);
   const hits = hitsToArray(dados);
-  const total = (dados.hits && dados.hits.total && (dados.hits.total.value != null ? dados.hits.total.value : dados.hits.total)) || hits.length;
-  let out = `Tribunal: ${endpoint} | Total de hits: ${total} | Exibindo: ${hits.length} (pagina ${a.pagina || 1})\n`;
+  const tot = dados.hits && dados.hits.total ? dados.hits.total : null;
+  const total = tot && tot.value != null ? tot.value : (tot || hits.length);
+  const rel = tot && tot.relation === 'gte' ? ' (total pode passar de 10.000 - janela maxima; pagine com ordenar=atualizacao + apartir_de)' : '';
+  let out = `Tribunal: ${endpoint} | Total de hits: ${total}${rel} | Exibindo: ${hits.length}\n`;
   out += hits.map(h => {
     const p = h._source || {};
     const assuntos = Array.isArray(p.assunto) ? p.assunto.map(x => normName(x)).filter(Boolean).join('; ') : normName(p.assunto);
     return `${formatCnj(String(p.numeroProcesso || ''))} | classe: ${normName(p.classe)} | assuntos: ${assuntos} | orgao: ${normName(p.orgaoJulgador)} | ultima mov.: ${lastMovDate(p)}`;
   }).join('\n');
+  const last = hits[hits.length - 1];
+  if (last && Array.isArray(last.sort) && last.sort.length) out += `\nProxima pagina: repita com apartir_de=${last.sort[0]}`;
   return out || 'Nenhum resultado.';
 }
 
@@ -417,7 +507,7 @@ async function toolBrasilapiCnpj(a) {
 
 function fmtResumo(p) {
   const num = String(p.numeroProcesso || '');
-  return `${num.length === 20 ? formatCnj(num) : num} | classe: ${normName(p.classe)} | orgao: ${normName(p.orgaoJulgador)} | ajuizado: ${String(p.dataAjuizamento || '').slice(0, 10)}`;
+  return `${num.length === 20 ? formatCnj(num) : num} | classe: ${normName(p.classe)} | orgao: ${normName(p.orgaoJulgador)} | ajuizado: ${fmtData(p.dataAjuizamento)}`;
 }
 
 async function toolDatajudBuscar(a) {
@@ -428,12 +518,18 @@ async function toolDatajudBuscar(a) {
   const n = digitsOnly(consulta);
   const corpo = (n.length === 20 && !/X/i.test(consulta))
     ? { query: { match: { numeroProcesso: n } }, size: tamanho }
-    : { query: { query_string: { query: consulta } }, size: tamanho };
+    : { query: { query_string: { query: consulta } }, size: tamanho, sort: [{ dataAjuizamento: { order: 'desc' } }] };
   const dados = await datajudSearch(endpoint, corpo);
   const hits = hitsToArray(dados);
   const total = (dados.hits && dados.hits.total && (dados.hits.total.value != null ? dados.hits.total.value : dados.hits.total)) || hits.length;
   let out = `DataJud ${endpoint}: ${total} resultado(s)\n`;
-  out += hits.map(h => fmtResumo(h._source || {})).join('\n');
+  out += hits.map(h => {
+    const p = h._source || {};
+    const pt = partesToLines(p);
+    let l = fmtResumo(p);
+    if (pt.length) l += '\n  partes: ' + pt.join(' | ').slice(0, 400);
+    return l;
+  }).join('\n');
   if (!hits.length) out += 'Nenhum resultado. Dicas: nome exato entre aspas duplas ("NOME COMPLETO"), CPF formatado entre aspas ("000.000.000-00") ou numero CNJ de 20 digitos.';
   out += `\n\n${avisoAncora(consulta)}`;
   return out;
@@ -444,61 +540,154 @@ async function toolDatajudPorCpf(a) {
   const doc = digitsOnly(a.cpf);
   if (doc.length !== 11 && doc.length !== 14) throw new Error('Informe CPF (11 digitos) ou CNPJ (14), com ou sem pontuacao.');
   const tamanho = Math.min(Number(a.tamanho) || 10, 100);
-  const dados = await datajudSearch(endpoint, { query: { match: { 'partes.pessoa.documentoReplicado': doc } }, size: tamanho });
+  const fmt = doc.length === 11
+    ? `${doc.slice(0, 3)}.${doc.slice(3, 6)}.${doc.slice(6, 9)}-${doc.slice(9)}`
+    : `${doc.slice(0, 2)}.${doc.slice(2, 5)}.${doc.slice(5, 8)}/${doc.slice(8, 12)}-${doc.slice(12)}`;
+  const dados = await datajudSearch(endpoint, {
+    size: tamanho,
+    query: {
+      bool: {
+        should: [
+          { match: { 'partes.documento': doc } },
+          { match: { 'partes.pessoa.documentoReplicado': doc } },
+          { match_phrase: { 'partes.documento': fmt } },
+          { match_phrase: { 'partes.pessoa.documentoReplicado': fmt } }
+        ],
+        minimum_should_match: 1
+      }
+    }
+  });
   const hits = hitsToArray(dados);
   if (!hits.length) {
-    const fmt = doc.length === 11
-      ? `${doc.slice(0, 3)}.${doc.slice(3, 6)}.${doc.slice(6, 9)}-${doc.slice(9)}`
-      : `${doc.slice(0, 2)}.${doc.slice(2, 5)}.${doc.slice(5, 8)}/${doc.slice(8, 12)}-${doc.slice(12)}`;
-    return `0 processos por documento ${doc} em ${endpoint}. ATENCAO: 0 NAO significa que o pesquisado nao tem processos - a API publica mascara o documento da parte (documentoReplicado) em varios tribunais; resultado negativo e INDICIO, nao prova. Tente datajud_buscar com "${fmt}" (formatado e entre aspas duplas), datajud_varrer em varios tribunais ou a consulta publica do tribunal de origem.\n\n${avisoAncora(doc)}`;
+    return `0 processos por documento ${doc} em ${endpoint}. ATENCAO: 0 NAO significa que o pesquisado nao tem processos - a API publica mascara o documento da parte em varios tribunais (a busca ja tenta as DUAS grafias, com e sem pontuacao, nos campos partes.documento e documentoReplicado); resultado negativo e INDICIO, nao prova. Tente datajud_buscar com "${fmt}" (formatado e entre aspas duplas), datajud_varrer em varios tribunais ou a consulta publica do tribunal de origem.\n\n${avisoAncora(doc)}`;
   }
   let out = `DataJud ${endpoint} por documento ${doc}: ${hits.length} processo(s)\n`;
-  out += hits.map(h => fmtResumo(h._source || {})).join('\n');
+  out += hits.map(h => {
+    const p = h._source || {};
+    const pt = partesToLines(p);
+    let l = fmtResumo(p);
+    if (pt.length) l += '\n  partes: ' + pt.join(' | ').slice(0, 400);
+    return l;
+  }).join('\n');
   out += `\n\n${avisoAncora(doc)}`;
+  return out;
+}
+
+async function toolDatajudPorNome(a) {
+  const endpoint = resolveEndpoint(a.tribunal);
+  const nome = String(a.nome || '').trim();
+  if (!nome) throw new Error('Informe o nome da parte (idealmente o nome COMPLETO exato, como consta nos autos).');
+  let polo = String(a.polo || '').trim().toUpperCase();
+  if (polo === 'ATIVA') polo = 'ATIVO';
+  if (polo === 'PASSIVA') polo = 'PASSIVO';
+  if (polo && polo !== 'ATIVO' && polo !== 'PASSIVO') throw new Error('polo deve ser ATIVO ou PASSIVO.');
+  const tamanho = Math.min(Number(a.tamanho) || 20, 100);
+  const must = [{
+    bool: {
+      should: [
+        { match_phrase: { 'partes.nome': nome } },
+        { match_phrase: { 'partes.pessoa.nome': nome } }
+      ],
+      minimum_should_match: 1
+    }
+  }];
+  if (polo) {
+    must.push({
+      bool: {
+        should: [
+          { match: { 'partes.polo': polo } },
+          { match: { 'partes.tipo': polo === 'ATIVO' ? 'Autor' : 'Reu' } }
+        ],
+        minimum_should_match: 1
+      }
+    });
+  }
+  const dados = await datajudSearch(endpoint, {
+    size: tamanho,
+    query: { bool: { must } },
+    sort: [{ dataAjuizamento: { order: 'desc' } }]
+  });
+  const hits = hitsToArray(dados);
+  const tot = dados.hits && dados.hits.total ? dados.hits.total : null;
+  const total = tot && tot.value != null ? tot.value : (tot || hits.length);
+  let out = `DataJud ${endpoint} por nome${polo ? ', polo ' + polo : ''}: ${total} resultado(s)\n`;
+  out += hits.map(h => {
+    const p = h._source || {};
+    const pt = partesToLines(p);
+    let l = fmtResumo(p);
+    if (pt.length) l += '\n  partes: ' + pt.slice(0, 6).join(' | ').slice(0, 300);
+    return l;
+  }).join('\n');
+  if (!hits.length) out += 'Nenhum resultado. A API publica omite/mascara as partes em varios tribunais - nesse caso use datajud_buscar com "NOME COMPLETO" entre aspas (query_string varre o texto integral dos autos) ou a consulta publica do tribunal (e-SAJ NMPARTE).';
+  out += `\n\n${avisoAncora(nome)}`;
   return out;
 }
 
 const TRIBUNAIS_VARREDURA_PADRAO = ['tjsp', 'tjpr', 'tjsc', 'tjba', 'tjpi', 'tjmg', 'tjrs', 'tjrj', 'trt2', 'trt9', 'trt15'];
 
+const ESCOPOS_VARREDURA = {
+  tj: ['tjac', 'tjal', 'tjam', 'tjap', 'tjba', 'tjce', 'tjdf', 'tjes', 'tjgo', 'tjma', 'tjmg', 'tjms', 'tjmt', 'tjpa', 'tjpb', 'tjpe', 'tjpi', 'tjpr', 'tjrj', 'tjrn', 'tjro', 'tjrr', 'tjrs', 'tjsc', 'tjse', 'tjsp', 'tjto'],
+  trf: ['trf1', 'trf2', 'trf3', 'trf4', 'trf5', 'trf6'],
+  trt: ['trt1', 'trt2', 'trt3', 'trt4', 'trt5', 'trt6', 'trt7', 'trt8', 'trt9', 'trt10', 'trt11', 'trt12', 'trt13', 'trt14', 'trt15', 'trt16', 'trt17', 'trt18', 'trt19', 'trt20', 'trt21', 'trt22', 'trt23', 'trt24'],
+  tre: ['tre-ac', 'tre-al', 'tre-am', 'tre-ap', 'tre-ba', 'tre-ce', 'tre-df', 'tre-es', 'tre-go', 'tre-ma', 'tre-mg', 'tre-ms', 'tre-mt', 'tre-pa', 'tre-pb', 'tre-pe', 'tre-pi', 'tre-pr', 'tre-rj', 'tre-rn', 'tre-ro', 'tre-rr', 'tre-rs', 'tre-sc', 'tre-se', 'tre-sp', 'tre-to'],
+  superiores: ['stj', 'tst', 'tse', 'stm'],
+  militares: ['tjmmg', 'tjmrs', 'tjmsp']
+};
+
+const TODOS_TRIBUNAIS = [].concat(
+  ESCOPOS_VARREDURA.tj, ESCOPOS_VARREDURA.trf, ESCOPOS_VARREDURA.trt,
+  ESCOPOS_VARREDURA.tre, ESCOPOS_VARREDURA.superiores, ESCOPOS_VARREDURA.militares
+);
+
 async function toolDatajudVarrer(a) {
   const consulta = String(a.consulta || '').trim();
-  if (!consulta) throw new Error('Informe a consulta: nome exato entre aspas duplas ("NOME COMPLETO") ou CPF formatado entre aspas ("000.000.000-00").');
+  if (!consulta) throw new Error('Informe a consulta: nome exato entre aspas duplas ("NOME COMPLETO"), CPF formatado entre aspas ("000.000.000-00") ou numero CNJ de 20 digitos.');
   let alvos;
-  if (a.tribunais) {
+  if (a.escopo) {
+    const esc = String(a.escopo).trim().toLowerCase();
+    const grupo = ESCOPOS_VARREDURA[esc];
+    if (!grupo) throw new Error(`escopo invalido: "${a.escopo}". Use tj, trf, trt, tre, superiores, militares ou todos.`);
+    alvos = esc === 'todos' ? TODOS_TRIBUNAIS.slice() : grupo.slice();
+  } else if (a.tribunais) {
     alvos = String(a.tribunais).split(/[,;\s]+/).map(s => s.trim().toLowerCase()).filter(Boolean);
+  } else if (a.todos_tribunais) {
+    alvos = TODOS_TRIBUNAIS.slice();
   } else {
     alvos = TRIBUNAIS_VARREDURA_PADRAO;
   }
-  if (a.todos_tribunais) alvos = Object.values(TRIBUNAIS).map(e => e.replace('api_publica_', ''));
   const tamanho = Math.min(Number(a.tamanho) || 10, 100);
   const n = digitsOnly(consulta);
   const corpo = (n.length === 20 && !/X/i.test(consulta))
     ? { query: { match: { numeroProcesso: n } }, size: 1 }
     : { query: { query_string: { query: consulta } }, size: tamanho };
-  const linhas = [];
-  let ok = 0, falhas = 0;
-  for (const t of alvos) {
-    let endpoint;
-    try { endpoint = resolveEndpoint(t); } catch (e) { linhas.push(`[${t}] TRIBUNAL DESCONHECIDO`); falhas++; continue; }
-    try {
-      const dados = await datajudSearch(endpoint, corpo);
-      const hits = hitsToArray(dados);
-      const total = (dados.hits && dados.hits.total && (dados.hits.total.value != null ? dados.hits.total.value : dados.hits.total)) || 0;
-      ok++;
-      if (hits.length) {
-        linhas.push(`[${t}] ${total} resultado(s):`);
-        hits.forEach(h => linhas.push('  ' + fmtResumo(h._source || {})));
-      } else {
-        linhas.push(`[${t}] 0`);
+  const linhas = new Array(alvos.length);
+  let ok = 0, falhas = 0, idx = 0;
+  const worker = async () => {
+    while (idx < alvos.length) {
+      const i = idx++;
+      const t = alvos[i];
+      let endpoint;
+      try { endpoint = resolveEndpoint(t); } catch (e) { falhas++; linhas[i] = `[${t}] TRIBUNAL DESCONHECIDO`; continue; }
+      try {
+        const dados = await datajudSearch(endpoint, corpo);
+        const hits = hitsToArray(dados);
+        const total = (dados.hits && dados.hits.total && (dados.hits.total.value != null ? dados.hits.total.value : dados.hits.total)) || 0;
+        ok++;
+        if (hits.length) {
+          linhas[i] = `[${t}] ${total} resultado(s):\n` + hits.map(h => '  ' + fmtResumo(h._source || {})).join('\n');
+        } else {
+          linhas[i] = `[${t}] 0`;
+        }
+      } catch (e) {
+        falhas++;
+        linhas[i] = `[${t}] ERRO: ${String(e && e.message ? e.message : e).slice(0, 120)}`;
       }
-    } catch (e) {
-      falhas++;
-      linhas.push(`[${t}] ERRO: ${String(e && e.message ? e.message : e).slice(0, 120)}`);
     }
-  }
-  let out = `Varredura "${consulta}" em ${alvos.length} tribunal(is): ${ok} consultados, ${falhas} falha(s)\n\n`;
-  out += linhas.join('\n');
-  out += '\n\nDicas: CPF/CNPJ formatado entre aspas ("000.000.000-00") e o modo mais preciso - nome, mesmo exato e entre aspas, produz homonimos (PROIBIDO na lista principal). Para documento da parte use datajud_por_cpf por tribunal.';
+  };
+  await Promise.all(Array.from({ length: Math.min(5, alvos.length) }, () => worker()));
+  let out = `Varredura "${consulta}" em ${alvos.length} tribunal(is): ${ok} consultados, ${falhas} falha(s) (paralela, 5 por vez)\n\n`;
+  out += linhas.filter(Boolean).join('\n');
+  out += '\n\nDicas: CPF/CNPJ formatado entre aspas ("000.000.000-00") e o modo mais preciso - nome, mesmo exato e entre aspas, produz homonimos (PROIBIDO na lista principal). Para documento da parte use datajud_por_cpf por tribunal. Escopos prontos: escopo=tj, trf, trt, tre, superiores, militares ou todos (STF nao existe na API publica).';
   out += `\n\n${avisoAncora(consulta)}`;
   return out;
 }
@@ -836,6 +1025,86 @@ async function toolExaBuscar(a) {
   return res.map(r => `${r.title || ''} — ${r.url || ''}\n  ${((r.highlights || [''])[0] || '').slice(0, 300)}`).join('\n');
 }
 
+let wmnCache = null;
+async function loadWmnSites() {
+  if (wmnCache) return wmnCache;
+  const text = await fetchWithTimeout(WMN_DATA_URL, { headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json' } }, 30000);
+  const j = JSON.parse(text);
+  wmnCache = Array.isArray(j.sites) ? j.sites : [];
+  return wmnCache;
+}
+
+async function toolSocialBuscarUsuario(a) {
+  const usuario = String(a.usuario || '').trim().replace(/^@+/, '');
+  if (!usuario) throw new Error('Informe o usuario/nick (sem espacos).');
+  if (/@/.test(usuario) || /[^a-zA-Z0-9._-]/.test(usuario)) throw new Error('Usuario com caracteres invalidos: use apenas letras, numeros, ponto, traco ou underline (sem espacos).');
+  const limite = Math.min(Number(a.limite) || 40, 150);
+  const sites = await loadWmnSites();
+  if (!sites.length) throw new Error('Nao foi possivel carregar a base de sites do WhatsMyName (GitHub raw). Tente novamente.');
+  const alvo = sites.slice(0, limite);
+  const achados = [], inconclusivos = [];
+  let erros = 0, idx = 0;
+  const worker = async () => {
+    while (idx < alvo.length) {
+      const s = alvo[idx++];
+      const url = String(s.uri_check || '').replace('{account}', encodeURIComponent(usuario));
+      if (!url || url.indexOf('{') >= 0) continue;
+      try {
+        const r = await fetchRaw(url, { headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'text/html,application/xhtml+xml,*/*' } }, 12000);
+        const corpo = r.text || '';
+        const eCode = s.e_code != null ? s.e_code : 200;
+        const eStr = s.e_string || '';
+        const mCode = s.m_code != null ? s.m_code : 404;
+        const mStr = s.m_string || '';
+        if (r.status === mCode && (!mStr || corpo.includes(mStr))) {
+          // marcador de AUSENCIA (m_code/m_string = missing) - nao encontrado, esperado
+        } else if (r.status === eCode && (!eStr || corpo.includes(eStr))) {
+          achados.push(`${s.name}: ${String(s.uri_pretty || url).replace('{account}', encodeURIComponent(usuario))}`);
+        } else {
+          inconclusivos.push(`${s.name} (HTTP ${r.status}${eStr && !corpo.includes(eStr) ? ' sem marcador de existencia' : ''})`);
+        }
+      } catch (e) {
+        erros++;
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(8, alvo.length) }, () => worker()));
+  let out = `Scanner de perfis (base publica WhatsMyName) para o usuario "${usuario}": ${alvo.length} site(s) verificados\n\n`;
+  out += `PERFIS ENCONTRADOS (${achados.length}):\n`;
+  out += achados.length ? achados.join('\n') : 'Nenhum perfil confirmado nos sites verificados.';
+  out += `\n\nINCONCLUSIVOS (${inconclusivos.length}): ${inconclusivos.slice(0, 15).join(', ')}${inconclusivos.length > 15 ? '...' : ''}`;
+  out += `\nFalhas de conexao (timeout/bloqueio): ${erros}`;
+  out += `\n\nAVISO CRITICO: perfil EXISTENTE nao e perfil DA PESSOA - nicks tem homonimos; valide por bio, foto, cidade, vinculos e datas antes de atribuir (LGPD). Equivalentes locais (Python, mais sites): sherlock, maigret, snoop, blackbird, nexfil, social-analyzer - rotas em fontes_osint.`;
+  return out;
+}
+
+async function toolTelefoneConsultar(a) {
+  const tel = digitsOnly(a.telefone);
+  if (tel.length < 10 || tel.length > 15) throw new Error('Informe o telefone com DDD (BR: 10-11 digitos, ex. 11999998888) ou completo com codigo de pais.');
+  let out = `Telefone analisado: ${tel}\n`;
+  if (tel.length === 10 || tel.length === 11) {
+    const ddd = tel.slice(0, 2);
+    const tipo = tel.length === 11 ? 'celular (nono digito)' : 'fixo ou celular antigo (sem nono digito)';
+    out += `Tipo (BR): ${tipo}\n`;
+    try {
+      const text = await fetchWithTimeout(`${BRASILAPI_DDD}${ddd}`, { headers: { 'Accept': 'application/json', 'User-Agent': 'Mozilla/5.0' } }, 20000);
+      const j = JSON.parse(text);
+      const cidades = Array.isArray(j.cities) ? j.cities : [];
+      out += `DDD ${ddd}: UF ${j.uf || j.state || '?'} - ${cidades.length} cidade(s): ${cidades.slice(0, 40).join(', ')}${cidades.length > 40 ? '...' : ''}\n`;
+    } catch (e) {
+      out += `DDD ${ddd}: consulta de cidades (BrasilAPI) falhou: ${String(e && e.message ? e.message : e).slice(0, 120)}\n`;
+    }
+    out += `WhatsApp: verificar existencia via https://wa.me/55${tel} (abrir no app; ferramentas dedicadas em github.com/kinghacker0/WhatsApp-OSINT)\n`;
+  } else {
+    out += `Formato internacional detectado - consulte por pais nas fontes especializadas.\n`;
+  }
+  out += `\nConsultas completas em paginas dinamicas (use Playwright/browser):\n`;
+  out += `- Numtrace: https://numtrace.com/pt-br/phone-page?phone=${tel}\n`;
+  out += `- Social Searcher (mencoes em redes): https://www.social-searcher.com/google-social-search/?q=${tel}\n`;
+  out += `\nAVISO: telefone e dado pessoal (LGPD); tipo de linha/operadora so a telefonia confirma; agregadores (numtrace etc.) listam dados publicos e denuncias de spam - trate tudo como INDICIO, nunca como prova.`;
+  return out;
+}
+
 async function toolJusbrasilBuscar(a) {
   const consulta = String(a.consulta || '').trim();
   if (!consulta) throw new Error('Informe a consulta: nome exato entre aspas duplas, CPF/CNPJ formatado entre aspas ou termo livre.');
@@ -945,13 +1214,23 @@ async function toolFontesOsint() {
     '7. CONFIRMACAO RAPIDA POR NUMERO: datajud_pesquisar (terms com o numero de 20 digitos) confirma a existencia do processo em segundos (1 hit por fingerprint) - use antes do datajud_processo para checagens rapidas de existencia.',
     '',
     'BASES PUBLICAS (onde achar):',
-    '- API publica DataJud/CNJ: https://api-publica.datajud.cnj.jus.br (endpoint api_publica_{tjsp|tjpr|...}/_search; chave publica na wiki https://datajud-wiki.cnj.jus.br/api-publica/acesso/). LIMITACAO: campo "partes" vem vazio - classifique por orgao+classe+assunto+datas (fingerprint).',
+    '- API publica DataJud/CNJ: https://api-publica.datajud.cnj.jus.br (endpoint api_publica_{tjsp|tjpr|tre-sp|...}/_search; chave publica na wiki https://datajud-wiki.cnj.jus.br/api-publica/acesso/). As partes seguem DOIS formatos de indexacao conforme o tribunal (partes.nome/polo/documento ou partes.pessoa.* estilo MTD) - datajud_por_nome e datajud_por_cpf cobrem ambos via bool.should; nos que omitem, classifique por orgao+classe+assunto+datas (fingerprint). Paginacao alem dos 10.000 hits: datajud_pesquisar com ordenar=atualizacao + apartir_de (cursor search_after).',
     '- DJEN/CNJ: https://comunicaapi.pje.jus.br/api/v1/comunicacao?nomeParte=... - intimacoes com TEXTO INTEGRAL (sentencas completas); citam numeros correlatos.',
     '- e-SAJ TJSP: consulta publica por numero via formulario (use a ferramenta esaj_tjsp_guia); busca por nome exige captcha manual.',
     '- BrasilAPI: https://brasilapi.com.br (CNPJ gratuito, sem chave).',
     '- Diarios oficiais (DJSP e equivalentes): editais de citacao, publicacoes de sentenca.',
     '- Escavador: agregador (paywall; mascara numeros conforme plano; login 2FA; numeros RELACIONADOS costumam aparecer completos).',
     '- Pendentes com chave/captcha: CEIS/CNEP (API key gratuita), TSE (filiacao/doacoes), Receita Federal (captcha), cartorios/registro civil.',
+    '',
+    'REDES SOCIAIS E TELEFONE (ferramentas embutidas + rotas):',
+    '- social_buscar_usuario (EMBUTIDO, gratuito, sem chave): varre o nick na base publica do WhatsMyName em dezenas de redes e devolve os PERFIS EXISTENTES com URL.',
+    '- Mencoes sociais por termo (web UI): https://www.social-searcher.com/google-social-search/?q=TERMO | sherlock-osint.com/pt-br (SERVICO COMERCIAL; equivalentes gratuitos abaixo).',
+    '- Scanners de username (Python local, cobrem mais sites): https://github.com/sherlock-project/sherlock | https://github.com/soxoj/maigret | https://github.com/snooppr/snoop | https://github.com/antoniaci/blackbird | https://github.com/thewhiteh4t/nexfil | https://github.com/mishakorzik/UserFinder | https://github.com/0x0be/yesitsme | https://github.com/qeeqbox/social-analyzer',
+    '- WhatsMyName (a base consumida pelo social_buscar_usuario): https://github.com/WebBreacher/WhatsMyName',
+    '- Escaneamento profundo de perfil (web UI): https://footprintiq.app/free-scan',
+    '- TELEFONE: telefone_consultar (EMBUTIDO: DDD/UF/cidades via BrasilAPI + rotas) | Numtrace: https://numtrace.com/pt-br/phone-page?phone=NNNNNNNNNNN (pagina dinamica - use Playwright) | WhatsApp: https://wa.me/55NNNNNNNNNNN (conferir no app; tecnicas: https://github.com/kinghacker0/WhatsApp-OSINT)',
+    '- COLECOES/CURADORIAS OSINT: https://github.com/Astrosp/Awesome-OSINT-List | https://github.com/cipher387/OSINT-Github-profiles | https://github.com/CScorza/OSINTAnonymous',
+    '- REGRA: perfil/numero encontrado e INDICIO - nicks tem homonimos; valide bio/foto/cidade/vinculos antes de atribuir (LGPD).',
     '',
     'FONTES OFICIAIS DE CPF (rotas validadas - classificadas por QUEM pode consultar; espelho completo em regras/links-consulta-proprio-cpf.txt):',
     '- TERCEIRO (publicas, legais, com o documento do pesquisado):',
@@ -1421,7 +1700,7 @@ const TOOLS = [
   },
   {
     name: 'datajud_processo',
-    description: 'Consulta um processo pelo numero CNJ na API publica do DataJud. Detecta o tribunal automaticamente. Retorna classe, assuntos, orgao julgador, datas e ultimos movimentos. Atencao: a API publica omite as PARTES.',
+    description: 'Consulta um processo pelo numero CNJ na API publica do DataJud. Detecta o tribunal automaticamente. Retorna classe, assuntos, orgao julgador, datas, ultimos movimentos e, quando o tribunal indexa, as PARTES (nomes, polos, documentos e advogados). Tribunais que omitem partes: use fingerprint orgao+classe+assunto+datas.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -1435,17 +1714,25 @@ const TOOLS = [
   },
   {
     name: 'datajud_pesquisar',
-    description: 'Pesquisa processos no DataJud com filtros combinaveis: lista de numeros CNJ (terms), classe, assunto ou orgao julgador. Feita para montar fingerprints (orgao+classe+assunto+datas).',
+    description: 'Pesquisa processos no DataJud com filtros combinaveis: lista de numeros CNJ (terms), classe (nome ou codigo numerico), assunto (nome ou codigo), orgao julgador (nome ou codigo), grau e FAIXA DE AJUIZAMENTO (data_inicio/data_fim, AAAA-MM-DD). Ordenacao por ajuizamento e paginacao por cursor (ordenar=atualizacao + apartir_de) para alem dos 10.000 hits (janela maxima do Elastic). Feita para montar fingerprints (orgao+classe+assunto+datas).',
     inputSchema: {
       type: 'object',
       properties: {
-        tribunal: { type: 'string', description: 'Tribunal (alias tjsp/tjpr/trt15... ou codigo 826/816/501...)' },
+        tribunal: { type: 'string', description: 'Tribunal (alias tjsp/tjpr/trt15/tre-sp... ou codigo 826/816/501/600...)' },
         numeros: { type: 'string', description: 'Numeros CNJ de 20 digitos separados por virgula (query terms)' },
         classe: { type: 'string', description: 'Nome parcial da classe (ex.: Precatoria)' },
+        classe_codigo: { type: 'number', description: 'Codigo numerico da classe (ex.: 1116)' },
         assunto: { type: 'string', description: 'Nome parcial do assunto' },
+        assunto_codigo: { type: 'number', description: 'Codigo numerico do assunto' },
         orgao: { type: 'string', description: 'Nome parcial do orgao julgador' },
-        tamanho: { type: 'number', description: 'Resultados por pagina (default 20, max 100)' },
-        pagina: { type: 'number', description: 'Pagina (default 1)' }
+        orgao_codigo: { type: 'number', description: 'Codigo numerico do orgao julgador' },
+        grau: { type: 'string', description: 'Grau de jurisdicao (ex.: JE, TR, SE...)' },
+        data_inicio: { type: 'string', description: 'Data de ajuizamento inicial AAAA-MM-DD' },
+        data_fim: { type: 'string', description: 'Data de ajuizamento final AAAA-MM-DD' },
+        ordenar: { type: 'string', description: 'ajuizamento_desc | ajuizamento_asc | atualizacao (prepara cursor search_after)' },
+        apartir_de: { type: 'number', description: 'Cursor: valor de @timestamp retornado na pagina anterior (paginacao alem dos 10.000)' },
+        tamanho: { type: 'number', description: 'Resultados por pagina (default 20, max 1000)' },
+        pagina: { type: 'number', description: 'Pagina por deslocamento (default 1; limitada a janela de 10.000)' }
       },
       required: ['tribunal']
     },
@@ -1453,7 +1740,7 @@ const TOOLS = [
   },
   {
     name: 'datajud_buscar',
-    description: 'Busca textual livre no DataJud (query_string do Elastic): nome exato entre aspas duplas ("NOME COMPLETO"), CPF formatado entre aspas ("000.000.000-00"), numero de 20 digitos (match exato) ou termo qualquer. O TJSP costuma responder lento (a ferramenta faz 3 tentativas). A API publica omite as PARTES em muitos processos. REGRA DO SERVIDOR: havendo CPF/CNPJ do pesquisado, a ancora e o documento entre aspas - achado por nome so vale com documento cruzando (sem isso: POSSIVEL HOMONIMO, PROIBIDO na lista principal).',
+    description: 'Busca textual livre no DataJud (query_string do Elastic): nome exato entre aspas duplas ("NOME COMPLETO"), CPF formatado entre aspas ("000.000.000-00"), numero de 20 digitos (match exato) ou termo qualquer. Ordena por ajuizamento (mais recentes primeiro) e exibe as PARTES quando o tribunal as indexa. O TJSP costuma responder lento (a ferramenta faz 3 tentativas). REGRA DO SERVIDOR: havendo CPF/CNPJ do pesquisado, a ancora e o documento entre aspas - achado por nome so vale com documento cruzando (sem isso: POSSIVEL HOMONIMO, PROIBIDO na lista principal).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -1467,7 +1754,7 @@ const TOOLS = [
   },
   {
     name: 'datajud_por_cpf',
-    description: 'Busca processos pelo CPF/CNPJ da parte no DataJud (campo partes.pessoa.documentoReplicado). Muitos tribunais mascaram esse campo e retornam 0 - nesse caso a resposta sugere a rota alternativa (datajud_buscar com o documento formatado entre aspas). Rota de ancora por documento - OBRIGATORIA sempre que existir CPF/CNPJ do pesquisado. CICLO PF<->PJ: aceita CNPJ tambem - com CPF do pesquisado, procure os CNPJs vinculados (brasilapi_cnpj) e consulte-os aqui; com CNPJ, extraia os CPFs do QSA e consulte-os aqui.',
+    description: 'Busca processos pelo CPF/CNPJ da parte no DataJud nos campos partes.documento E partes.pessoa.documentoReplicado, nas DUAS grafias (com e sem pontuacao) via bool.should. Muitos tribunais mascaram o documento e retornam 0 - nesse caso a resposta sugere a rota alternativa (datajud_buscar com o documento formatado entre aspas). Rota de ancora por documento - OBRIGATORIA sempre que existir CPF/CNPJ do pesquisado. CICLO PF<->PJ: aceita CNPJ tambem - com CPF do pesquisado, procure os CNPJs vinculados (brasilapi_cnpj) e consulte-os aqui; com CNPJ, extraia os CPFs do QSA e consulte-os aqui.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -1478,6 +1765,21 @@ const TOOLS = [
       required: ['tribunal', 'cpf']
     },
     _run: toolDatajudPorCpf
+  },
+  {
+    name: 'datajud_por_nome',
+    description: 'Busca processos pelo NOME da parte no DataJud (match_phrase no nome COMPLETO exato) nos dois formatos de indexacao - partes.nome (API publica) e partes.pessoa.nome (MTD) - com filtro opcional de polo (ATIVO/PASSIVO, cobrindo os rotulos Autor/Reu) e ordenacao por ajuizamento (mais recentes primeiro). A API publica omite/mascara as partes em varios tribunais; com 0 resultados a resposta sugere datajud_buscar com "NOME COMPLETO" entre aspas (query_string no texto integral) ou a consulta publica do tribunal. REGRA ANTI-HOMONIMO: achado por nome so vale com o CPF/CNPJ do pesquisado cruzando - sem documento: POSSIVEL HOMONIMO, PROIBIDO na lista principal.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        tribunal: { type: 'string', description: 'Tribunal (alias tjsp/tjpr/tjsc/tre-sp... ou codigo 826/816/501...)' },
+        nome: { type: 'string', description: 'Nome COMPLETO exato da parte, como consta nos autos' },
+        polo: { type: 'string', description: 'Opcional: ATIVO ou PASSIVO' },
+        tamanho: { type: 'number', description: 'Maximo de resultados (default 20, max 100)' }
+      },
+      required: ['tribunal', 'nome']
+    },
+    _run: toolDatajudPorNome
   },
   {
     name: 'djen_intimacoes',
@@ -1509,13 +1811,14 @@ const TOOLS = [
   },
   {
     name: 'datajud_varrer',
-    description: 'Varre UMA consulta em VARIOS tribunais de uma vez (uma chamada, N buscas). Ideal para nome exato entre aspas ou CPF formatado entre aspas - economiza dezenas de chamadas individuais. Default: 11 tribunais (tjsp, tjpr, tjsc, tjba, tjpi, tjmg, tjrs, tjrj, trt2, trt9, trt15); passe tribunais="tjsp,tjpr" para escolher ou todos_tribunais=true para todos os mapeados. Erros por tribunal nao abortam a varredura. REGRA: CPF/CNPJ entre aspas e a consulta preferida; achado por nome exige cruzamento por documento - sem isso: POSSIVEL HOMONIMO, PROIBIDO na lista principal.',
+    description: 'Varre UMA consulta em VARIOS tribunais de uma vez (uma chamada, N buscas PARALELAS de 5 por vez). Ideal para nome exato entre aspas ou CPF formatado entre aspas - economiza dezenas de chamadas individuais. Escopos prontos (param escopo): tj (27), trf (6), trt (24), tre (27), superiores (stj/tst/tse/stm), militares (tjmmg/tjmrs/tjmsp) ou todos. Default: 11 tribunais principais; ou passe tribunais="tjsp,tjpr". STF nao existe na API publica. Erros por tribunal nao abortam a varredura. REGRA: CPF/CNPJ entre aspas e a consulta preferida; achado por nome exige cruzamento por documento - sem isso: POSSIVEL HOMONIMO, PROIBIDO na lista principal.',
     inputSchema: {
       type: 'object',
       properties: {
         consulta: { type: 'string', description: 'Nome exato entre aspas duplas ("NOME COMPLETO"), CPF formatado entre aspas ("000.000.000-00") ou numero CNJ de 20 digitos' },
-        tribunais: { type: 'string', description: 'Lista de aliases separados por virgula (ex.: tjsp,tjpr,tjsc). Default: 11 principais' },
-        todos_tribunais: { type: 'boolean', description: 'Se true, varre todos os tribunais mapeados (ignora tribunais)' },
+        escopo: { type: 'string', description: 'Grupo pronto: tj, trf, trt, tre, superiores, militares ou todos' },
+        tribunais: { type: 'string', description: 'Lista de aliases separados por virgula (ex.: tjsp,tjpr,tjsc)' },
+        todos_tribunais: { type: 'boolean', description: 'Se true, varre todos os tribunais mapeados (ignora tribunais/escopo)' },
         tamanho: { type: 'number', description: 'Maximo de resultados por tribunal (default 10, max 100)' }
       },
       required: ['consulta']
@@ -1564,6 +1867,31 @@ const TOOLS = [
       required: ['consulta']
     },
     _run: toolExaBuscar
+  },
+  {
+    name: 'social_buscar_usuario',
+    description: 'Scanner GRATUITO de perfis por usuario/nick em dezenas de redes sociais, usando a base publica do WhatsMyName (github.com/WebBreacher/WhatsMyName): para cada site verifica a URL do perfil contra os marcadores do dataset - e_code/e_string = EXISTE, m_code/m_string = AUSENTE (missing). Sem API key. Achados vem com URL; inconclusivos e falhas sao listados a parte. AVISO CRITICO: perfil EXISTENTE nao e perfil DA PESSOA - nicks tem homonimos; valide por bio/foto/cidade/vinculos antes de atribuir (LGPD).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        usuario: { type: 'string', description: 'Nick sem @ (letras, numeros, ponto, traco, underline)' },
+        limite: { type: 'number', description: 'Quantos sites da base verificar (default 40, max 150)' }
+      },
+      required: ['usuario']
+    },
+    _run: toolSocialBuscarUsuario
+  },
+  {
+    name: 'telefone_consultar',
+    description: 'Analisa TELEFONE brasileiro: digita e limpa, identifica DDD e tipo (celular/fixo), consulta UF e cidades do DDD via BrasilAPI (gratuita, sem chave) e monta as rotas de consulta complementares (wa.me/WhatsApp, Numtrace, Social Searcher). Paginas dinamicas exigem Playwright/browser. AVISO: telefone e dado pessoal (LGPD) - dados de agregadores sao INDICIO, nunca prova.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        telefone: { type: 'string', description: 'Telefone com DDD (BR: 10-11 digitos, ex. 11999998888) ou com codigo de pais' }
+      },
+      required: ['telefone']
+    },
+    _run: toolTelefoneConsultar
   },
   {
     name: 'fontes_osint',
@@ -1662,7 +1990,7 @@ function send(obj) { process.stdout.write(JSON.stringify(obj) + '\n'); }
 
 async function handle(msg) {
   if (msg.method === 'initialize') {
-    return { protocolVersion: '2024-11-05', capabilities: { tools: {} }, serverInfo: { name: 'escrivao', version: '1.16.0' } };
+    return { protocolVersion: '2024-11-05', capabilities: { tools: {} }, serverInfo: { name: 'escrivao', version: '1.17.1' } };
   }
   if (msg.method === 'ping') return {};
   if (msg.method === 'tools/list') return { tools: TOOLS.map(t => ({ name: t.name, description: t.description, inputSchema: t.inputSchema })) };
