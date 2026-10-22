@@ -1613,7 +1613,8 @@ async function toolGuiaDossie(args) {
     ['FASE 1 - ANCORA: SEMPRE POR DOCUMENTO, NUNCA POR NOME',
      '1. A busca e SEMPRE por CPF/CNPJ (datajud_por_cpf, esaj_buscar DOCPARTE, datajud_buscar com documento entre aspas) - precisao por documento, homonimo nunca na lista principal.',
      '2. CPF mascarado (ex.: QSA ***.123.456-**): cpf_desmascarar gera os candidatos com DV valido e verifica em lote no DataJud; o USUARIO escolhe o nome certo; dai em diante pesquisa-se SO pelo CPF.',
-     '3. ciclo_pf_pj (1a chamada de todo dossie): DataJud multi-tribunal + e-SAJ DOCPARTE + DJE-SP + rota reversa CPF->CNPJ.'],
+     '3. ciclo_pf_pj (1a chamada de todo dossie): DataJud multi-tribunal + e-SAJ DOCPARTE + DJE-SP + rota reversa CPF->CNPJ.',
+     '4. LICAO DOE-SP (2026-10-21): CPF em listas de IPVA/dividas do Diario Oficial do Estado de SP vem em 14 digitos com PADDING de 3 zeros a esquerda (ex.: 00037542700871 = 375.427.008-71). ANTES de descartar um numero como invalido: remover o padding e validar o DV do CPF de 11 digitos - falso negativo real atrasou uma ancora de dossie. Validou? Ancorar no esaj_buscar DOCPARTE (palavra final).'],
     ['FASE 2 - CICLO PF<->PJ FORCADO (regra do mantenedor: CNPJ SEMPRE com o CPF)',
      '1. Com o CPF, procure TODOS os CNPJs vinculados (razao social costuma embutir iniciais+CPF; validar no BrasilAPI).',
      '2. Validou o CNPJ? Extraia o QSA (brasilapi_cnpj) e confira o CPF mascarado (ancora de bloco, ex. ***381258**).',
@@ -1646,7 +1647,7 @@ async function toolGuiaDossie(args) {
      '3. Cruzar curriculo x processos x empresas: incoerencia documentada e achado relevante.'],
     ['FASE 9 - MONTAGEM DO DOSSIE',
      '1. Dossie x METODO separados: tecnica de pesquisa NUNCA no dossie do documento (vive no relatorio de metodo); no dossie so dados + fontes.',
-     '2. Template: HTML unico autocontido (CSS/JS internos, sem PHP), classes post-*, FontAwesome CDN, JSON-LD, nav por ancoras, filtro JS, tema claro/escuro, footer com data + LGPD + presuncao de inocencia; creditos: criacao = "Escrivao-MCP Gerenciamento de consultas publicas", CanalQb so como autor do prompt 8.5 e hospedador do MCP; titular = "titular da investigacao".',
+     '2. Template: HTML unico autocontido (CSS/JS internos, sem PHP), classes post-*, FontAwesome CDN, JSON-LD, nav por ancoras, filtro JS, tema claro/escuro, footer com data + LGPD + presuncao de inocencia; creditos: criacao = "Escrivao-MCP Gerenciamento de consultas publicas", CanalQb so como autor do prompt 8.5 e hospedador do MCP; titular = "titular da investigacao". Padrao v1.17.2: ordenacao por clique nos cabecalhos (th[data-sort] + aria-sort + suporte a teclado, locale pt-BR numerico) e impressao pericial (@page A4, break-inside:avoid em cards/tabelas/linhas, rodape de auditoria .print-footer-audit visivel so no PDF).',
      '3. Secoes: TL;DR 3 bullets com nivel; identidade (ancora dupla); CNPJs; redes/curriculo/vinculos; tabela de processos CONFIRMADOS com coluna de confirmacao; movimentacao integral; detalhes do crime; analise de perfil; pendencias COM proximo passo; fontes; FAQ. Zero emojis, PT-BR.',
      '4. Validar antes de entregar: parser HTML sem erros, JS sem erro de sintaxe, JSON-LD parseavel, grep de homonimos.'],
     ['FASE 10 - FECHAMENTO',
@@ -1655,7 +1656,7 @@ async function toolGuiaDossie(args) {
      '3. Niveis: CONFIRMADO (ancora de documento) / PROVAVEL (fingerprint) / POSSIVEL HOMONIMO (nunca na lista principal).']
   ];
   let out = FASES.map(f => f.join('\n')).join('\n\n');
-  const header = 'PROTOCOLO DE DOSSIE COMPLETO POR DOCUMENTO (v1.16.0) - regra obrigatoria para TODOS os agentes que usam o escrivao. Execute as fases em ordem; nenhum pedido do titular fica sem resposta ou sem rota tentada. Fonte: sessoes reais 18-21/10/2026 (dossies validados). Zero dados reais neste texto.\n\n';
+  const header = 'PROTOCOLO DE DOSSIE COMPLETO POR DOCUMENTO (v1.17.2) - regra obrigatoria para TODOS os agentes que usam o escrivao. Execute as fases em ordem; nenhum pedido do titular fica sem resposta ou sem rota tentada. Fonte: sessoes reais 18-21/10/2026 (dossies validados). Zero dados reais neste texto.\n\n';
   if (so) { const f = FASES.find(x => x[0].indexOf(so.toUpperCase()) > -1); return header + (f ? f.join('\n') : 'Fase nao encontrada. Fases: 0,1,2,3,4,5,6,7,8,9,10 (use fase="FASE 6" etc.).'); }
   return header + out + '\n\nVEJA TAMBEM: guia_relatorios (template/niveis), fontes_osint (protocolo anti-homonimo), guia_navegacao (browser), ciclo_pf_pj (execucao da fase 1-2).';
 }
@@ -1907,7 +1908,7 @@ const TOOLS = [
   },
   {
     name: 'guia_dossie',
-    description: 'PROTOCOLO DE DOSSIE COMPLETO POR DOCUMENTO (v1.16.0): regra obrigatoria para todo agente - TODOS os pedidos do titular da investigacao (empresas em que trabalhou, artigo do crime, redes sociais, curriculo, mascaras) viram etapa executavel deste checklist de 11 fases: ancora por documento, ciclo PF<->PJ forcado (CNPJ sempre com o CPF), loop de mascaras CNJ com contra-prova no e-SAJ DOCPARTE, varredura multi-tribunal e diarios, redes/curriculo/vinculos empregaticios (com limite declarado do CAGED/Rais), detalhes do crime (artigo pelo assunto + rito como hipotese + denuncia exige autos), familiares maiores/terceiros minimizados, validacao de curriculo/certificados (e-MEC/conselhos), montagem (dossie x metodo separados, template HTML autocontido, creditos oficiais) e fechamento com pendencias. Use ANTES de iniciar qualquer dossie de novo CPF/CNPJ.',
+    description: 'PROTOCOLO DE DOSSIE COMPLETO POR DOCUMENTO (v1.17.2): regra obrigatoria para todo agente - TODOS os pedidos do titular da investigacao (empresas em que trabalhou, artigo do crime, redes sociais, curriculo, mascaras) viram etapa executavel deste checklist de 11 fases: ancora por documento, ciclo PF<->PJ forcado (CNPJ sempre com o CPF), loop de mascaras CNJ com contra-prova no e-SAJ DOCPARTE, varredura multi-tribunal e diarios, redes/curriculo/vinculos empregaticios (com limite declarado do CAGED/Rais), detalhes do crime (artigo pelo assunto + rito como hipotese + denuncia exige autos), familiares maiores/terceiros minimizados, validacao de curriculo/certificados (e-MEC/conselhos), montagem (dossie x metodo separados, template HTML autocontido, creditos oficiais) e fechamento com pendencias. Use ANTES de iniciar qualquer dossie de novo CPF/CNPJ.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -1990,7 +1991,7 @@ function send(obj) { process.stdout.write(JSON.stringify(obj) + '\n'); }
 
 async function handle(msg) {
   if (msg.method === 'initialize') {
-    return { protocolVersion: '2024-11-05', capabilities: { tools: {} }, serverInfo: { name: 'escrivao', version: '1.17.1' } };
+    return { protocolVersion: '2024-11-05', capabilities: { tools: {} }, serverInfo: { name: 'escrivao', version: '1.17.2' } };
   }
   if (msg.method === 'ping') return {};
   if (msg.method === 'tools/list') return { tools: TOOLS.map(t => ({ name: t.name, description: t.description, inputSchema: t.inputSchema })) };
