@@ -188,7 +188,7 @@ Cobre o que a API pública omite (partes, nomes, desfechos por extenso).
   razão social de ME costuma embutir o CPF do titular + busca web
   `"NOME" "CPF" CNPJ`. Execute ANTES de fechar qualquer dossie.
 - **`regras_ler({ arquivo })`** devolve o conteúdo integral dos .md de
-  regras/ (whitelist: master_rules, prompt_8_5 etc.) para agentes que acessam o
+  regras/ (whitelist: master_rules, prompt_8_5) para agentes que acessam o
   servidor só por protocolo — o guia_relatorios deixa de prometer arquivos
   que o agente não pode ler. Aviso embutido: o prompt 8.5 original é genérico
   de blog/YouTube; use apenas as seções aplicáveis ao dossiê.

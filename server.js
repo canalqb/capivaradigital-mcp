@@ -1399,7 +1399,7 @@ async function toolGuiaRelatorios(a) {
     ].join('\n');
   }
   return [
-    'OBRIGACAO (padrao 8.5 + master_rules.md): todo relatorio/dossie gerado com dados deste servidor segue OBRIGATORIAMENTE o padrao 8.5 E as estruturas do master_rules.md adaptadas ao HTML estatico (SEM PHP). CONTEUDO INTEGRAL dos .md: ferramenta regras_ler (whitelist: master_rules, prompt_8_5 etc.) - se a pasta regras/ nao existir na instalacao (instalacao so-server.js), monte pelo RESUMO deste guia, que e autocontido. AVISO: o prompt_8_5 original e GENERICO de blog/YouTube (thumbnail, hashtags, monetizacao) - use dele apenas o que aplicavel ao dossie (Answer Target, FAQ, temas claro/escuro, CSS sem duplicatas).',
+    'OBRIGACAO (padrao 8.5 + master_rules.md): todo relatorio/dossie gerado com dados deste servidor segue OBRIGATORIAMENTE o padrao 8.5 E as estruturas do master_rules.md adaptadas ao HTML estatico (SEM PHP). CONTEUDO INTEGRAL dos .md: ferramenta regras_ler (whitelist: master_rules, prompt_8_5) - se a pasta regras/ nao existir na instalacao (instalacao so-server.js), monte pelo RESUMO deste guia, que e autocontido. AVISO: o prompt_8_5 original e GENERICO de blog/YouTube (thumbnail, hashtags, monetizacao) - use dele apenas o que aplicavel ao dossie (Answer Target, FAQ, temas claro/escuro, CSS sem duplicatas).',
     'ORDEM OBRIGATORIA DE MONTAGEM DO HTML: (1) PRIMEIRO monte a pagina aplicando os .md aplicaveis da pasta regras/, comecando pelo master_rules.md (semantica W3C, WCAG AA, temas claro/escuro com persistencia, CSS sem duplicatas, zero alert, PT-BR); (2) DEPOIS finalize o CONTEUDO com o padrao do prompt 8.5 (regras/prompt_8_5.md): TL;DR de 3 bullets, titulos em forma de pergunta com resposta de 40-60 palavras, FAQ ao final, zero emojis.',
     'FORMATO PADRAO: UM unico arquivo HTML autocontido - apenas HTML, CSS e JS INTERNOS (tags <style> e <script> embutidas), sem PHP, sem arquivos separados, sem CDN - abrindo offline; outro formato (PDF, DOCX etc.) SOMENTE quando o usuario pedir explicitamente.',
     '',
@@ -1477,13 +1477,7 @@ async function toolGuiaRelatorios(a) {
 
 const REGRAS_WHITELIST = {
   master_rules: 'master_rules.md',
-  prompt_8_5: 'prompt_8_5.md',
-  analise_arquivos_vs_readme: 'analise_arquivos_vs_readme.md',
-  arquivos_ausentes_readme: 'arquivos_ausentes_readme.md',
-  implementation_plan_upgrade_rules: 'implementation_plan_upgrade_rules.md',
-  log_solucoes: 'log_solucoes.md',
-  regra_llms_windows_blogger_xml_entities: 'regra_llms_windows_blogger_xml_entities.md',
-  task_upgrade_rules: 'task_upgrade_rules.md'
+  prompt_8_5: 'prompt_8_5.md'
 };
 
 async function toolRegrasLer(a) {
@@ -1963,11 +1957,11 @@ const TOOLS = [
   },
   {
     name: 'regras_ler',
-    description: 'Conteudo INTEGRAL dos .md da pasta regras/ (whitelist: master_rules, prompt_8_5 e demais). Resolve o acesso por protocolo: agentes sem filesystem do servidor leem aqui os templates que o guia_relatorios cita. AVISO: prompt_8_5 e generico de blog/YouTube - use apenas o aplicavel ao dossie. Se a pasta regras/ nao existir (instalacao so-server.js), devolve instrucoes de fallback.',
+    description: 'Conteudo INTEGRAL dos .md da pasta regras/ (whitelist: master_rules, prompt_8_5). Resolve o acesso por protocolo: agentes sem filesystem do servidor leem aqui os templates que o guia_relatorios cita. AVISO: prompt_8_5 e generico de blog/YouTube - use apenas o aplicavel ao dossie. Se a pasta regras/ nao existir (instalacao so-server.js), devolve instrucoes de fallback.',
     inputSchema: {
       type: 'object',
       properties: {
-        arquivo: { type: 'string', description: 'Chave da whitelist: master_rules | prompt_8_5 | analise_arquivos_vs_readme | arquivos_ausentes_readme | implementation_plan_upgrade_rules | log_solucoes | regra_llms_windows_blogger_xml_entities | task_upgrade_rules (sem argumento: lista as opcoes)' }
+        arquivo: { type: 'string', description: 'Chave da whitelist: master_rules | prompt_8_5 (sem argumento: lista as opcoes)' }
       },
       additionalProperties: false
     },
@@ -2022,7 +2016,7 @@ function send(obj) { process.stdout.write(JSON.stringify(obj) + '\n'); }
 
 async function handle(msg) {
   if (msg.method === 'initialize') {
-    return { protocolVersion: '2024-11-05', capabilities: { tools: {} }, serverInfo: { name: 'escrivao', version: '1.18.1' } };
+    return { protocolVersion: '2024-11-05', capabilities: { tools: {} }, serverInfo: { name: 'escrivao', version: '1.18.2' } };
   }
   if (msg.method === 'ping') return {};
   if (msg.method === 'tools/list') return { tools: TOOLS.map(t => ({ name: t.name, description: t.description, inputSchema: t.inputSchema })) };

@@ -177,7 +177,7 @@ ferramenta e sua fonte.
 | `guia_navegacao` | Guia de navegação: links das regras do mantenedor (master rules, pasta de regras, prompt 8.5), fluxo validado com o MCP Playwright (captchas manuais, armadilhas do e-SAJ) e módulos de Python para scripts locais | — |
 | `guia_dossie` | **Protocolo de dossiê completo por documento** (v1.18.1): checklist obrigatório de 12 fases (0, 1, 1B, 2-10) — todo pedido do titular (empresas em que trabalhou, artigo do crime, redes/currículo, máscaras, ficha de identificação) vira etapa executável; âncora por documento, ciclo PF↔PJ forçado, contra-prova de máscaras no e-SAJ DOCPARTE, ficha de identificação (genitores, nascimento, documentos, endereço válido, contatos, com a técnica dos 4 campos-chave nome+CPF+nascimento+nome da mãe), vínculos empregatícios com limite do CAGED/Rais declarado, detalhes de crime (rito como hipótese), validação de currículo (e-MEC/conselhos), dossiê×método separados e fechamento com pendências. Use antes de iniciar qualquer dossiê novo | — |
 | `guia_relatorios` | Técnicas de relatório/dossiê: HTML único autocontido (CSS/JS internos, sem PHP), padrão 8.5 adaptado, níveis de confirmação (CONFIRMADO/PROVÁVEL/POSSÍVEL HOMÔNIMO), ficha de identificação como seção, links de perfil sempre clicáveis (`target="_blank" rel="noopener noreferrer"`), seção sem dado não existe no relatório (nem card explicando a ausência), pendências com próximo passo, cadeia de evidência, anti-homônimos e checklist de entrega; `escopo="exclusivo cpf"` devolve as normas do modo dossiê-exclusivo-por-documento (padrão negativo de homônimos) | — |
-| `regras_ler` | Conteúdo INTEGRAL dos .md de regras/ (whitelist: master_rules, prompt_8_5 etc.) para agentes que acessam por protocolo, sem filesystem do servidor; aviso de que o prompt 8.5 é genérico de blog e fallback para instalações sem a pasta | — |
+| `regras_ler` | Conteúdo INTEGRAL dos .md de regras/ (whitelist: master_rules, prompt_8_5) para agentes que acessam por protocolo, sem filesystem do servidor; aviso de que o prompt 8.5 é genérico de blog e fallback para instalações sem a pasta | — |
 | `guia_instalacao` | Comandos prontos para instalar do zero: Node.js via winget (Windows 10/11), alternativas (choco/scoop/MSI, apt/dnf/brew), obtenção do servidor (git clone ou download do `server.js`), teste via stdin e registro nos clientes | — |
 | `jusbrasil_buscar` | Busca no Jusbrasil: HTTP quando passa; quando o Cloudflare bloqueia (403), devolve a rota pronta via browser (MCP Playwright) com a URL montada; números mascarados alimentam o loop do `cnj_desmascarar` | Jusbrasil |
 | `mcp_atualizar` | Autoatualização: baixa o `server.js` mais recente do GitHub, guarda backup (.bak) e substitui o arquivo; a nova versão sobe ao reiniciar o cliente | GitHub |
@@ -529,11 +529,13 @@ só quando você pedir explicitamente.
 
 ## O que há na pasta regras/?
 
-Espelho autorizado das regras do mantenedor (Google Drive, pasta
-`regras_llms`): `master_rules.md` (protocolo central), `prompt_8_5.md` (padrão
-de relatório e conteúdo), `prompt_de_llms/` (regras para LLMs), `prompts_php/`
-(regras PHP/CSS/JS), `templates_php/` (templates e componentes universais) e
-os logs e configurações de solução. Original sempre em:
+Apenas o que o servidor usa (refinada em 23/10/2026): `master_rules.md`
+(protocolo central de estrutura/entrega), `prompt_8_5.md` (padrão de
+relatório e conteúdo), `links.txt` (MCPs e serviços que enriquecem a
+pesquisa, espelho citado por `guia_navegacao`) e
+`links-consulta-proprio-cpf.txt` (rotas oficiais de CPF, espelho citado por
+`fontes_osint`). O espelho do Drive com regras de PHP/Blogger/CMS foi
+removido do repositório — o original permanece no Google Drive do mantenedor:
 https://drive.google.com/drive/folders/1U5U9QNx__hVio5GTKSVflZP9-b_E0OLm
 
 ## Quais as limitações conhecidas?
