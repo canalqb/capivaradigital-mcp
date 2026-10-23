@@ -48,6 +48,16 @@ tabela completa de atalhos no `README.md` §6.
 3. **Por nome completo** — sempre entre aspas exatas e com qualificadores (nascimento, genitores, cidade): homônimos são a maior fonte de erro.
 4. **Por CNPJ** — razões sociais frequentemente embutem o CPF do titular (âncora poderosa); QSA traz CPF mascarado + faixa etária.
 5. **Por vínculos** — co-réus, advogados, juízes, empresas ligadas, genitores.
+6. **Por ficha de identificação** — genitores, nascimento, endereço, contatos e
+   documentos do pesquisado vêm da qualificação judicial (autos/DJEN), do
+   QSA/CNPJ (BrasilAPI) e do DOE-SP. Os portais de situação cadastral e de
+   títulos pedem **nome completo + CPF + nascimento + nome da mãe**: descobrir
+   a genitora desbloqueia consultas que o CPF sozinho não abre
+   (`guia_dossie` FASE 1B).
+7. **Por variações de nome** — nome completo, abreviado, **sem acentos** (os
+   indexadores não normalizam), nome de casado(a) e username conhecido; o
+   brasileiro no exterior pode assinar qualquer uma delas nos registros
+   locais — varrer todas e ancorar por documento o que aparecer.
 
 **Sempre registrar:** fonte exata, URL, data/hora da consulta, cópia bruta
 (HTML/PDF/JSON) e a cadeia de confirmação de cada achado.
@@ -204,6 +214,27 @@ Cobre o que a API pública omite (partes, nomes, desfechos por extenso).
 - **Equivalentes locais (Python/Go, mais sites):** sherlock, maigret, snoop,
   blackbird, nexfil, UserFinder, yesitsme, social-analyzer — e as curadorias
   Awesome-OSINT-List, OSINT-Github-profiles, OSINTAnonymous (ver README).
+- **OSINT internacional — brasileiro no exterior (pacote por país, validado
+  22/10/2026):** o CPF NÃO indexa fora do Brasil; a âncora vira o NOME EXATO
+  contra os registros públicos do país (e todo achado por nome carrega o limite
+  anti-homônimo). Irlanda — CORE/CRO (`core.cro.ie`; Cloudflare challenge passa
+  aguardando ~8 s; o formulário fica num drawer off-screen — clique/fill via JS
+  evaluate), insolvência ISI (`isi.jahs.ie/public/cases`, nome exato em dois
+  campos), High Court (`courts.ie/high-court-search` — resultados client-side:
+  varra as páginas RENDERIZADAS, o HTML via fetch vem vazio), registro eleitoral
+  (`checktheregister.ie` — WAF 403 para browser automatizado, consulta manual).
+  Reino Unido — Companies House (empresas + officers). Global — Interpol Red
+  Notices (site; a API `ws.interpol.int` é inacessível por HTTP direto),
+  OpenSanctions, Wayback CDX. Recursos por país: OSINT-for-countries (base
+  estruturada por país), X-osint (CLI Termux/Linux), topics/osint-tools e
+  topics/open-source-intelligence (descoberta contínua), Maltego (comercial —
+  grafos de vínculos; Basic gratuito, Entry €3.000/ano). **Fuso via commits:**
+  o patch bruto de um commit (`github.com/us/repo/commit/SHA.patch`) traz o
+  offset local da máquina do autor (-0300 = Brasília) — indício público, nunca
+  prova (VPN existe). **Limites estruturais a declarar:** passaporte, vistos,
+  PNR e SIS são dados estatais (sem via pública gratuita); CLT no exterior não
+  tem CAGED público; GDPR vigora na UE. A lista completa roda em
+  `fontes_osint` e `guia_navegacao` em tempo de execução.
 
 ## 6. Histórico técnico rápido (para não repetir erros)
 

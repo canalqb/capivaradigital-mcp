@@ -175,8 +175,8 @@ ferramenta e sua fonte.
 | `telefone_consultar` | Telefone BR: DDD → UF e cidades via BrasilAPI, tipo de linha, rota WhatsApp (wa.me), Numtrace e Social Searcher | BrasilAPI |
 | `fontes_osint` | Playbook interno: bases, atalhos, rotas por tribunal, técnicas e ética/LGPD | — |
 | `guia_navegacao` | Guia de navegação: links das regras do mantenedor (master rules, pasta de regras, prompt 8.5), fluxo validado com o MCP Playwright (captchas manuais, armadilhas do e-SAJ) e módulos de Python para scripts locais | — |
-| `guia_dossie` | **Protocolo de dossiê completo por documento** (v1.16.0): checklist obrigatório de 11 fases — todo pedido do titular (empresas em que trabalhou, artigo do crime, redes/currículo, máscaras) vira etapa executável; âncora por documento, ciclo PF↔PJ forçado, contra-prova de máscaras no e-SAJ DOCPARTE, vínculos empregatícios com limite do CAGED/Rais declarado, detalhes de crime (rito como hipótese), validação de currículo (e-MEC/conselhos), dossiê×método separados e fechamento com pendências. Use antes de iniciar qualquer dossiê novo | — |
-| `guia_relatorios` | Técnicas de relatório/dossiê: HTML único autocontido (CSS/JS internos, sem PHP), padrão 8.5 adaptado, níveis de confirmação (CONFIRMADO/PROVÁVEL/POSSÍVEL HOMÔNIMO), pendências com próximo passo, cadeia de evidência, anti-homônimos e checklist de entrega; `escopo="exclusivo cpf"` devolve as normas do modo dossiê-exclusivo-por-documento (padrão negativo de homônimos) | — |
+| `guia_dossie` | **Protocolo de dossiê completo por documento** (v1.18.1): checklist obrigatório de 12 fases (0, 1, 1B, 2-10) — todo pedido do titular (empresas em que trabalhou, artigo do crime, redes/currículo, máscaras, ficha de identificação) vira etapa executável; âncora por documento, ciclo PF↔PJ forçado, contra-prova de máscaras no e-SAJ DOCPARTE, ficha de identificação (genitores, nascimento, documentos, endereço válido, contatos, com a técnica dos 4 campos-chave nome+CPF+nascimento+nome da mãe), vínculos empregatícios com limite do CAGED/Rais declarado, detalhes de crime (rito como hipótese), validação de currículo (e-MEC/conselhos), dossiê×método separados e fechamento com pendências. Use antes de iniciar qualquer dossiê novo | — |
+| `guia_relatorios` | Técnicas de relatório/dossiê: HTML único autocontido (CSS/JS internos, sem PHP), padrão 8.5 adaptado, níveis de confirmação (CONFIRMADO/PROVÁVEL/POSSÍVEL HOMÔNIMO), ficha de identificação como seção, links de perfil sempre clicáveis (`target="_blank" rel="noopener noreferrer"`), seção sem dado não existe no relatório (nem card explicando a ausência), pendências com próximo passo, cadeia de evidência, anti-homônimos e checklist de entrega; `escopo="exclusivo cpf"` devolve as normas do modo dossiê-exclusivo-por-documento (padrão negativo de homônimos) | — |
 | `regras_ler` | Conteúdo INTEGRAL dos .md de regras/ (whitelist: master_rules, prompt_8_5 etc.) para agentes que acessam por protocolo, sem filesystem do servidor; aviso de que o prompt 8.5 é genérico de blog e fallback para instalações sem a pasta | — |
 | `guia_instalacao` | Comandos prontos para instalar do zero: Node.js via winget (Windows 10/11), alternativas (choco/scoop/MSI, apt/dnf/brew), obtenção do servidor (git clone ou download do `server.js`), teste via stdin e registro nos clientes | — |
 | `jusbrasil_buscar` | Busca no Jusbrasil: HTTP quando passa; quando o Cloudflare bloqueia (403), devolve a rota pronta via browser (MCP Playwright) com a URL montada; números mascarados alimentam o loop do `cnj_desmascarar` | Jusbrasil |
@@ -381,6 +381,36 @@ agente combinar com as consultas daqui. **Segurança/LGPD:** servidores MCP
 sensíveis, rode localmente os de código aberto (mcp-brasil, mcp-dadosbr,
 brasil-data-mcp). A lista completa dos 31 MCPs catalogados, com as ressalvas
 de cada um, está espelhada em `regras/links.txt`.
+
+## Como investigar um brasileiro fora do Brasil?
+
+O CPF não indexa fora do Brasil: no exterior a âncora é o **nome exato**
+contra os registros públicos do país. Rotas validadas em sessão real
+(22/10/2026) — Irlanda: CORE/CRO (empresas + diretores inelegidos,
+`core.cro.ie`), insolvência ISI (`isi.jahs.ie/public/cases`, nome exato em
+dois campos), High Court (`courts.ie/high-court-search`; resultados
+client-side — varra as páginas renderizadas) e registro eleitoral
+(`checktheregister.ie`, que bloqueia browser automatizado); Reino Unido:
+Companies House (empresas e sócios); global: Interpol Red Notices,
+OpenSanctions e Wayback CDX. Passaporte, vistos, PNR e SIS são dados
+estatais — não existem em via pública gratuita.
+
+| Recurso | O que traz | Acesso |
+|---|---|---|
+| OSINT in the Countries | Base estruturada por país: registros governamentais, empresas, telecom, buscadores, arcabouço legal de cada país | https://github.com/OSINT-for-countries |
+| OSINT in Ireland | Guia de fontes públicas irlandesas (mesma organização do OSINT-for-countries) | https://github.com/OSINT-for-countries/OSINT_in_Ireland |
+| CRO Open Data (Irlanda) | Datasets e API REST estruturados das empresas irlandesas (API cobrada; a busca no core.cro.ie segue gratuita) | https://opendata.cro.ie e https://services.cro.ie |
+| gov.ie | Publicações e informações governamentais da Irlanda | https://www.gov.ie |
+| OSINT Framework | Diretório de ferramentas por categoria (nome, e-mail, usuário, domínios, documentos) | https://osintframework.com |
+| X-osint | CLI (Termux/Linux): telefone, e-mail, VIN, subdomínios, e-mail a partir do nome | https://github.com/TermuxHackz/X-osint |
+| Tópico GitHub osint-tools | Diretório vivo de ferramentas OSINT | https://github.com/topics/osint-tools |
+| Tópico GitHub open-source-intelligence | Descoberta contínua de projetos OSINT | https://github.com/topics/open-source-intelligence |
+| Maltego (comercial) | Grafos de vínculos/link analysis; Basic gratuito (Graph CE), Entry Standard €3.000/ano, Professional €7.500/ano | https://www.maltego.com/pricing/ |
+
+A ferramenta `fontes_osint` devolve esta lista em tempo de execução, junto com
+as rotas por país, a técnica de fuso horário via commits (o `.patch` bruto de
+um commit traz o offset local da máquina do autor) e o limite estrutural a
+declarar no dossiê (GDPR na UE; CLT no exterior não tem CAGED público).
 
 ## Quais ferramentas de redes sociais e contato existem?
 

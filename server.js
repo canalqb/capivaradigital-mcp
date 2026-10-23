@@ -1232,6 +1232,18 @@ async function toolFontesOsint() {
     '- COLECOES/CURADORIAS OSINT: https://github.com/Astrosp/Awesome-OSINT-List | https://github.com/cipher387/OSINT-Github-profiles | https://github.com/CScorza/OSINTAnonymous',
     '- REGRA: perfil/numero encontrado e INDICIO - nicks tem homonimos; valide bio/foto/cidade/vinculos antes de atribuir (LGPD).',
     '',
+    'OSINT INTERNACIONAL / POR PAIS (brasileiro no exterior - o CPF NAO indexa fora do Brasil; ancora = NOME EXATO + registros locais):',
+    '- OSINT in the Countries (base por pais: registros governamentais, empresas, telecom, buscadores, arcabouco legal de cada pais): https://github.com/OSINT-for-countries',
+    '- X-osint (CLI Termux/Linux: telefone, e-mail, VIN, subdominios, e-mail a partir do nome): https://github.com/TermuxHackz/X-osint',
+    '- Topicos GitHub (descoberta continua de ferramentas OSINT): https://github.com/topics/osint-tools e https://github.com/topics/open-source-intelligence',
+    '- Maltego (COMERCIAL, grafos de vinculos/link analysis; Basic gratuito com Graph CE, Entry Standard EUR 3.000/ano, Professional EUR 7.500/ano): https://www.maltego.com/pricing/',
+    '- ROTAS VALIDADAS POR PAIS: Irlanda - CORE/CRO empresas+inelegidos (core.cro.ie), insolvencia ISI (isi.jahs.ie/public/cases, nome exato), High Court (courts.ie/high-court-search; resultados client-side), registro eleitoral (checktheregister.ie; WAF 403 = manual) | Reino Unido - Companies House (find-and-update.company-information.service.gov.uk) | GLOBAL - Interpol Red Notices (interpol.int; API ws.interpol.int instavel), OpenSanctions (opensanctions.org), Wayback CDX (web.archive.org/cdx/search/cdx).',
+    '- FUSO VIA COMMITS (proxy de localizacao): o patch bruto do commit (github.com/usuario/repo/commit/SHA.patch) traz o offset local do autor (-0300 = Brasilia; +0100 = Irlanda no verao) - indicio publico, nunca prova (VPN existe).',
+    '- LIMITE ESTRUTURAL (declare no dossie): passaporte, vistos, PNR e SIS sao dados ESTATAIS (sem via publica gratuita); CLT no exterior nao tem CAGED publico; GDPR vigora na UE.',
+    '- IRLANDA COMPLEMENTO: OSINT in Ireland (guia de fontes publicas irlandesas, mesma org do OSINT-for-countries): https://github.com/OSINT-for-countries/OSINT_in_Ireland | CRO Open Data (datasets e API REST estruturados das empresas irlandesas): https://opendata.cro.ie e https://services.cro.ie (API cobrada por consulta; a busca core.cro.ie segue gratuita) | gov.ie (publicacoes e informacoes governamentais): https://www.gov.ie',
+    '- DIRETORIO DE FERRAMENTAS: OSINT Framework (catalogo por categoria - nome, e-mail, usuario, dominios, documentos): https://osintframework.com',
+    '- VARIACOES DE NOME (anti-homonimo e desbloqueio de busca): pesquise TODAS as grafias - nome completo, nome abreviado, SEM ACENTOS (indexadores nao normalizam acento), nome de casado(a) e username conhecido; brasileiro no exterior pode assinar qualquer uma delas nos registros locais. Achado com documento? Ancore por documento; achado so por grafia nova entra como mais uma variacao para varrer (datajud_varrer), nunca como fato.',
+    '',
     'FONTES OFICIAIS DE CPF (rotas validadas - classificadas por QUEM pode consultar; espelho completo em regras/links-consulta-proprio-cpf.txt):',
     '- TERCEIRO (publicas, legais, com o documento do pesquisado):',
     '  * Situacao cadastral na Receita (CPF + data de nascimento + CAPTCHA - rota browser com captcha manual): regular/pendente/cancelada/nula/titular falecido + data de inscricao: https://servicos.receita.fazenda.gov.br/servicos/cpf/consultasituacao/consultapublica.asp',
@@ -1333,6 +1345,15 @@ async function toolGuiaNavegacao() {
     '  * omniscan (CLI unificada: username/e-mail/telefone -> todos os tools): https://pypi.org/project/omniscan/',
     '- REGRAS PARA O DOSSIE: perfil achado por nome/username/e-mail/telefone = POSSIVEL HOMONIMO ate cruzar com CPF/CNPJ (PROIBICAO vale); redes sociais e curriculo sao dados AUTODECLARADOS (nota de credibilidade, nunca CONFIRMADO so por eles); "quao seguro e o usuario" responde com vazamentos (holehe/mosint/H8mail) e exposicao publica - indicativo, nunca sentenca. LGPD: uso investigativo com fontes publicas.',
     '',
+    'OSINT INTERNACIONAL / POR PAIS (pesquisado brasileiro no exterior - o CPF NAO indexa fora do Brasil; ancora = NOME EXATO + registros locais):',
+    '- OSINT in the Countries (base estruturada por pais: registros governamentais, empresas, telecom, buscadores, datasets, arcabouco legal de cada pais): https://github.com/OSINT-for-countries',
+    '- X-osint (CLI Termux/Linux: telefone, e-mail, VIN, subdominios, e-mail a partir do nome): https://github.com/TermuxHackz/X-osint',
+    '- Topicos GitHub (descoberta continua de ferramentas OSINT): https://github.com/topics/osint-tools e https://github.com/topics/open-source-intelligence',
+    '- Maltego (COMERCIAL de grafos de vinculos/link analysis; Basic gratuito com Graph CE, Entry Standard EUR 3.000/ano, Professional EUR 7.500/ano): https://www.maltego.com/pricing/',
+    '- ROTAS VALIDADAS EM SESSAO REAL: Irlanda - CORE/CRO empresas+inelegidos (core.cro.ie), insolvencia ISI (isi.jahs.ie/public/cases, nome exato), High Court (courts.ie/high-court-search; resultados client-side - varra as paginas RENDERIZADAS), registro eleitoral (checktheregister.ie; WAF 403 para browser automatizado = consulta manual). Reino Unido - Companies House (find-and-update.company-information.service.gov.uk; empresas e officers). Global - Interpol Red Notices (site interpol.int; API ws.interpol.int instavel por HTTP), OpenSanctions (opensanctions.org), Wayback CDX (web.archive.org/cdx/search/cdx).',
+    '- FUSO HORARIO VIA COMMITS (proxy de localizacao): o patch bruto de um commit do GitHub (github.com/usuario/repo/commit/SHA.patch) traz o offset local da maquina do autor (ex.: -0300 = Brasilia, +0100 = Irlanda no verao) - indicio publico, nunca prova (VPN existe).',
+    '- LIMITE ESTRUTURAL (declare no dossie): passaporte, vistos, PNR e SIS sao dados ESTATAIS - nenhuma via publica gratuita os expoe, no Brasil ou na UE; emprego CLT no exterior nao tem CAGED equivalente publico; GDPR vigora na UE.',
+    '',
     'LINKS EXTERNOS (recursos de apoio):',
     '- Escavador (agregador, paywall): https://www.escavador.com',
     '- Jusbrasil: https://www.jusbrasil.com.br',
@@ -1372,6 +1393,8 @@ async function toolGuiaRelatorios(a) {
       '5. Niveis: CONFIRMADO so com o documento do pesquisado batendo; sem documento, PROVAVEL no maximo (fingerprint); homonimo, nada.',
       '6. Ciclo PF<->PJ completo: ciclo_pf_pj (CPF acha CNPJs vinculados / CNPJ acha CPFs do QSA) antes de fechar a analise.',
       '7. Checklist final: ( ) nada de homonimo publicado; ( ) nenhum dado de terceiro em texto integral; ( ) pendencias com proximo passo; ( ) data de geracao no rodape.',
+      '8. Ficha de identificacao: campos do pesquisado (nome+variacoes, nascimento, genitora/genitor, filhos maiores, documentos descobertos, ultimo endereco valido de registro publico, telefones, e-mails) com fonte e nivel - tecnica dos 4 campos-chave (nome+CPF+nascimento+nome da mae) e fontes por campo no guia_dossie FASE 1B.',
+      '9. Montagem: links de perfil sempre clicaveis (target="_blank" rel="noopener noreferrer"); secao sem dado nenhum NAO existe no relatorio (nem card de "por que nada aparece") - a ausencia fica na resposta curta da secao ou nas pendencias.',
       'Guia tecnico completo (HTML, secoes, WCAG, temas): chame guia_relatorios sem escopo.'
     ].join('\n');
   }
@@ -1416,7 +1439,10 @@ async function toolGuiaRelatorios(a) {
     '   f) Cruzamento entre empregos e processos: para cada vinculo de trabalho (processos trabalhistas revelam empregador+periodo; QSA/CNPJ revela societario; CNIS quando disponivel), cruzar empregador x periodo x processo - ex.: reclamante de TRT contra ex-empregador no mesmo periodo em que consta do QSA; socio de CNPJ que figura em processo da empresa. Cada cruzamento cita empregador, CNPJ e periodo.',
     '   g) Analise de perfil do usuario: sintese de QUEM E (ocupacao, circulos, padroes) cruzando registro publico + redes sociais + curriculo - cada afirmacao com fonte.',
     '   h) Quao seguro e o usuario: exposicao digital (e-mail/telefone em vazamentos via holehe/mosint/H8mail; dados expostos em redes; credenciais vazadas) e indicadores de risco (processos, negativacao) - sempre com ressalva: INDICATIVO, nao sentenca.',
-    '   i) Relacionamentos (parentes): pais, filhos, irmaos, conjuge e demais parentes SO com ancora propria (qualificacao judicial nos autos: genitora/genitor, nascimento; textos integrais do DJEN citam parentes) - cruzar sempre que possivel (ex.: genitora citada nos autos + processo conjunto). Parente sem ancora: fora do relatorio - mesmo sobrenome NAO e vinculo.',
+     '   i) Relacionamentos (parentes): pais, filhos, irmaos, conjuge e demais parentes SO com ancora propria (qualificacao judicial nos autos: genitora/genitor, nascimento; textos integrais do DJEN citam parentes) - cruzar sempre que possivel (ex.: genitora citada nos autos + processo conjunto). Parente sem ancora: fora do relatorio - mesmo sobrenome NAO e vinculo.',
+     '   j) Ficha de identificacao: nome completo e variacoes, data de nascimento, genitora/genitor, filhos (maiores), documentos descobertos (CPF/RG/titulo de eleitor/passaporte), ultimo endereco valido de registro publico, telefone(s) e e-mail(is) - cada campo com fonte e nivel (fontes por campo: guia_dossie FASE 1B).',
+     '   k) Perfis digitais: TODO link de perfil CLICAVEL e abrindo em nova aba - <a href="URL" target="_blank" rel="noopener noreferrer">.</a>',
+     '   REGRA DE SECOES VAZIAS (22/10/2026): secao sem NENHUM dado (confirmado ou possivel) NAO existe no relatorio - nem a secao, nem card explicando a ausencia ("por que nenhuma empresa aparece"). A ausencia se declara em UMA linha na resposta curta da secao ou nas pendencias.',
     '',
     '5. SECAO DE PENDENCIAS OBRIGATORIA:',
     '- Tudo que ficou sem numero, sem confirmacao ou sem fonte acessivel - com o PROXIMO PASSO concreto de cada item (ex.: busca por nome no e-SAJ com captcha manual; ProJudi TJPR; certidao de distribuicao).',
@@ -1614,7 +1640,12 @@ async function toolGuiaDossie(args) {
      '1. A busca e SEMPRE por CPF/CNPJ (datajud_por_cpf, esaj_buscar DOCPARTE, datajud_buscar com documento entre aspas) - precisao por documento, homonimo nunca na lista principal.',
      '2. CPF mascarado (ex.: QSA ***.123.456-**): cpf_desmascarar gera os candidatos com DV valido e verifica em lote no DataJud; o USUARIO escolhe o nome certo; dai em diante pesquisa-se SO pelo CPF.',
      '3. ciclo_pf_pj (1a chamada de todo dossie): DataJud multi-tribunal + e-SAJ DOCPARTE + DJE-SP + rota reversa CPF->CNPJ.',
-     '4. LICAO DOE-SP (2026-10-21): CPF em listas de IPVA/dividas do Diario Oficial do Estado de SP vem em 14 digitos com PADDING de 3 zeros a esquerda (ex.: 00037542700871 = 375.427.008-71). ANTES de descartar um numero como invalido: remover o padding e validar o DV do CPF de 11 digitos - falso negativo real atrasou uma ancora de dossie. Validou? Ancorar no esaj_buscar DOCPARTE (palavra final).'],
+      '4. LICAO DOE-SP (2026-10-21): CPF em listas de IPVA/dividas do Diario Oficial do Estado de SP vem em 14 digitos com PADDING de 3 zeros a esquerda (ex.: 00037542700871 = 375.427.008-71). ANTES de descartar um numero como invalido: remover o padding e validar o DV do CPF de 11 digitos - falso negativo real atrasou uma ancora de dossie. Validou? Ancorar no esaj_buscar DOCPARTE (palavra final).'],
+    ['FASE 1B - FICHA DE IDENTIFICACAO DO PESQUISADO (pedido tipico do titular, validado 22/10/2026)',
+     '1. Monte a ficha com TODOS os campos descobertos, cada um com FONTE e NIVEL: nome completo e variacoes; data de nascimento; genitora e genitor (nome de pai e mae); filhos (SO maiores; menores NUNCA); ultimo endereco VALIDO de registro publico; telefone(s) e e-mail(is) de contato; documentos descobertos (CPF, RG, titulo de eleitor, passaporte, CNH, CTPS).',
+     '2. Fontes por campo: QUALIFICACAO JUDICIAL nos autos e textos integrais do DJEN (genitora/genitor, nascimento, endereco da epoca; djen_intimacoes por nome); QSA/CNPJ via brasilapi_cnpj (endereco comercial, telefone/e-mail de contato, frequentemente mascarados); DOE-SP por nome (listas de dividas/IPVA trazem nome+CPF+endereco; dje_sp_buscar); ONR/RI Digital (imoveis por CPF/CNPJ); redes sociais e LinkedIn bio (marque AUTODECLARADO).',
+     '3. TECNICA DOS 4 CAMPOS-CHAVE (desbloqueio de documentos): os portais publicos de situacao cadastral e de titulos normalmente pedem NOME COMPLETO + CPF + DATA DE NASCIMENTO + NOME DA MAE. Quem tem os 4 campos desbloqueia consultas que o CPF sozinho nao abre (situacao cadastral da Receita exige data de nascimento; certidoes eleitorais pedem qualificacao completa). Descubra a genitora nos autos/DJEN ANTES de tentar essas rotas - e use os campos descobertos como ancora anti-homonimo.',
+     '4. LGPD: enderecos/contatos de registro publico entram no dossie com fonte e data; endereco residencial ATUAL para vigilancia de pessoa permanece FORA de escopo (etica) - declare o limite quando o titular pedir.'],
     ['FASE 2 - CICLO PF<->PJ FORCADO (regra do mantenedor: CNPJ SEMPRE com o CPF)',
      '1. Com o CPF, procure TODOS os CNPJs vinculados (razao social costuma embutir iniciais+CPF; validar no BrasilAPI).',
      '2. Validou o CNPJ? Extraia o QSA (brasilapi_cnpj) e confira o CPF mascarado (ancora de bloco, ex. ***381258**).',
@@ -1656,8 +1687,8 @@ async function toolGuiaDossie(args) {
      '3. Niveis: CONFIRMADO (ancora de documento) / PROVAVEL (fingerprint) / POSSIVEL HOMONIMO (nunca na lista principal).']
   ];
   let out = FASES.map(f => f.join('\n')).join('\n\n');
-  const header = 'PROTOCOLO DE DOSSIE COMPLETO POR DOCUMENTO (v1.17.2) - regra obrigatoria para TODOS os agentes que usam o escrivao. Execute as fases em ordem; nenhum pedido do titular fica sem resposta ou sem rota tentada. Fonte: sessoes reais 18-21/10/2026 (dossies validados). Zero dados reais neste texto.\n\n';
-  if (so) { const f = FASES.find(x => x[0].indexOf(so.toUpperCase()) > -1); return header + (f ? f.join('\n') : 'Fase nao encontrada. Fases: 0,1,2,3,4,5,6,7,8,9,10 (use fase="FASE 6" etc.).'); }
+  const header = 'PROTOCOLO DE DOSSIE COMPLETO POR DOCUMENTO (v1.18.1) - regra obrigatoria para TODOS os agentes que usam o escrivao. Execute as fases em ordem; nenhum pedido do titular fica sem resposta ou sem rota tentada. Fonte: sessoes reais 18-22/10/2026 (dossies validados). Zero dados reais neste texto.\n\n';
+  if (so) { const f = FASES.find(x => x[0].indexOf(so.toUpperCase()) > -1); return header + (f ? f.join('\n') : 'Fase nao encontrada. Fases: 0,1,1B,2,3,4,5,6,7,8,9,10 (use fase="FASE 6" etc.).'); }
   return header + out + '\n\nVEJA TAMBEM: guia_relatorios (template/niveis), fontes_osint (protocolo anti-homonimo), guia_navegacao (browser), ciclo_pf_pj (execucao da fase 1-2).';
 }
 
@@ -1991,7 +2022,7 @@ function send(obj) { process.stdout.write(JSON.stringify(obj) + '\n'); }
 
 async function handle(msg) {
   if (msg.method === 'initialize') {
-    return { protocolVersion: '2024-11-05', capabilities: { tools: {} }, serverInfo: { name: 'escrivao', version: '1.17.2' } };
+    return { protocolVersion: '2024-11-05', capabilities: { tools: {} }, serverInfo: { name: 'escrivao', version: '1.18.1' } };
   }
   if (msg.method === 'ping') return {};
   if (msg.method === 'tools/list') return { tools: TOOLS.map(t => ({ name: t.name, description: t.description, inputSchema: t.inputSchema })) };
