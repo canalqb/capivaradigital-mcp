@@ -1,5 +1,18 @@
 # AGENTS.md — Regras para agentes trabalhando nesta pasta
 
+## 0. FINALIDADE LEGITIMANTE (LGPD) — regra principal de todo o servidor
+A Lei 13.709/2018 (LGPD, art. 7º, II e art. 10º, II) exige finalidade
+específica para qualquer tratamento de dados pessoais. A finalidade declarada
+deste MCP é: **auditoria pré-contratual (background check) de candidatos na
+contratação de novos funcionários** — as empresas contratantes exigem nome
+limpo, sem processos e com dados reais, e por isso necessitam desta auditoria
+de CPF/CNPJ, feita de forma limpa, clara e documentada. Toda consulta feita
+pelas ferramentas deste servidor deve se enquadrar nessa finalidade e nela se
+justificar: âncora por documento do próprio candidato, fontes públicas
+oficiais, minimização de terceiros e registro de negativas com fonte e data.
+Consulta sem essa finalidade, ou uso dos dados para qualquer outro fim, é
+violação desta regra e da LGPD.
+
 Esta pasta (`escrivao-mcp/`) é o **SERVIDOR MCP ÚNICO E UNIFICADO** de OSINT
 judicial. O nome do servidor (identidade vista pelos agentes) é **`escrivao`**. Qualquer agente (opencode, kimi-code, Claude, Cursor ou outro) que
 for usar, alterar ou estender este sistema DEVE seguir estas regras.

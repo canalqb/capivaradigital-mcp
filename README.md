@@ -1,4 +1,4 @@
-﻿# escrivao
+# escrivao
 
 > Dezenove ferramentas de OSINT judicial brasileiro em um único arquivo Node.
 
@@ -20,6 +20,13 @@ semântica (Exa). Remete ao escrivão judicial, guardião dos autos.
 > ler o `AGENTS.md` primeiro.
 
 ## Para que serve o escrivao?
+
+**Finalidade declarada (LGPD, art. 7º, II — regra principal do projeto):**
+auditoria pré-contratual (background check) de candidatos na **contratação de
+novos funcionários** — empresas contratantes exigem nome limpo, sem processos
+e com dados reais; toda consulta se ancora no documento do próprio candidato,
+em fontes públicas oficiais, com minimização de terceiros e registro de
+negativas com fonte e data. Qualquer outro uso dos dados viola esta regra.
 
 Ele dá a um agente de IA acesso direto às bases judiciais públicas do Brasil:
 validar e desmascarar números de processo (Resolução CNJ 65/2008), consultar
