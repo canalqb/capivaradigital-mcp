@@ -1,11 +1,12 @@
 # capivaradigital
 
-> Dezenove ferramentas de OSINT judicial brasileiro em um único arquivo Node.
+> Vinte e oito ferramentas de OSINT judicial brasileiro em um único arquivo Node.
 
 O capivaradigital é um servidor MCP (Model Context Protocol) autocontido para pesquisa
 em registros públicos judiciais brasileiros: DataJud/CNJ, DJEN, e-SAJ (TJSP),
 BrasilAPI (CNPJ), validação e quebra de máscaras de números CNJ e busca web
-semântica (Exa). Remete ao escrivão judicial, guardião dos autos.
+semântica (Exa). Guardião digital dos autos — o servidor era chamado de
+"escrivão" e foi renomeado para capivaradigital em 24/10/2026.
 
 **TL;DR**
 
@@ -68,7 +69,7 @@ brew install node
 Reinicie o terminal (o PATH só reconhece o `node` em sessões novas) e confirme
 com `node --version` — precisa ser 18 ou superior.
 
-## E se eu não tiver o escrivão na máquina?
+## E se eu não tiver o capivaradigital na máquina?
 
 Como o servidor é um único arquivo sem dependências, basta baixá-lo — git
 NÃO é obrigatório. O clone completo é recomendado porque traz também a pasta
@@ -94,12 +95,14 @@ para o servidor subir. As receitas por cliente estão abaixo.
 
 ### opencode — `~/.config/opencode/opencode.jsonc`
 ```jsonc
-"mcp": {
-  "capivaradigital": {
-    "type": "local",
-    "command": ["node", "<caminho>/capivaradigital-mcp/server.js"],
-    "enabled": true,
-    "timeout": 120000
+{
+  "mcp": {
+    "capivaradigital": {
+      "type": "local",
+      "command": ["node", "<caminho>/capivaradigital-mcp/server.js"],
+      "enabled": true,
+      "timeout": 120000
+    }
   }
 }
 ```
@@ -118,13 +121,46 @@ porque o DataJud do TJSP às vezes responde devagar (504).
 
 ### Claude Desktop — `claude_desktop_config.json`
 ```json
-"mcpServers": {
-  "capivaradigital": { "command": "node", "args": ["<caminho>/capivaradigital-mcp/server.js"] }
+{
+  "mcpServers": {
+    "capivaradigital": { "command": "node", "args": ["<caminho>/capivaradigital-mcp/server.js"] }
+  }
 }
 ```
 
 ### Cursor / qualquer cliente stdio
 Comando: `node <caminho>/capivaradigital-mcp/server.js`
+
+### Qualquer cliente que aceite JSON — bloco completo e válido
+Cole o bloco INTEIRO na configuração do cliente. Este servidor roda local via
+stdio, então a entrada é `command` + `args` — **não existe `url` apontando para
+o repositório** (um link do GitHub não é endpoint de MCP):
+
+```json
+{
+  "mcpServers": {
+    "capivaradigital": {
+      "command": "node",
+      "args": ["<caminho>/capivaradigital-mcp/server.js"]
+    }
+  }
+}
+```
+
+No Windows o caminho usa `\\` escapados dentro da string, por exemplo:
+`"args": ["C:\\Users\\voce\\capivaradigital-mcp\\server.js"]` — caminho
+ABSOLUTO, nunca relativo. Depois de colar, reinicie o cliente.
+
+Erros comuns neste bloco: (1) esquecer a `}` final do objeto raiz (o JSON deixa
+de ser válido); (2) usar `"url": "https://github.com/..."` — repo não é
+endpoint; (3) duplicar a chave `mcpServers` no mesmo arquivo; (4) caminho
+relativo ou com `/` simples no Windows sem escapar.
+
+Quando o `url` É válido: só em clientes que aceitam conector REMOTO (claude.ai
+conectores personalizados, clientes HTTP), e apontando para a URL HTTPS da
+ponte `server-http.js` hospedada, terminando em `/mcp` — nunca para o GitHub
+(guia de hospedagem da ponte: `capivaradigital-mcp-online.md`, mantido fora
+deste repositório).
 
 ## Quais variáveis de ambiente existem?
 
@@ -151,7 +187,7 @@ confirmar instalação, contagem de ferramentas e saúde da rede em segundos.
 cmd /c "node <caminho>\capivaradigital-mcp\server.js < teste.jsonl"
 ```
 
-## Quais são as 26 ferramentas?
+## Quais são as 28 ferramentas?
 
 Uma paleta enxuta cobrindo o ciclo completo de uma pesquisa judicial: validar o
 número, desmascarar o que está oculto, consultar por número, nome, documento ou
@@ -182,9 +218,10 @@ ferramenta e sua fonte.
 | `telefone_consultar` | Telefone BR: DDD → UF e cidades via BrasilAPI, tipo de linha, rota WhatsApp (wa.me), Numtrace e Social Searcher | BrasilAPI |
 | `fontes_osint` | Playbook interno: bases, atalhos, rotas por tribunal, técnicas e ética/LGPD | — |
 | `guia_navegacao` | Guia de navegação: links das regras do mantenedor (master rules, pasta de regras, prompt 8.5), fluxo validado com o MCP Playwright (captchas manuais, armadilhas do e-SAJ) e módulos de Python para scripts locais | — |
-| `guia_dossie` | **Protocolo de dossiê completo por documento** (v1.18.1): checklist obrigatório de 12 fases (0, 1, 1B, 2-10) — todo pedido do titular (empresas em que trabalhou, artigo do crime, redes/currículo, máscaras, ficha de identificação) vira etapa executável; âncora por documento, ciclo PF↔PJ forçado, contra-prova de máscaras no e-SAJ DOCPARTE, ficha de identificação (genitores, nascimento, documentos, endereço válido, contatos, com a técnica dos 4 campos-chave nome+CPF+nascimento+nome da mãe), vínculos empregatícios com limite do CAGED/Rais declarado, detalhes de crime (rito como hipótese), validação de currículo (e-MEC/conselhos), dossiê×método separados e fechamento com pendências. Use antes de iniciar qualquer dossiê novo | — |
+| `guia_dossie` | **Protocolo de dossiê completo por documento** (v1.18.7): checklist obrigatório de 13 etapas (00, 0, 1, 1B, 2-10) — todo pedido do titular (empresas em que trabalhou, artigo do crime, redes/currículo, máscaras, ficha de identificação) vira etapa executável; âncora por documento, ciclo PF↔PJ forçado, contra-prova de máscaras no e-SAJ DOCPARTE, ficha de identificação (genitores, nascimento, documentos, endereço válido, contatos, com a técnica dos 4 campos-chave nome+CPF+nascimento+nome da mãe), vínculos empregatícios com limite do CAGED/Rais declarado, detalhes de crime (rito como hipótese), validação de currículo (e-MEC/conselhos), dossiê×método separados, montagem por etapas (via `guia_publicacao`) e fechamento com pendências. Use antes de iniciar qualquer dossiê novo | — |
 | `termo_responsabilidade` | **Termo de responsabilidade LGPD** (v1.18.3): declara a finalidade exclusiva (auditoria pré-contratual para contratação), as bases legais (LGPD art. 7º, I e IX, art. 10 e 31; Lei 12.846/2013; Lei 7.102/1983), obrigações e proibições do operador (Lei 9.029/1995 — uso discriminatório) e a cláusula de aceite tácito ao executar qualquer ferramenta. Exibido também como prefixo obrigatório do `guia_dossie` | — |
 | `guia_relatorios` | Técnicas de relatório/dossiê: HTML único autocontido (CSS/JS internos, sem PHP), padrão 8.5 adaptado, níveis de confirmação (CONFIRMADO/PROVÁVEL/POSSÍVEL HOMÔNIMO), ficha de identificação como seção, links de perfil sempre clicáveis (`target="_blank" rel="noopener noreferrer"`), seção sem dado não existe no relatório (nem card explicando a ausência), pendências com próximo passo, cadeia de evidência, anti-homônimos e checklist de entrega; `escopo="exclusivo cpf"` devolve as normas do modo dossiê-exclusivo-por-documento (padrão negativo de homônimos) | — |
+| `guia_publicacao` | **Fontes ao vivo + template + relatório por etapas + post 9.2** (v1.18.7): devolve os links SEMPRE atualizados do Google Drive (ler `master_rules.md` primeiro, depois os demais arquivos da pasta na ordem que ele declarar) e do Google Docs (prompt 9.2, lido só no fim); regra inegociável de NUNCA baixar ou copiar esses arquivos para dentro da pasta do MCP (guarda-se só o link); template base `relatorio_<nome>_<cpf>.html` com estados das seções (PENDENTE/EM_ANDAMENTO/AGUARDANDO_FONTE/VALIDADA/CONCLUIDA) e rodapé LGPD; **estrutura padrão `post-*` definida pelo titular (24/10/2026)** — skip-link + `.post-topbar` + `.post-nav` + `.post-hero` (badges, lead, meta e TL;DR) + seções `.post-section` com `.post-answer` + tabelas `.post-table` com filtros e contador + FAQ em `<details>` + `.post-signature`, com impressão pericial A4; **bloco de KPIs obrigatório** (`<section class="post-section" aria-label="Números do dossiê">` com `.post-kpis` de `.post-kpi`) logo após o TL;DR — os rótulos vêm do que o titular quer ver, e cada valor é um dado **confirmado do próprio relatório** (o bloco nasce zerado no template e só muda quando a seção correspondente fica CONCLUIDA, nunca número inventado); geração **seção a seção** — criar template e salvar, 1ª seção e salvar, 2ª seção e salvar, até 100% — com salvamento atômico, retomada, idempotência e contador de progresso; post final pelo prompt 9.2 só após 100% | Google Drive/Docs |
 | `regras_ler` | Conteúdo INTEGRAL dos .md de regras/ (whitelist: master_rules, prompt_8_5) para agentes que acessam por protocolo, sem filesystem do servidor; aviso de que o prompt 8.5 é genérico de blog e fallback para instalações sem a pasta | — |
 | `guia_instalacao` | Comandos prontos para instalar do zero: Node.js via winget (Windows 10/11), alternativas (choco/scoop/MSI, apt/dnf/brew), obtenção do servidor (git clone ou download do `server.js`), teste via stdin e registro nos clientes | — |
 | `jusbrasil_buscar` | Busca no Jusbrasil: HTTP quando passa; quando o Cloudflare bloqueia (403), devolve a rota pronta via browser (MCP Playwright) com a URL montada; números mascarados alimentam o loop do `cnj_desmascarar` | Jusbrasil |
@@ -346,8 +383,8 @@ real, e é assim que deve permanecer.
 
 ## Como monto o ambiente completo de pesquisa?
 
-O escrivão cobre DataJud, DJEN, e-SAJ, CNPJ e quebra de máscara CNJ — e não
-deve ser duplicado. Para navegar em portais com captcha, ler PDFs longos e
+O capivaradigital cobre DataJud, DJEN, e-SAJ, CNPJ e quebra de máscara CNJ — e
+não deve ser duplicado. Para navegar em portais com captcha, ler PDFs longos e
 buscar na web, os MCPs companheiros abaixo entram como complementos; cada
 comando se autoinstala na primeira execução.
 
@@ -422,7 +459,7 @@ declarar no dossiê (GDPR na UE; CLT no exterior não tem CAGED público).
 
 ## Quais ferramentas de redes sociais e contato existem?
 
-Duas vieram para DENTRO do escrivão (zero dependência, sem chave):
+Duas vieram para DENTRO do capivaradigital (zero dependência, sem chave):
 `social_buscar_usuario` (username na base pública do WhatsMyName) e
 `telefone_consultar` (DDD/cidades via BrasilAPI + rotas de WhatsApp/Numtrace).
 O restante ele linka — as ferramentas validadas do GitHub (nativas ou como MCP)
@@ -529,7 +566,9 @@ só quando você pedir explicitamente.
 - Tabela de processos: número CNJ | tribunal/foro | classe | assunto | órgão julgador | ajuizamento | status | fonte | nível de confirmação — com filtro por status e busca textual via JS interno.
 - Níveis de confirmação: CONFIRMADO (fonte chaveada, datas exatas em 2+ bases), PROVÁVEL (fingerprint coerente), POSSÍVEL HOMÔNIMO (sem âncora — PROIBIDO na lista principal; sempre em seção separada).
 - Estruturas do master_rules.md: semântica W3C (`<main>`, `<section>`, `<article>`), WCAG AA com contraste, temas claro e escuro com alternância + persistência (localStorage), CSS sem duplicatas, zero `alert()` (JS interno usa showToast) e títulos `<h2>` em pergunta com resposta de 40-60 palavras.
-- Ordem de montagem: PRIMEIRO a estrutura pelos `.md` de `regras/` (master_rules.md primeiro), DEPOIS o conteúdo finalizado pelo prompt 8.5.
+- Ordem de montagem: PRIMEIRO a estrutura pelos `.md` de regras (master_rules.md primeiro, depois os demais na ordem que ele declarar), DEPOIS o conteúdo finalizado pelo prompt 8.5.
+- Fontes ao vivo: o `master_rules.md` e os demais arquivos de regras são lidos NO GOOGLE DRIVE a cada execução (links na ferramenta `guia_publicacao`); o espelho `regras/` é só para consulta offline, e nada é baixado ou copiado para dentro desta pasta.
+- Geração por etapas: o relatório `relatorio_<nome>_<cpf>.html` é montado seção a seção — template e salvar, seção 1 e salvar, seção 2 e salvar, até 100% — com confirmação de gravação entre uma e outra (protocolo em `guia_publicacao`); o post final usa o prompt 9.2 do Google Docs, sempre na versão atual.
 - Seções obrigatórias do dossiê (sempre que existirem dados): redes sociais, processos relacionados ao CPF, currículo declarado, tabela de processos, cruzamento entre empregos e processos, análise de perfil, quão seguro é o usuário e relacionamentos (pais, filhos, irmãos, cônjuge) — cada qual com fonte e nota de credibilidade; **homônimos não são postados** (no máximo, seção "Descartados", nunca como o pesquisado).
 - Cadeia de evidência: número mascarado ao lado do desmascarado; toda afirmação cita fonte e data-hora; HTML/PDF brutos salvos.
 - Pendências obrigatórias com o próximo passo concreto de cada item.
@@ -545,6 +584,12 @@ pesquisa, espelho citado por `guia_navegacao`) e
 `fontes_osint`). O espelho do Drive com regras de PHP/Blogger/CMS foi
 removido do repositório — o original permanece no Google Drive do mantenedor:
 https://drive.google.com/drive/folders/1U5U9QNx__hVio5GTKSVflZP9-b_E0OLm
+
+**Espelho de versão antiga:** os .md desta pasta são um mirror para consulta
+offline (`regras_ler`). Na montagem de relatórios, o servidor manda ler o
+`master_rules.md` e os demais arquivos NO DRIVE — sempre atualizados — e a
+ferramenta `guia_publicacao` devolve esses links (mais o prompt 9.2 do Google
+Docs). Nada é baixado ou copiado para esta pasta: guarda-se só o link.
 
 ## Quais as limitações conhecidas?
 
@@ -591,6 +636,14 @@ violência doméstica (Lei 11.340/2006), nunca identificar menores (ECA),
 presunção de inocência para recursos pendentes (CF art. 5º, LVII). Resultados
 para uso interno; divulgação exige avaliação jurídica própria. Nada de
 assédio, exposição ou contorno de paywall.
+
+O relatório carrega no rodapé o bloco LGPD completo: finalidade (auditoria
+pré-contratual), base legal (art. 7º, I e IX, art. 10 e 31), retenção e
+eliminação ao fim da finalidade (art. 15-16), direitos do titular (art. 18) com
+canal do encarregado (art. 41) e o aviso de que a decisão de contratar exige
+revisão por pessoa natural (art. 20 + Lei 9.029/1995). Nada de dado sensível
+(art. 5º, II) e nada de certidão oficial ou parecer jurídico: o termo integral
+está na ferramenta `termo_responsabilidade`.
 ## FAQ
 
 **O servidor precisa de internet?**
@@ -628,7 +681,7 @@ todas as fontes se cruzam, e achado por nome só vale com o CPF/CNPJ batendo —
 sem isso é POSSÍVEL HOMÔNIMO, PROIBIDO na lista principal. E o ciclo PF↔PJ é
 obrigatório: CPF procura os CNPJs vinculados; CNPJ extrai os CPFs do QSA.
 
-**Como atualizo o escrivão já instalado?**
+**Como atualizo o capivaradigital já instalado?**
 Peça `mcp_atualizar` ao agente: o servidor baixa o `server.js` mais recente
 direto do GitHub, guarda um backup `.bak` e se substitui — funciona com OU
 sem git (não dependa de `git pull`). Depois reinicie o cliente MCP para a

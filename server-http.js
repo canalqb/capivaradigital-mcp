@@ -22,6 +22,10 @@
  *                     OAuth. O /mcp puro continua exigindo token. Quem tiver
  *                     a URL completa tem acesso — mais fraco que OAuth
  *                     (a URL pode vazar em logs), use com segredo longo.
+ *   ALLOWED_REDIRECTS callbacks OAuth EXATOS extras, separados por virgula, para
+ *                     qualquer cliente remoto (ChatGPT, Freebuff, etc.). O claude.ai
+ *                     ja vem na lista padrao e loopback http://localhost|127.0.0.1
+ *                     com qualquer porta/caminho e aceito sem cadastro (RFC 8252).
  *   TOOL_TIMEOUT_MS   limite por chamada (padrao 280000; o claude.ai desiste em 300 s)
  *   EXA_API_KEY, DATAJUD_API_KEY   repassadas ao server.js quando definidas
  */
@@ -43,7 +47,9 @@ const DISABLED = new Set((process.env.DISABLE_TOOLS === undefined ? 'mcp_atualiz
 const SERVER_JS = process.env.SERVER_JS ||
   [path.join(__dirname, 'server.js'), path.join(__dirname, 'capivaradigital-mcp', 'server.js'), path.join(__dirname, '..', 'capivaradigital-mcp', 'server.js')].find(p => fs.existsSync(p)) || '';
 
-const ALLOWED_REDIRECTS = ['https://claude.ai/api/mcp/auth_callback'];
+const ALLOWED_REDIRECTS = ['https://claude.ai/api/mcp/auth_callback']
+  .concat((process.env.ALLOWED_REDIRECTS || '').split(',').map(s => s.trim()).filter(Boolean));
+console.error('OAuth: ' + ALLOWED_REDIRECTS.length + ' callback(s) exato(s) aceitos' + (process.env.ALLOWED_REDIRECTS ? ' (env ALLOWED_REDIRECTS presente)' : '') + ' + loopback http://localhost|127.0.0.1 em qualquer porta/caminho.');
 const ACCESS_TTL = 3600;                 // 1 h
 const REFRESH_TTL = 60 * 60 * 24 * 90;   // 90 dias
 const CODE_TTL = 300;                    // 5 min
@@ -138,12 +144,24 @@ function unauthorized(res) {
 }
 
 /* ---------------- OAuth ---------------- */
-function redirectAllowed(uri) { return ALLOWED_REDIRECTS.includes(uri) || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?\/callback$/.test(uri); }
+function redirectAllowed(uri) {
+  if (ALLOWED_REDIRECTS.includes(uri)) return true;
+  // loopback de app nativo (RFC 8252): qualquer porta e caminho em localhost/127.0.0.1/::1
+  try {
+    const u = new URL(uri);
+    return u.protocol === 'http:' && ['localhost', '127.0.0.1', '::1', '[::1]'].includes(u.hostname) && !u.username && !u.password;
+  } catch (e) { return false; }
+}
 
 async function register(req, res) {
   let b; try { b = JSON.parse(await readBody(req) || '{}'); } catch (e) { return json(res, 400, { error: 'invalid_client_metadata' }); }
   const uris = Array.isArray(b.redirect_uris) ? b.redirect_uris : [];
-  if (!uris.length || !uris.every(redirectAllowed)) return json(res, 400, { error: 'invalid_redirect_uri', error_description: 'redirect_uri nao permitido' });
+  if (!uris.length || !uris.every(redirectAllowed)) {
+    const reprovadas = uris.filter(u => !redirectAllowed(u)).map(u => String(u).slice(0, 160));
+    return json(res, 400, { error: 'invalid_redirect_uri',
+      error_description: 'redirect_uri nao permitido' + (reprovadas.length ? ': ' + reprovadas.join(', ') : ' (redirect_uris vazio)')
+        + '. Aceitas: ' + ALLOWED_REDIRECTS.length + ' URI(s) exata(s) da lista (cadastre a do seu cliente em ALLOWED_REDIRECTS) e loopback http://localhost|127.0.0.1 com qualquer porta/caminho.' });
+  }
   if (Object.keys(state.clients).length > 500) return json(res, 429, { error: 'too_many_clients' });
   const id = 'c_' + rnd(16);
   state.clients[id] = { redirect_uris: uris, name: String(b.client_name || 'Claude').slice(0, 80), created: now() };
@@ -253,7 +271,7 @@ async function handleRpc(msg) {
   if (msg.method === 'initialize') {                                         // respondida aqui: negocia a versao do cliente
     const want = msg.params && msg.params.protocolVersion;
     const known = ['2025-11-25', '2025-06-18', '2025-03-26', '2024-11-05'];
-    return { jsonrpc: '2.0', id: msg.id, result: { protocolVersion: known.includes(want) ? want : known[0], capabilities: { tools: {} }, serverInfo: { name: 'capivaradigital', version: 'http-bridge-1.0' } } };
+    return { jsonrpc: '2.0', id: msg.id, result: { protocolVersion: known.includes(want) ? want : known[0], capabilities: { tools: {} }, serverInfo: { name: 'capivaradigital', version: 'http-bridge-1.1' } } };
   }
   if (msg.method === 'ping') return { jsonrpc: '2.0', id: msg.id, result: {} };
   if (msg.method === 'tools/call') {

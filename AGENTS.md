@@ -60,6 +60,11 @@ for usar, alterar ou estender este sistema DEVE seguir estas regras.
   teste ficam FORA da pasta (ex.: temp do sistema), nunca commitados.
 - Erros a evitar: máscaras "didáticas" com fórum/DD/ano de um caso real também
   identificam — use `000XXXX-XX.AAAA.8.TR.OOOO` com segmento genérico.
+- **Regras ao vivo (regra do titular, 24/10/2026):** os arquivos de regras do
+  Google Drive (`master_rules.md` e os demais da pasta "regras_llms") e o
+  prompt 9.2 do Google Docs NUNCA são baixados, copiados ou versionados nesta
+  pasta — o servidor guarda SOMENTE os links (ferramenta `guia_publicacao`).
+  O espelho `regras/` é de versão antiga e serve só para consulta offline.
 - **Exceção expressa do mantenedor (2026-10-19, refinada em 23/10/2026):** o
   bloco oficial de contato/apoio no README (e-mail e PIX do desenvolvedor +
   https://canalqb.com.br) e o núcleo de regras em `regras/` são permitidos —

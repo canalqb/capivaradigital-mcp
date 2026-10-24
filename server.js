@@ -1461,14 +1461,85 @@ async function toolGuiaRelatorios(a) {
     '',
     '8. ETICA NO RELATORIO:',
     '- Presuncao de inocencia para recursos pendentes (CF art. 5, LVII); NUNCA identificar menores (ECA); proteger vitimas de violencia domestica (Lei 11.340/2006).',
-    '- Aviso no rodape: uso interno, dados de fontes publicas, LGPD (Lei 13.709/2018).',
+    '- Aviso no rodape: uso interno, dados de fontes publicas e o BLOCO LGPD OBRIGATORIO - finalidade (auditoria pre-contratual), base legal (art. 7, I e IX, art. 10 e 31), prazo de retencao/eliminacao (art. 15-16), direitos do titular (art. 18) com canal do encarregado (art. 41), revisao humana da decisao (art. 20 + Lei 9.029/1995) e o aviso de que NAO e certidao oficial nem parecer juridico.',
+    '- NUNCA dado sensivel (LGPD art. 5, II: origem racial, religiao, opiniao politica, saude, vida sexual, biometricia, genetica); NUNCA CPF/dado de terceiro em texto integral; NUNCA dado de menor.',
+    '- RETENCAO: encerrada a finalidade, elimine ou anonimize o arquivo e os brutos (art. 15-16); commit de relatorio em repositorio publico = violacao da LGPD e do termo.',
+    '- POST/DIVULGACAO: so com pedido explicito do titular, anonimizacao/minimizacao e avaliacao juridica propria (o termo de responsabilidade proibe publicacao sem base legal).',
     '- Familiares: incluir somente com documento/ancora propria, nunca por conjetura.',
     '',
     '9. CHECKLIST FINAL ANTES DE ENTREGAR:',
     '( ) todos os numeros CNJ validados (cnj_validar); ( ) niveis de confirmacao marcados; ( ) pendencias com proximo passo; ( ) filtro/busca JS funcionando; ( ) data de geracao no rodape; ( ) nenhum dado de homonimo na lista principal (PROIBICAO); ( ) nenhuma secao de homonimo publicada, salvo pedido EXPLICITO do cliente; ( ) nenhum CPF/nome/dado de terceiro em texto integral; ( ) ciclo PF<->PJ executado (ciclo_pf_pj: CPF achou CNPJs vinculados / CNPJ achou CPFs do QSA); ( ) arquivo abre offline.',
     '',
-    'REUSO: este servidor NAO gera o HTML - o agente gera seguindo estas regras. Use fontes_osint (onde/como buscar), guia_navegacao (browser/instalacao) e este guia (como apresentar).'
+    'REUSO: este servidor NAO gera o HTML - o agente gera seguindo estas regras. Use fontes_osint (onde/como buscar), guia_navegacao (browser/instalacao), este guia (como apresentar) e guia_publicacao (fontes ao vivo do Drive, template + montagem secao a secao ate 100%, post com o prompt 9.2).'
   ].join('\n');
+}
+
+// --- guia_publicacao: fontes ao vivo + template + relatorio POR ETAPAS + post (prompt 9.2) ---
+// Regra do titular (24/10/2026): as regras deste fluxo vivem no Google Drive e no
+// Google Docs e SEMPRE se atualizam. O servidor guarda SOMENTE os links - nunca
+// baixa, copia ou versiona esses arquivos dentro desta pasta (que e publicada).
+
+const LINK_REGRAS_DRIVE = 'https://drive.google.com/drive/folders/1U5U9QNx__hVio5GTKSVflZP9-b_E0OLm';
+const LINK_PROMPT_92 = 'https://docs.google.com/document/d/1F7eeb6OgvOUUzfrBM6x9xHUY-qy_cnW9myi-Y-7PLZc/edit';
+
+const GUIA_FONTES_AO_VIVO = [
+  '0. FONTES SEMPRE ATUAIS - regra inegociavel (regra do titular, 24/10/2026):',
+  '- As regras deste fluxo vivem no Google Drive e no Google Docs, mudam sem aviso e NUNCA sao copiadas para dentro de capivaradigital-mcp/ (a pasta e publicada). A cada execucao abra os links abaixo e leia a versao de hoje; guarde apenas o link.',
+  '- LINK 1 - pasta de regras (Drive "regras_llms"): ' + LINK_REGRAS_DRIVE,
+  '- LINK 2 - prompt 9.2 de publicacao de post (Google Docs): ' + LINK_PROMPT_92,
+  '- ORDEM OBRIGATORIA DE LEITURA: (1) abra o LINK 1 e leia o master_rules.md PRIMEIRO; (2) siga os demais arquivos da pasta na ordem e dependencias que o master_rules.md declarar; (3) confira a data de modificacao dos arquivos - versao velha nao vale; (4) execute a etapa; (5) o LINK 2 (prompt 9.2) e lido SO no fim, na etapa do post.',
+  '- LINK FALHOU (sem permissao, arquivo renomeado, sem rede): NAO invente conteudo, NAO reutilize copia antiga nem o espelho local de regras/ (mirror de versao antiga, serve so para consulta offline via regras_ler) - registre a pendencia com o proximo passo e INTERROMPA a etapa dependente da fonte.',
+  '- NUNCA afirme ter lido uma referencia que nao abriu. Diga o que faltou.',
+  ''
+].join('\n');
+
+const GUIA_TEMPLATE_PADRAO = [
+  '1. ETAPA TEMPLATE - crie o arquivo UMA vez, ANTES da primeira secao:',
+  '- ARQUIVO: relatorio_<nome_do_pesquisado>_<cpf_somente_digitos>.html - nome sem acentos, minusculo, underscore no lugar do espaco, CPF so digitos (exemplo ficticio: relatorio_joao_da_silva_12345678901.html).',
+  '- LOCAL: pasta de relatorios/dossies do projeto, FORA de capivaradigital-mcp/ e fora de qualquer repositorio publico (zero dados reais na pasta do MCP e nos commits).',
+  '- BASE: <!doctype html>, <html lang="pt-BR">, meta charset/viewport, <title> com nome + data, JSON-LD Article, <header> com a marca "Capivaradigital-MCP Gerenciamento de consultas publicas", <nav> de ancoras, <main>, <footer> com data/hora + LGPD + presuncao de inocencia; CSS e JS INTERNOS (sem CDN, abre offline); tema claro/escuro com alternancia e persistencia; creditos: criacao/design/autoria = "Capivaradigital-MCP Gerenciamento de consultas publicas", CanalQb SO como autor do prompt e hospedador do MCP; o dono do dossie = "titular da investigacao".',
+  '- ESTRUTURA PADRAO (padrao do titular, 24/10/2026): sistema de classes post-* validado nos dossies do projeto - skip-link; header .post-topbar (marca "Capivaradigital-MCP" + botao de tema); nav .post-nav (indice fixo de ancoras); .post-container > main > article#post_relatorio_<slug>; header .post-hero (badges de status/data/versao, h1, .post-lead, .post-meta e bloco .post-tldr com 3 bullets); secoes .post-section com h2 + .post-answer (40-60 palavras); tabelas em .post-table-wrap > table.post-table com .post-filters (busca + selects + contador .post-filter-count) na secao de processos; FAQ em <details class="post-faq">; footer .post-footer com .post-signature (creditos) e .print-footer-audit (so na impressao A4). Icones: FontAwesome 6 via CDN com integrity - UNICA excecao a "sem CDN" (CSS e JS continuam internos e a pagina abre mesmo se o icon falhar).',
+  '- BLOCO DE KPIS OBRIGATORIO (regra do titular, 24/10/2026): logo apos o TL;DR e ANTES da primeira secao de conteudo, crie a secao de numeros do dossie:\n      <section class="post-section" aria-label="Numeros do dossie">\n        <div class="post-kpis">\n          <div class="post-kpi"><strong>0</strong><span>processos no CPF (fonte)</span></div>\n          <div class="post-kpi"><strong>0</strong><span>com numero completo</span></div>\n          <div class="post-kpi"><strong>0/0</strong><span>mascaras XXXX quebradas</span></div>\n          <div class="post-kpi"><strong>0</strong><span>condenacoes</span></div>\n          <div class="post-kpi"><strong>0</strong><span>CNPJs vinculados</span></div>\n          <div class="post-kpi"><strong>0</strong><span>absolvicoes</span></div>\n          <div class="post-kpi"><strong>0</strong><span>perfis digitais localizados</span></div>\n          <div class="post-kpi"><strong>0</strong><span>pendencias com proximo passo</span></div>\n        </div>\n      </section>\n  ROTULOS sao escolhidos pelo titular (os numeros que interessam ao dossie); VALORES sao rigidos: cada KPI e um dado CONFIRMADO do proprio relatorio, com fonte e data. O bloco nasce com zeros no template e so muda quando a secao correspondente fica CONCLUIDA - NUNCA invente numero para enfeitar o painel. O bloco nao entra no contador Progresso.',
+  '- SECOES: a ordem vem da estrutura padrao post-* acima, somada ao master_rules.md LIDO AO VIVO (etapa 0) e ao guia_relatorios - secao sem dado nenhum NAO existe no relatorio. Pre-crie as <section class="post-section"> com estado PENDENTE, um contador no cabecalho (Progresso: X/Y secoes) e um sumario com o estado de cada uma.',
+  '- RODAPE LGPD OBRIGATORIO: finalidade (auditoria pre-contratual), base legal (LGPD art. 7, I e IX, art. 10 e 31), prazo de retencao/eliminacao (art. 15-16), direitos do titular (art. 18) com canal do encarregado (art. 41), revisao humana da decisao (art. 20 + Lei 9.029/1995) e o aviso de que NAO e certidao oficial nem parecer juridico.',
+  '- SALVE o template e CONFIRME a persistencia (o arquivo existe e o HTML parseia) - so entao va para a secao 1.'
+].join('\n');
+
+const GUIA_SECAO_A_SECAO = [
+  '2. ETAPA SECOES - o relatorio e escrito SECAO A SECAO e cada uma e SALVA antes da seguinte:',
+  '- FLUXO de cada secao N (comece em 1): (a) montar o conteudo com FONTE + data de consulta em cada afirmacao; (b) validar (sem homonimo na lista principal, sem dado de terceiro em texto integral, sem secao vazia); (c) SALVAR no arquivo; (d) RELER o arquivo e confirmar a gravacao; (e) atualizar o contador Progresso: N/Y; (f) SO ENTAO comecar N+1.',
+  '- ESTADOS: PENDENTE (nao iniciada) / EM_ANDAMENTO (coleta ou redacao em curso) / AGUARDANDO_FONTE (link inacessivel ou evidencia insuficiente) / VALIDADA (conteudo, fontes e datas conferidos) / CONCLUIDA (gravada e confirmada). Só o que esta CONCLUIDA vale como relatorio.',
+  '- SALVAMENTO ATOMICO: grave em relatorio_....html.tmp e substitua o arquivo final (rename). Nunca reescreva o arquivo inteiro a partir de memoria desatualizada - uma falha no meio nao pode corromper as secoes ja prontas.',
+  '- IDEMPOTENCIA: antes de escrever, confira se a secao ja e CONCLUIDA - repetir a etapa nao duplica conteudo. Se o processo cair, RETOME da primeira secao nao CONCLUIDA.',
+  '- SECAO COM FONTE FALHANDO: marque AGUARDANDO_FONTE, siga adiante e feche nas pendencias com o proximo passo concreto; NUNCA preencha lacuna com suposicao para chegar a 100%.',
+  '- PROHIBIDO gerar o relatorio inteiro de uma vez: o pedido do titular e por etapas - template, depois secao 1 e salvar, depois secao 2 e salvar, e assim ate concluir todas.'
+].join('\n');
+
+const GUIA_POST_92 = [
+  '3. ETAPA POST (prompt 9.2) - SO depois de "Progresso: Y/Y" (100% das secoes CONCLUIDAS):',
+  '- Abra o LINK 2 e leia a versao ATUAL do Master Rules 9.2 - ele e autossuficiente: substitua as variaveis {VARIAVEL} da Secao 0 pelo valor, sem editar o bloco de configuracao, e siga a estrutura, os minimos e os portoes de qualidade da versao de hoje.',
+  '- O post nasce do relatorio JA CONCLUIDO: tudo que o post afirma existe no relatorio com fonte; o que nao esta no relatorio nao entra no post.',
+  '- Entrega no formato exigido pela versao atual do prompt (arquivos, secoes e metadados vem de la) - nao reutilize o formato gravado em memoria de outra sessao: o prompt muda.',
+  '- LGPD DO POST: dado pessoal identificavel do pesquisado ou de terceiro (nome completo + CPF, endereco, numero de processo, menores, vitimas) NAO vai para post publicado - post e uso secundario e publico. Publicar exige pedido EXPLICITO do titular + anonimizacao/minimizacao + avaliacao juridica propria; sem isso o post fica para uso interno. Homonimo nunca aparece. O termo de responsabilidade proibe revenda e publicacao sem base legal.',
+  '- LINK 2 falhou ou o prompt 9.2 sumiu da pasta: INTERROMPA, registre a pendencia - nao improvise outro prompt nem reutilize copia velha.'
+].join('\n');
+
+const GUIA_CHECKLIST_100 = [
+  '4. CONCLUSAO A 100% (checklist final):',
+  '( ) todas as secoes existem e estao CONCLUIDAS; ( ) contador em Progresso: Y/Y; ( ) FONTE + data em toda afirmacao; ( ) HTML parseia, JS sem erro de sintaxe, JSON-LD parseavel; ( ) zero secao vazia; ( ) zero homonimo na lista principal; ( ) pendencias com proximo passo; ( ) rodape LGPD (finalidade, base legal, retencao, canal do titular); ( ) arquivo fora de repositorio publico; ( ) data da leitura dos LINKS 1 e 2 registrada.',
+  'LACUNA REAL e DECLARADA, nunca preenchida: secoes gravadas com lacuna inventada NAO sao 100%.'
+].join('\n');
+
+async function toolGuiaPublicacao(a) {
+  const etapa = String((a && a.etapa) || '').trim().toLowerCase();
+  const cabecalho = 'TEMPLATE PADRAO + RELATORIO POR ETAPAS + POST (prompt 9.2) - protocolo de montagem do capivaradigital-mcp (v1.18.7)';
+  if (!etapa) return [cabecalho, '', GUIA_FONTES_AO_VIVO, '', GUIA_TEMPLATE_PADRAO, '', GUIA_SECAO_A_SECAO, '', GUIA_POST_92, '', GUIA_CHECKLIST_100].join('\n');
+  if (etapa === 'template') return [cabecalho, '', GUIA_FONTES_AO_VIVO, '', GUIA_TEMPLATE_PADRAO].join('\n');
+  if (etapa === 'secoes' || etapa === 'etapas' || etapa === 'sessoes') return [cabecalho, '', GUIA_FONTES_AO_VIVO, '', GUIA_SECAO_A_SECAO].join('\n');
+  if (etapa === 'post' || etapa === '9.2' || etapa === '92') return [cabecalho, '', GUIA_FONTES_AO_VIVO, '', GUIA_POST_92].join('\n');
+  if (etapa === '100' || etapa === 'checklist' || etapa === 'fechamento') return [cabecalho, '', GUIA_CHECKLIST_100].join('\n');
+  if (/^\d+$/.test(etapa)) return [cabecalho, '', GUIA_SECAO_A_SECAO, '', 'ETAPA ' + Number(etapa) + ': monte, valide, SALVE, RELIA e confirme a gravacao, atualize o contador - e pare aqui. A secao ' + (Number(etapa) + 1) + ' so comeca depois desta confirmacao.'].join('\n');
+  throw new Error('Etapa desconhecida: "' + etapa + '". Opcoes: template | secoes | post | 100 | numero da secao (ex.: "3") | vazio = guia completa.');
 }
 
 // --- regras_ler: conteudo integral dos .md da pasta regras/ (whitelist) ---
@@ -1630,9 +1701,14 @@ const TERMO_RESPONSABILIDADE = [
   '',
   '1. FINALIDADE EXCLUSIVA: todo relatorio/dossie gerado por este MCP destina-se EXCLUSIVAMENTE a auditoria pre-contratual (background check) do candidato pesquisado, para selecao e registro interno da empresa contratante - preservacao da integridade e da responsabilidade da empresa para com seus clientes (cargos de confianca, atividades e acessos a locais/setores que exigem funcionarios integros).',
   '2. BASES LEGAIS: LGPD (Lei 13.709/2018) art. 7, I (cumprimento de obrigacao legal/regulatoria pelo controlador) e IX (legitimo interesse), art. 10 e art. 31 (dados publicos usados para finalidade compativel, sem uso discriminatorio); Lei 12.846/2013 (programa de integridade - avaliacao de idoneidade de funcionarios); Lei 7.102/1983 e normas setoriais (vigilancia patrimonial, instituicoes financeiras e setores regulados que exigem idoneidade comprovada).',
-  '3. OBRIGACOES DO OPERADOR: ancorar a consulta no documento do proprio candidato; usar so fontes publicas oficiais; minimizar terceiros; registrar negativas com fonte e data; guardar o resultado em registro interno da empresa pelo prazo legal (LGPD art. 15-16); informar o candidato quando exigido (art. 9-10, 20).',
-  '4. PROIBICOES: uso discriminatorio (Lei 9.029/1995), revenda, publicacao, compartilhamento com terceiros ou qualquer finalidade diversa da selecao de pessoal. Violacao = quebra do presente termo e da LGPD.',
-  '5. ACEITE: ao executar QUALQUER ferramenta deste servidor, o operador (agente e titular da investigacao) declara que a consulta se enquadra nesta finalidade e assume responsabilidade pelo tratamento dos dados.'
+  '3. PRINCIPIOS OBRIGATORIOS (LGPD art. 6): finalidade, adequacao, necessidade (coleta limitada ao MINIMO para a finalidade), qualidade dos dados, transparencia (origem e fonte de cada dado), seguranca, nao discriminacao e prevencao. DADO SENSIVEL (art. 5, II - origem racial, religiao, opiniao politica, saude, vida sexual, biometricia, genetica) fica FORA do dossie.',
+  '4. OBRIGACOES DO OPERADOR: ancorar a consulta no documento do proprio candidato; usar so fontes publicas oficiais; minimizar terceiros (familiares e vitimas em texto minimo, com ancora propria; menores nunca); separar FATO CONFIRMADO, ALEGACAO, INFERENCIA e NAO VERIFICADO em cada linha; registrar negativas com fonte e data; guardar o resultado em registro interno da empresa pelo prazo legal (LGPD art. 15-16) e FORA de repositorio publico; informar o candidato quando exigido (art. 9-10).',
+  '5. DIREITOS DO TITULAR (LGPD art. 18) E TRANSPARENCIA: o candidato pode confirmar o tratamento, acessar, corrigir, completar, anonimizar ou eliminar seus dados e opor-se ao tratamento - o dossie registra o CANAL DO ENCARREGADO (art. 41) e a ORIGEM (fonte + data) de todo dado pessoal nele contido.',
+  '6. DECISAO AUTOMATIZADA (LGPD art. 20) E NAO DISCRIMINACAO (Lei 9.029/1995): o relatorio e apenas INSUMO - a decisao de contratar exige REVISAO POR PESSOA NATURAL, com direito do candidato de manifestar sua versao antes de qualquer juizo. Proibido usar este dossie como teste ou triagem automatica discriminatoria, e proibido examinar aspectos de saude, gravidez, raca, religiao ou sindicalizacao.',
+  '7. SEGURANCA (LGPD art. 46-49): acesso restrito ao controlador, arquivo local fora de repositorio publico, sem commit, sem revenda, sem compartilhamento nao autorizado; incidente de acesso indevido = comunicar o controlador imediatamente.',
+  '8. NATUREZA DO DOCUMENTO: e relatorio de FONTES PUBLICAS com data de consulta - NAO e certidao oficial, NAO e parecer juridico e NAO e decisao de contratacao. Presuncao de inocencia integral (CF art. 5, LVII) para processos sem desfecho.',
+  '9. PROIBICOES: uso discriminatorio (Lei 9.029/1995), revenda, publicacao ou postagem sem base legal e avaliacao juridica propria, compartilhamento com terceiros ou qualquer finalidade diversa da selecao de pessoal. Violacao = quebra do presente termo e da LGPD.',
+  '10. ACEITE: ao executar QUALQUER ferramenta deste servidor, o operador (agente e titular da investigacao) declara que a consulta se enquadra nesta finalidade e assume responsabilidade pelo tratamento dos dados.'
 ].join('\n');
 
 async function toolGuiaDossie(args) {
@@ -1646,7 +1722,7 @@ async function toolGuiaDossie(args) {
      '1. A busca e SEMPRE por CPF/CNPJ (datajud_por_cpf, esaj_buscar DOCPARTE, datajud_buscar com documento entre aspas) - precisao por documento, homonimo nunca na lista principal.',
      '2. CPF mascarado (ex.: QSA ***.123.456-**): cpf_desmascarar gera os candidatos com DV valido e verifica em lote no DataJud; o USUARIO escolhe o nome certo; dai em diante pesquisa-se SO pelo CPF.',
      '3. ciclo_pf_pj (1a chamada de todo dossie): DataJud multi-tribunal + e-SAJ DOCPARTE + DJE-SP + rota reversa CPF->CNPJ.',
-      '4. LICAO DOE-SP (2026-10-21): CPF em listas de IPVA/dividas do Diario Oficial do Estado de SP vem em 14 digitos com PADDING de 3 zeros a esquerda (ex.: 00037542700871 = 375.427.008-71). ANTES de descartar um numero como invalido: remover o padding e validar o DV do CPF de 11 digitos - falso negativo real atrasou uma ancora de dossie. Validou? Ancorar no esaj_buscar DOCPARTE (palavra final).'],
+      '4. LICAO DOE-SP (2026-10-21): CPF em listas de IPVA/dividas do Diario Oficial do Estado de SP vem em 14 digitos com PADDING de 3 zeros a esquerda (ex. ficticio: 00012345678901 = 123.456.789-01). ANTES de descartar um numero como invalido: remover o padding e validar o DV do CPF de 11 digitos - falso negativo real atrasou uma ancora de dossie. Validou? Ancorar no esaj_buscar DOCPARTE (palavra final).'],
     ['FASE 1B - FICHA DE IDENTIFICACAO DO PESQUISADO (pedido tipico do titular, validado 22/10/2026)',
      '1. Monte a ficha com TODOS os campos descobertos, cada um com FONTE e NIVEL: nome completo e variacoes; data de nascimento; genitora e genitor (nome de pai e mae); filhos (SO maiores; menores NUNCA); ultimo endereco VALIDO de registro publico; telefone(s) e e-mail(is) de contato; documentos descobertos (CPF, RG, titulo de eleitor, passaporte, CNH, CTPS).',
      '2. Fontes por campo: QUALIFICACAO JUDICIAL nos autos e textos integrais do DJEN (genitora/genitor, nascimento, endereco da epoca; djen_intimacoes por nome); QSA/CNPJ via brasilapi_cnpj (endereco comercial, telefone/e-mail de contato, frequentemente mascarados); DOE-SP por nome (listas de dividas/IPVA trazem nome+CPF+endereco; dje_sp_buscar); ONR/RI Digital (imoveis por CPF/CNPJ); redes sociais e LinkedIn bio (marque AUTODECLARADO).',
@@ -1684,18 +1760,19 @@ async function toolGuiaDossie(args) {
      '3. Cruzar curriculo x processos x empresas: incoerencia documentada e achado relevante.'],
     ['FASE 9 - MONTAGEM DO DOSSIE',
      '1. Dossie x METODO separados: tecnica de pesquisa NUNCA no dossie do documento (vive no relatorio de metodo); no dossie so dados + fontes.',
-     '2. Template: HTML unico autocontido (CSS/JS internos, sem PHP), classes post-*, FontAwesome CDN, JSON-LD, nav por ancoras, filtro JS, tema claro/escuro, footer com data + LGPD + presuncao de inocencia; creditos: criacao = "Capivaradigital-MCP Gerenciamento de consultas publicas", CanalQb so como autor do prompt 8.5 e hospedador do MCP; titular = "titular da investigacao". Padrao v1.17.2: ordenacao por clique nos cabecalhos (th[data-sort] + aria-sort + suporte a teclado, locale pt-BR numerico) e impressao pericial (@page A4, break-inside:avoid em cards/tabelas/linhas, rodape de auditoria .print-footer-audit visivel so no PDF).',
+     '2. Template: HTML unico autocontido (CSS/JS internos, sem PHP), sistema de classes post-* definido pelo titular (24/10/2026): topbar + nav de indice + hero com badges/lead/meta/TL;DR + secoes .post-section + FAQ em details + .post-signature; FontAwesome CDN, JSON-LD (Article + FAQPage), filtro JS, tema claro/escuro, footer com data + LGPD + presuncao de inocencia; creditos: criacao = "Capivaradigital-MCP Gerenciamento de consultas publicas", CanalQb so como autor do prompt 8.5 e hospedador do MCP; titular = "titular da investigacao". BLOCO DE KPIS OBRIGATORIO logo apos o TL;DR: <section class="post-section" aria-label="Numeros do dossie"> com .post-kpis de .post-kpi (strong = numero CONFIRMADO do proprio relatorio, span = rotulo com a fonte) - nasce zerado no template e so muda quando a secao correspondente fica CONCLUIDA; nunca invente KPI. Padrao v1.17.2: ordenacao por clique nos cabecalhos (th[data-sort] + aria-sort + suporte a teclado, locale pt-BR numerico) e impressao pericial (@page A4, break-inside:avoid em cards/tabelas/linhas, rodape de auditoria .print-footer-audit visivel so no PDF).',
      '3. Secoes: TL;DR 3 bullets com nivel; identidade (ancora dupla); CNPJs; redes/curriculo/vinculos; tabela de processos CONFIRMADOS com coluna de confirmacao; movimentacao integral; detalhes do crime; analise de perfil; pendencias COM proximo passo; fontes; FAQ. Zero emojis, PT-BR.',
-     '4. Validar antes de entregar: parser HTML sem erros, JS sem erro de sintaxe, JSON-LD parseavel, grep de homonimos.'],
+     '4. Validar antes de entregar: parser HTML sem erros, JS sem erro de sintaxe, JSON-LD parseavel, grep de homonimos.',
+     '5. MONTAGEM POR ETAPAS (regra do titular, 24/10/2026): o relatorio NUNCA e escrito inteiro de uma vez - crie o template e salve, faca a 1a secao e salve, a 2a secao e salve, e assim ate 100%, confirmando a gravacao antes de cada secao seguinte. A ferramenta guia_publicacao devolve o protocolo, as FONTES AO VIVO no Google Drive (master_rules.md PRIMEIRO, depois os demais arquivos da pasta) e o post final com o prompt 9.2 - os arquivos do Drive/Docs NUNCA sao baixados para esta pasta, guarda-se so o link.'],
     ['FASE 10 - FECHAMENTO',
      '1. Pendencias com proximo passo concreto (uma por lacuna).',
      '2. Registro da sessao em log interno do projeto (nao no MCP - zero dados reais aqui).',
      '3. Niveis: CONFIRMADO (ancora de documento) / PROVAVEL (fingerprint) / POSSIVEL HOMONIMO (nunca na lista principal).']
   ];
   let out = FASES.map(f => f.join('\n')).join('\n\n');
-  const header = TERMO_RESPONSABILIDADE + '\n\n' + 'PROTOCOLO DE DOSSIE COMPLETO POR DOCUMENTO (v1.18.1) - regra obrigatoria para TODOS os agentes que usam o capivaradigital. Execute as fases em ordem; nenhum pedido do titular fica sem resposta ou sem rota tentada. Fonte: sessoes reais 18-22/10/2026 (dossies validados). Zero dados reais neste texto.\n\n';
+  const header = TERMO_RESPONSABILIDADE + '\n\n' + 'PROTOCOLO DE DOSSIE COMPLETO POR DOCUMENTO (v1.18.7) - regra obrigatoria para TODOS os agentes que usam o capivaradigital. Execute as etapas em ordem; nenhum pedido do titular fica sem resposta ou sem rota tentada. Fonte: sessoes reais 18-22/10/2026 (dossies validados). Zero dados reais neste texto.\n\n';
   if (so) { const f = FASES.find(x => x[0].indexOf(so.toUpperCase()) > -1); return header + (f ? f.join('\n') : 'Fase nao encontrada. Fases: 0,1,1B,2,3,4,5,6,7,8,9,10 (use fase="FASE 6" etc.).'); }
-  return header + out + '\n\nVEJA TAMBEM: guia_relatorios (template/niveis), fontes_osint (protocolo anti-homonimo), guia_navegacao (browser), ciclo_pf_pj (execucao da fase 1-2).';
+  return header + out + '\n\nVEJA TAMBEM: guia_relatorios (template/niveis), guia_publicacao (fontes ao vivo do Drive, montagem secao a secao ate 100%, post 9.2), fontes_osint (protocolo anti-homonimo), guia_navegacao (browser), ciclo_pf_pj (execucao da fase 1-2).';
 }
 
 const TOOLS = [
@@ -1945,7 +2022,7 @@ const TOOLS = [
   },
   {
     name: 'guia_dossie',
-    description: 'PROTOCOLO DE DOSSIE COMPLETO POR DOCUMENTO (v1.18.5): regra obrigatoria para todo agente - FASE 00 ISOLAMENTO DE CONSULTAS: cada CPF/CNPJ e uma consulta NOVA E INDEPENDENTE, nada de consultas anteriores entra no dossie novo salvo pedido explicito do titular de cruzar duas pessoas. TODOS os pedidos do titular da investigacao (empresas em que trabalhou, artigo do crime, redes sociais, curriculo, mascaras) viram etapa executavel deste checklist de 11 fases: ancora por documento, ciclo PF<->PJ forcado (CNPJ sempre com o CPF), loop de mascaras CNJ com contra-prova no e-SAJ DOCPARTE, varredura multi-tribunal e diarios, redes/curriculo/vinculos empregaticios (com limite declarado do CAGED/Rais), detalhes do crime (artigo pelo assunto + rito como hipotese + denuncia exige autos), familiares maiores/terceiros minimizados, validacao de curriculo/certificados (e-MEC/conselhos), montagem (dossie x metodo separados, template HTML autocontido, creditos oficiais) e fechamento com pendencias. Use ANTES de iniciar qualquer dossie de novo CPF/CNPJ.',
+    description: 'PROTOCOLO DE DOSSIE COMPLETO POR DOCUMENTO (v1.18.7): regra obrigatoria para todo agente - FASE 00 ISOLAMENTO DE CONSULTAS: cada CPF/CNPJ e uma consulta NOVA E INDEPENDENTE, nada de consultas anteriores entra no dossie novo salvo pedido explicito do titular de cruzar duas pessoas. TODOS os pedidos do titular da investigacao (empresas em que trabalhou, artigo do crime, redes sociais, curriculo, mascaras) viram etapa executavel deste checklist de 13 etapas (00, 0, 1, 1B, 2-10): ancora por documento, ciclo PF<->PJ forcado (CNPJ sempre com o CPF), loop de mascaras CNJ com contra-prova no e-SAJ DOCPARTE, varredura multi-tribunal e diarios, redes/curriculo/vinculos empregaticios (com limite declarado do CAGED/Rais), detalhes do crime (artigo pelo assunto + rito como hipotese + denuncia exige autos), familiares maiores/terceiros minimizados, validacao de curriculo/certificados (e-MEC/conselhos), montagem (dossie x metodo separados, template HTML autocontido, creditos oficiais) e fechamento com pendencias. Use ANTES de iniciar qualquer dossie de novo CPF/CNPJ.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -1972,6 +2049,18 @@ const TOOLS = [
       additionalProperties: false
     },
     _run: toolGuiaRelatorios
+  },
+  {
+    name: 'guia_publicacao',
+    description: 'FONTES AO VIVO + TEMPLATE PADRAO + RELATORIO POR ETAPAS + POST (prompt 9.2). Regra do titular (24/10/2026): as regras deste fluxo vivem no Google Drive (master_rules.md PRIMEIRO, depois os demais arquivos da pasta na ordem que ele declarar) e o prompt 9.2 vive no Google Docs - SEMPRE leia a versao atual pelos links devolvidos aqui e NUNCA baixe/copie esses arquivos para dentro de capivaradigital-mcp (pasta publicada): guarde so o link. Devolve (0) a ordem obrigatoria de leitura e o que fazer quando um link falha; (1) o template base do relatorio_<nome>_<cpf>.html com estados das secoes e rodape LGPD; (2) o fluxo POR ETAPAS - template e salvar, secao 1 e salvar, secao 2 e salvar, ate 100%, com salvamento atomico, retomada e sem duplicar; (3) o post pelo prompt 9.2 SO apos 100%; (4) checklist de conclusao. Use ao montar qualquer relatorio ou dossie deste servidor - sempre por etapas, uma secao por vez.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        etapa: { type: 'string', description: 'Opcional: "template" | "secoes" | "post" | "100" | numero da secao (ex. "3"). Sem argumento: guia completa.' }
+      },
+      additionalProperties: false
+    },
+    _run: toolGuiaPublicacao
   },
   {
     name: 'regras_ler',
@@ -2034,7 +2123,7 @@ function send(obj) { process.stdout.write(JSON.stringify(obj) + '\n'); }
 
 async function handle(msg) {
   if (msg.method === 'initialize') {
-    return { protocolVersion: '2024-11-05', capabilities: { tools: {} }, serverInfo: { name: 'capivaradigital', version: '1.18.5' } };
+    return { protocolVersion: '2024-11-05', capabilities: { tools: {} }, serverInfo: { name: 'capivaradigital', version: '1.18.7' } };
   }
   if (msg.method === 'ping') return {};
   if (msg.method === 'tools/list') return { tools: TOOLS.map(t => ({ name: t.name, description: t.description, inputSchema: t.inputSchema })) };
