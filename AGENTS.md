@@ -13,6 +13,13 @@ oficiais, minimização de terceiros e registro de negativas com fonte e data.
 Consulta sem essa finalidade, ou uso dos dados para qualquer outro fim, é
 violação desta regra e da LGPD.
 
+**ISOLAMENTO DE CONSULTAS (regra do titular, 24/10/2026):** cada CPF/CNPJ é
+uma consulta NOVA e INDEPENDENTE. Nenhum dado, vínculo, cruzamento ou
+referência de consultas anteriores entra no dossiê novo — o contexto da
+conversa do agente não é evidência. Cruzar duas pessoas específicas só é
+permitido quando o titular pede explicitamente, e nesse caso o cruzamento
+vira seção declarada no relatório.
+
 Esta pasta (`capivaradigital-mcp/`) é o **SERVIDOR MCP ÚNICO E UNIFICADO** de OSINT
 judicial. O nome do servidor (identidade vista pelos agentes) é **`capivaradigital`**. Qualquer agente (opencode, kimi-code, Claude, Cursor ou outro) que
 for usar, alterar ou estender este sistema DEVE seguir estas regras.

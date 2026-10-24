@@ -1638,6 +1638,8 @@ const TERMO_RESPONSABILIDADE = [
 async function toolGuiaDossie(args) {
   const so = args && args.fase;
   const FASES = [
+    ['FASE 00 - ISOLAMENTO DE CONSULTAS (regra do titular, 2026-10-24, inegociavel)',
+     'CADA CPF/CNPJ e uma CONSULTA NOVA E INDEPENDENTE: nenhum dado, nome, numero, vinculo, cruzamento ou referencia de consultas ANTERIORES entra no dossie novo. O agente NAO pode relacionar a pessoa pesquisada com investigados/terceiros de outras consultas da mesma conversa, nem citar dossies anteriores no relatorio novo, SALVO pedido EXPLICITO do titular de cruzar duas pessoas especificas (ai o cruzamento e declarado como secao propria com data e rotas). O contexto da conversa nao e evidencia: evidencia e so o que vem de fonte publica com o documento da pessoa atual.'],
     ['FASE 0 - REGRA DOS PEDIDOS DO TITULAR (obrigatoria, validada em campo 2026-10-20/21)',
      'TODO pedido do titular da investigacao nesta sessao vira ETAPA EXECUTAVEL do protocolo: se ele pediu empresas em que trabalhou, o agente pesquisa vinculos empregaticios (fase 5); se pediu o artigo do crime, pesquisa enquadramento (fase 6); se pediu redes sociais, fase 5; se pediu numeros mascarados, fase 3. Nenhum pedido e respondido com "nao e possivel" antes de executar TODAS as rotas publicas gratuitas desta lista e declarar os limites com fonte.'],
     ['FASE 1 - ANCORA: SEMPRE POR DOCUMENTO, NUNCA POR NOME',
@@ -1943,7 +1945,7 @@ const TOOLS = [
   },
   {
     name: 'guia_dossie',
-    description: 'PROTOCOLO DE DOSSIE COMPLETO POR DOCUMENTO (v1.17.2): regra obrigatoria para todo agente - TODOS os pedidos do titular da investigacao (empresas em que trabalhou, artigo do crime, redes sociais, curriculo, mascaras) viram etapa executavel deste checklist de 11 fases: ancora por documento, ciclo PF<->PJ forcado (CNPJ sempre com o CPF), loop de mascaras CNJ com contra-prova no e-SAJ DOCPARTE, varredura multi-tribunal e diarios, redes/curriculo/vinculos empregaticios (com limite declarado do CAGED/Rais), detalhes do crime (artigo pelo assunto + rito como hipotese + denuncia exige autos), familiares maiores/terceiros minimizados, validacao de curriculo/certificados (e-MEC/conselhos), montagem (dossie x metodo separados, template HTML autocontido, creditos oficiais) e fechamento com pendencias. Use ANTES de iniciar qualquer dossie de novo CPF/CNPJ.',
+    description: 'PROTOCOLO DE DOSSIE COMPLETO POR DOCUMENTO (v1.18.5): regra obrigatoria para todo agente - FASE 00 ISOLAMENTO DE CONSULTAS: cada CPF/CNPJ e uma consulta NOVA E INDEPENDENTE, nada de consultas anteriores entra no dossie novo salvo pedido explicito do titular de cruzar duas pessoas. TODOS os pedidos do titular da investigacao (empresas em que trabalhou, artigo do crime, redes sociais, curriculo, mascaras) viram etapa executavel deste checklist de 11 fases: ancora por documento, ciclo PF<->PJ forcado (CNPJ sempre com o CPF), loop de mascaras CNJ com contra-prova no e-SAJ DOCPARTE, varredura multi-tribunal e diarios, redes/curriculo/vinculos empregaticios (com limite declarado do CAGED/Rais), detalhes do crime (artigo pelo assunto + rito como hipotese + denuncia exige autos), familiares maiores/terceiros minimizados, validacao de curriculo/certificados (e-MEC/conselhos), montagem (dossie x metodo separados, template HTML autocontido, creditos oficiais) e fechamento com pendencias. Use ANTES de iniciar qualquer dossie de novo CPF/CNPJ.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -2032,7 +2034,7 @@ function send(obj) { process.stdout.write(JSON.stringify(obj) + '\n'); }
 
 async function handle(msg) {
   if (msg.method === 'initialize') {
-    return { protocolVersion: '2024-11-05', capabilities: { tools: {} }, serverInfo: { name: 'capivaradigital', version: '1.18.4' } };
+    return { protocolVersion: '2024-11-05', capabilities: { tools: {} }, serverInfo: { name: 'capivaradigital', version: '1.18.5' } };
   }
   if (msg.method === 'ping') return {};
   if (msg.method === 'tools/list') return { tools: TOOLS.map(t => ({ name: t.name, description: t.description, inputSchema: t.inputSchema })) };
