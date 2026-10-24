@@ -8,6 +8,12 @@ for usar, alterar ou estender este sistema DEVE seguir estas regras.
 - `server.js` é o único servidor. **Nunca crie pastas ou servidores paralelos**
   com as mesmas funções (nada de "mcp_dossie 2", servidores Python duplicados
   etc.). Toda nova ferramenta entra AQUI.
+  - Exceção documentada: `server-http.js` — ponte HTTP (Streamable HTTP +
+    OAuth 2.1 com DCR/PKCE) que EXPÕE este mesmo `server.js` como conector
+    remoto (claude.ai). Não duplica nenhuma ferramenta: cada requisição JSON-RPC
+    vira um processo `node server.js` efemero. Zero dependencias, zero segredos
+    no codigo (senha via variavel de ambiente ADMIN_PASSWORD). Ferramentas
+    locais sem sentido remoto ficam ocultas por padrao (DISABLE_TOOLS).
 - Se você encontrar outro servidor MCP judicial em outro lugar, migre o que
   houver de único para cá (sanitizado) e aponte os registros dos clientes para
   esta pasta.
@@ -24,6 +30,10 @@ for usar, alterar ou estender este sistema DEVE seguir estas regras.
 - **Nunca** insira nomes, CPF, CNPJ, números de processos, máscaras que
   identifiquem casos reais, e-mails, contas ou dados do mantenedor em
   QUALQUER arquivo desta pasta (código, docs, exemplos, comentários).
+  Inclui (regra do titular, 23/10/2026): qualquer referência a relatórios,
+  dossiês ou consultas realizadas durante o desenvolvimento — dados de
+  pesquisa são individuais, pertencem só aos dossiês locais e NUNCA ao
+  registro do MCP.
 - Exemplos: sempre fictícios (`000XXXX-XX.2024.8.26.0100`, "ZZZINEXISTENTEZZZ",
   CNPJs de documentação como o 00.000.000/0001-91).
 - Testes: apenas com dados sintéticos ou números de documentação; arquivos de
