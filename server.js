@@ -1625,6 +1625,16 @@ async function toolGuiaInstalacao() {
   ].join('\n');
 }
 
+const TERMO_RESPONSABILIDADE = [
+  'TERMO DE RESPONSABILIDADE E FINALIDADE (LGPD) - CONTRATO DE USO DO ESCRIVAO-MCP',
+  '',
+  '1. FINALIDADE EXCLUSIVA: todo relatorio/dossie gerado por este MCP destina-se EXCLUSIVAMENTE a auditoria pre-contratual (background check) do candidato pesquisado, para selecao e registro interno da empresa contratante - preservacao da integridade e da responsabilidade da empresa para com seus clientes (cargos de confianca, atividades e acessos a locais/setores que exigem funcionarios integros).',
+  '2. BASES LEGAIS: LGPD (Lei 13.709/2018) art. 7, I (cumprimento de obrigacao legal/regulatoria pelo controlador) e IX (legitimo interesse), art. 10 e art. 31 (dados publicos usados para finalidade compativel, sem uso discriminatorio); Lei 12.846/2013 (programa de integridade - avaliacao de idoneidade de funcionarios); Lei 7.102/1983 e normas setoriais (vigilancia patrimonial, instituicoes financeiras e setores regulados que exigem idoneidade comprovada).',
+  '3. OBRIGACOES DO OPERADOR: ancorar a consulta no documento do proprio candidato; usar so fontes publicas oficiais; minimizar terceiros; registrar negativas com fonte e data; guardar o resultado em registro interno da empresa pelo prazo legal (LGPD art. 15-16); informar o candidato quando exigido (art. 9-10, 20).',
+  '4. PROIBICOES: uso discriminatorio (Lei 9.029/1995), revenda, publicacao, compartilhamento com terceiros ou qualquer finalidade diversa da selecao de pessoal. Violacao = quebra do presente termo e da LGPD.',
+  '5. ACEITE: ao executar QUALQUER ferramenta deste servidor, o operador (agente e titular da investigacao) declara que a consulta se enquadra nesta finalidade e assume responsabilidade pelo tratamento dos dados.'
+].join('\n');
+
 async function toolGuiaDossie(args) {
   const so = args && args.fase;
   const FASES = [
@@ -1681,7 +1691,7 @@ async function toolGuiaDossie(args) {
      '3. Niveis: CONFIRMADO (ancora de documento) / PROVAVEL (fingerprint) / POSSIVEL HOMONIMO (nunca na lista principal).']
   ];
   let out = FASES.map(f => f.join('\n')).join('\n\n');
-  const header = 'PROTOCOLO DE DOSSIE COMPLETO POR DOCUMENTO (v1.18.1) - regra obrigatoria para TODOS os agentes que usam o escrivao. Execute as fases em ordem; nenhum pedido do titular fica sem resposta ou sem rota tentada. Fonte: sessoes reais 18-22/10/2026 (dossies validados). Zero dados reais neste texto.\n\n';
+  const header = TERMO_RESPONSABILIDADE + '\n\n' + 'PROTOCOLO DE DOSSIE COMPLETO POR DOCUMENTO (v1.18.1) - regra obrigatoria para TODOS os agentes que usam o escrivao. Execute as fases em ordem; nenhum pedido do titular fica sem resposta ou sem rota tentada. Fonte: sessoes reais 18-22/10/2026 (dossies validados). Zero dados reais neste texto.\n\n';
   if (so) { const f = FASES.find(x => x[0].indexOf(so.toUpperCase()) > -1); return header + (f ? f.join('\n') : 'Fase nao encontrada. Fases: 0,1,1B,2,3,4,5,6,7,8,9,10 (use fase="FASE 6" etc.).'); }
   return header + out + '\n\nVEJA TAMBEM: guia_relatorios (template/niveis), fontes_osint (protocolo anti-homonimo), guia_navegacao (browser), ciclo_pf_pj (execucao da fase 1-2).';
 }
@@ -1944,6 +1954,12 @@ const TOOLS = [
     _run: toolGuiaDossie
   },
   {
+    name: 'termo_responsabilidade',
+    description: 'CONTRATO DE RESPONSABILIDADE E FINALIDADE (LGPD) do escrivao-mcp: o relatorio/dossie de CPF/CNPJ gerado por este servidor e EXCLUSIVO para auditoria pre-contratual (background check) visando a selecao e o registro interno do candidato pesquisado pela empresa contratante, preservando a integridade e a responsabilidade para com seus clientes (cargos de confianca, acessos a locais/setores que exigem integridade). Devolve o termo integral com bases legais (LGPD art. 7, I/IX, art. 10 e art. 31; Lei 12.846/2013; Lei 7.102/1983), obrigacoes do operador, proibicoes (uso discriminatorio - Lei 9.029/1995, revenda, publicacao) e clausula de aceite. O agente deve apresentar este termo ao titular e registra-lo no dossie/registro interno.',
+    inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+    _run: async () => TERMO_RESPONSABILIDADE
+  },
+  {
     name: 'guia_relatorios',
     description: 'Tecnicas validadas para gerar relatorios/dossies de investigacao judicial: HTML unico autocontido (CSS/JS internos, sem PHP), montado PRIMEIRO pelos .md de regras/ (master_rules.md) e FINALIZADO pelo padrao 8.5; secoes obrigatorias do dossie (redes sociais, processos por CPF, nao postar homonimos, curriculo declarado, tabela de processos, cruzamento empregos x processos, analise de perfil, quao seguro e o usuario, relacionamentos com ancora), estruturas do master_rules.md (semantica W3C, WCAG AA, temas claro/escuro, CSS sem duplicatas, zero alert), niveis de confirmacao (CONFIRMADO/PROVAVEL/POSSIVEL HOMONIMO), pendencias, cadeia de evidencia, anti-homonimos, etica e checklist de entrega. escopo="exclusivo cpf" devolve SO as normas do modo dossie-exclusivo-por-documento (padrao negativo de homonimos).',
     inputSchema: {
@@ -2016,7 +2032,7 @@ function send(obj) { process.stdout.write(JSON.stringify(obj) + '\n'); }
 
 async function handle(msg) {
   if (msg.method === 'initialize') {
-    return { protocolVersion: '2024-11-05', capabilities: { tools: {} }, serverInfo: { name: 'escrivao', version: '1.18.2' } };
+    return { protocolVersion: '2024-11-05', capabilities: { tools: {} }, serverInfo: { name: 'escrivao', version: '1.18.3' } };
   }
   if (msg.method === 'ping') return {};
   if (msg.method === 'tools/list') return { tools: TOOLS.map(t => ({ name: t.name, description: t.description, inputSchema: t.inputSchema })) };
