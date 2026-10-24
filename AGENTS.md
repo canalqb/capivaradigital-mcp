@@ -13,8 +13,8 @@ oficiais, minimização de terceiros e registro de negativas com fonte e data.
 Consulta sem essa finalidade, ou uso dos dados para qualquer outro fim, é
 violação desta regra e da LGPD.
 
-Esta pasta (`escrivao-mcp/`) é o **SERVIDOR MCP ÚNICO E UNIFICADO** de OSINT
-judicial. O nome do servidor (identidade vista pelos agentes) é **`escrivao`**. Qualquer agente (opencode, kimi-code, Claude, Cursor ou outro) que
+Esta pasta (`capivaradigital-mcp/`) é o **SERVIDOR MCP ÚNICO E UNIFICADO** de OSINT
+judicial. O nome do servidor (identidade vista pelos agentes) é **`capivaradigital`**. Qualquer agente (opencode, kimi-code, Claude, Cursor ou outro) que
 for usar, alterar ou estender este sistema DEVE seguir estas regras.
 
 ## 1. Unificação — não bifurcar
@@ -31,8 +31,8 @@ for usar, alterar ou estender este sistema DEVE seguir estas regras.
   houver de único para cá (sanitizado) e aponte os registros dos clientes para
   esta pasta.
 - Os clientes registrados que usam este servidor:
-  - opencode: `mcp.escrivao` em `~/.config/opencode/opencode.jsonc`
-  - kimi-code: `mcpServers.escrivao` em `~/.kimi-code/mcp.json`
+  - opencode: `mcp.capivaradigital` em `~/.config/opencode/opencode.jsonc`
+  - kimi-code: `mcpServers.capivaradigital` em `~/.kimi-code/mcp.json`
   - Ao mover/renomear a pasta, atualize TODOS os registros.
   - Atualização oficial do servidor: ferramenta `mcp_atualizar` (baixa o
     server.js direto do GitHub raw; funciona em qualquer instalação, COM ou

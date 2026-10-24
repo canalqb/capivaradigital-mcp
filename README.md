@@ -1,8 +1,8 @@
-# escrivao
+# capivaradigital
 
 > Dezenove ferramentas de OSINT judicial brasileiro em um único arquivo Node.
 
-O escrivao é um servidor MCP (Model Context Protocol) autocontido para pesquisa
+O capivaradigital é um servidor MCP (Model Context Protocol) autocontido para pesquisa
 em registros públicos judiciais brasileiros: DataJud/CNJ, DJEN, e-SAJ (TJSP),
 BrasilAPI (CNPJ), validação e quebra de máscaras de números CNJ e busca web
 semântica (Exa). Remete ao escrivão judicial, guardião dos autos.
@@ -19,7 +19,7 @@ semântica (Exa). Remete ao escrivão judicial, guardião dos autos.
 > A pasta é publicada como código aberto. Agente que for alterar algo aqui deve
 > ler o `AGENTS.md` primeiro.
 
-## Para que serve o escrivao?
+## Para que serve o capivaradigital?
 
 **Finalidade declarada (LGPD, art. 7º, II — regra principal do projeto):**
 auditoria pré-contratual (background check) de candidatos na **contratação de
@@ -77,10 +77,10 @@ caminho entra no registro do cliente — e rode o teste via stdin antes de
 registrar.
 
 ```powershell
-git clone https://github.com/canalqb/escrivao-mcp.git        # recomendado
+git clone https://github.com/canalqb/capivaradigital-mcp.git        # recomendado
 
 # Sem git — apenas o servidor:
-curl.exe -L -o server.js https://raw.githubusercontent.com/canalqb/escrivao-mcp/main/server.js
+curl.exe -L -o server.js https://raw.githubusercontent.com/canalqb/capivaradigital-mcp/main/server.js
 ```
 
 A ferramenta `guia_instalacao` devolve estes comandos prontos em tempo de
@@ -88,16 +88,16 @@ execução, para o agente guiar a instalação em qualquer máquina.
 
 ## Como instalo no meu cliente MCP?
 
-Basta apontar o cliente para `node <caminho-absoluto>/escrivao-mcp/server.js`,
+Basta apontar o cliente para `node <caminho-absoluto>/capivaradigital-mcp/server.js`,
 substituindo `<caminho>` pelo local real desta pasta. Depois reinicie o cliente
 para o servidor subir. As receitas por cliente estão abaixo.
 
 ### opencode — `~/.config/opencode/opencode.jsonc`
 ```jsonc
 "mcp": {
-  "escrivao": {
+  "capivaradigital": {
     "type": "local",
-    "command": ["node", "<caminho>/escrivao-mcp/server.js"],
+    "command": ["node", "<caminho>/capivaradigital-mcp/server.js"],
     "enabled": true,
     "timeout": 120000
   }
@@ -106,9 +106,9 @@ para o servidor subir. As receitas por cliente estão abaixo.
 
 ### kimi-code — `~/.kimi-code/mcp.json`
 ```json
-{ "mcpServers": { "escrivao": {
+{ "mcpServers": { "capivaradigital": {
   "command": "node",
-  "args": ["<caminho>/escrivao-mcp/server.js"],
+  "args": ["<caminho>/capivaradigital-mcp/server.js"],
   "startupTimeoutMs": 30000,
   "toolTimeoutMs": 300000
 }}}
@@ -119,12 +119,12 @@ porque o DataJud do TJSP às vezes responde devagar (504).
 ### Claude Desktop — `claude_desktop_config.json`
 ```json
 "mcpServers": {
-  "escrivao": { "command": "node", "args": ["<caminho>/escrivao-mcp/server.js"] }
+  "capivaradigital": { "command": "node", "args": ["<caminho>/capivaradigital-mcp/server.js"] }
 }
 ```
 
 ### Cursor / qualquer cliente stdio
-Comando: `node <caminho>/escrivao-mcp/server.js`
+Comando: `node <caminho>/capivaradigital-mcp/server.js`
 
 ## Quais variáveis de ambiente existem?
 
@@ -148,7 +148,7 @@ confirmar instalação, contagem de ferramentas e saúde da rede em segundos.
 ```
 
 ```powershell
-cmd /c "node <caminho>\escrivao-mcp\server.js < teste.jsonl"
+cmd /c "node <caminho>\capivaradigital-mcp\server.js < teste.jsonl"
 ```
 
 ## Quais são as 26 ferramentas?
@@ -591,12 +591,6 @@ violência doméstica (Lei 11.340/2006), nunca identificar menores (ECA),
 presunção de inocência para recursos pendentes (CF art. 5º, LVII). Resultados
 para uso interno; divulgação exige avaliação jurídica própria. Nada de
 assédio, exposição ou contorno de paywall.
-
-## Quem desenvolve e como apoiar?
-
-Desenvolvido por qrodrigob@gmail.com. Apoie o projeto via PIX:
-qrodrigob@gmail.com. Site e canal oficial: https://canalqb.com.br
-
 ## FAQ
 
 **O servidor precisa de internet?**

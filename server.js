@@ -13,7 +13,7 @@ const DJE_TROCA_PG = 'https://esaj.tjsp.jus.br/cdje/trocaDePagina.do';
 const DJE_PDF = 'https://esaj.tjsp.jus.br/cdje/getPaginaDoDiario.do';
 const EXA_SEARCH = 'https://api.exa.ai/search';
 const JUSBRASIL_BUSCA = 'https://www.jusbrasil.com.br/busca?q=';
-const UPDATE_URL = 'https://raw.githubusercontent.com/canalqb/escrivao-mcp/main/server.js';
+const UPDATE_URL = 'https://raw.githubusercontent.com/canalqb/capivaradigital-mcp/main/server.js';
 const WMN_DATA_URL = 'https://raw.githubusercontent.com/WebBreacher/WhatsMyName/main/wmn-data.json';
 const BRASILAPI_DDD = 'https://brasilapi.com.br/api/ddd/v1/';
 
@@ -1157,7 +1157,7 @@ async function toolJusbrasilBuscar(a) {
 
 async function toolMcpAtualizar(a) {
   const url = (a && a.fonte ? String(a.fonte).trim() : '') || UPDATE_URL;
-  const novo = await fetchWithTimeout(url, { headers: { 'User-Agent': 'escrivao-mcp-updater' } }, 60000);
+  const novo = await fetchWithTimeout(url, { headers: { 'User-Agent': 'capivaradigital-mcp-updater' } }, 60000);
   const vRe = /version:\s*'([0-9][0-9.]*)'/;
   const caminho = __filename;
   let atual = '';
@@ -1309,7 +1309,7 @@ async function toolGuiaNavegacao() {
     '- Firecrawl (scraping profundo, 500 crawls gratis): "npx -y firecrawl-mcp-server" com env FIRECRAWL_API_KEY - chave em https://firecrawl.dev.',
     '- Exa (busca neural): ja embutido aqui (exa_buscar, env EXA_API_KEY) OU "npx -y exa-mcp-server" - chave em https://exa.ai.',
     '- Perplexity (remoto): "https://mcp.perplexity.ai/mcp" - rodar "opencode mcp auth perplexity" uma vez.',
-    '- REGRA: o escrivao cobre DataJud/DJEN/e-SAJ/CNPJ/mascara CNJ - NAO duplique essas funcoes em outro MCP; os companheiros entram como recursos complementares.',
+    '- REGRA: o capivaradigital cobre DataJud/DJEN/e-SAJ/CNPJ/mascara CNJ - NAO duplique essas funcoes em outro MCP; os companheiros entram como recursos complementares.',
     '',
     'MCPS DE ENRIQUECIMENTO POR CPF/CNPJ (externos - verifique LGPD/custos antes de usar):',
     '- MCP Brasil (70 APIs publicas: BrasilAPI/CNPJ, DataJud, TSE bens de candidatos, sancoes do Portal da Transparencia, TCU, imoveis da Uniao): https://github.com/Mcp-Brasil/mcp-brasil | uvx --from mcp-brasil python -m mcp_brasil.server',
@@ -1328,7 +1328,7 @@ async function toolGuiaNavegacao() {
     '- SEGURANCA/LGPD: servidores HOSPEDADOS recebem o que voce consulta - para dados sensiveis rode LOCAL os de codigo aberto (mcp-brasil, mcp-dadosbr, brasil-data-mcp, brasil-api-mcp). O mcp-dadosbr expoe mandados do BNMP (dados publicos do CNJ). Lista completa dos 31 catalogados em regras/links.txt.',
     '',
     'OSINT DE REDES SOCIAIS E CONTATO (nome, e-mail e telefone -> perfis; complementam o dossie):',
-    '- MCPS PRONTOS (registre ao lado do escrivao):',
+    '- MCPS PRONTOS (registre ao lado do capivaradigital):',
     '  * sherlock-mcp (username em 400+ redes sociais, via MCP): https://github.com/Burnsedia/sherlock-mcp',
     '  * osint-mcp-server (37 ferramentas/12 fontes: Sherlock + Osintgram/Instagram profundo): https://github.com/pasing-group/osint-mcp-server',
     '  * osint-mcp (26 ferramentas OSINT gratuitas expostas como MCP): https://pypi.org/project/osint-mcp/',
@@ -1498,7 +1498,7 @@ async function toolRegrasLer(a) {
     return [
       'A pasta regras/ NAO existe nesta instalacao (instalacao apenas-server.js via mcp_atualizar).',
       'COMO PROCEDER: (1) o RESUMO aplicavel ao dossie e autocontido no guia_relatorios - monte por ele;',
-      '(2) para os .md integrais, clone o repo github.com/canalqb/escrivao-mcp (pasta regras/) e rode o server.js de dentro do clone.',
+      '(2) para os .md integrais, clone o repo github.com/canalqb/capivaradigital-mcp (pasta regras/) e rode o server.js de dentro do clone.',
       'Detalhe tecnico: ' + String(e && e.code ? e.code : e)
     ].join('\n');
   }
@@ -1603,18 +1603,18 @@ async function toolGuiaInstalacao() {
     '',
     '5. OBTER O SERVIDOR (arquivo unico, zero dependencias - nunca npm install; GIT NAO E OBRIGATORIO):',
     '   Com git (recomendado - traz tambem a pasta regras/):',
-    '   git clone https://github.com/canalqb/escrivao-mcp.git',
+    '   git clone https://github.com/canalqb/capivaradigital-mcp.git',
     '   SEM git (rota oficial alternativa - so o servidor):',
-    '   curl.exe -L -o server.js https://raw.githubusercontent.com/canalqb/escrivao-mcp/main/server.js   (Windows)',
-    '   curl -L -o server.js https://raw.githubusercontent.com/canalqb/escrivao-mcp/main/server.js       (Linux/macOS)',
-    '   PowerShell sem curl: Invoke-WebRequest -Uri https://raw.githubusercontent.com/canalqb/escrivao-mcp/main/server.js -OutFile server.js',
+    '   curl.exe -L -o server.js https://raw.githubusercontent.com/canalqb/capivaradigital-mcp/main/server.js   (Windows)',
+    '   curl -L -o server.js https://raw.githubusercontent.com/canalqb/capivaradigital-mcp/main/server.js       (Linux/macOS)',
+    '   PowerShell sem curl: Invoke-WebRequest -Uri https://raw.githubusercontent.com/canalqb/capivaradigital-mcp/main/server.js -OutFile server.js',
     '',
     '6. TESTAR SEM CLIENTE (stdin JSON-RPC):',
     '   echo {"jsonrpc":"2.0","id":1,"method":"tools/list"} | node server.js',
     '   Deve responder ' + TOOLS.length + ' ferramentas (contagem dinamica desta versao). Suite completa de teste no README (secao "Como valido o servidor sem cliente?").',
     '',
     '7. REGISTRAR NO CLIENTE MCP (apos o teste passar):',
-    '   node <caminho-absoluto>/escrivao-mcp/server.js  -  receitas por cliente (opencode, kimi-code, Claude Desktop, Cursor) no README.',
+    '   node <caminho-absoluto>/capivaradigital-mcp/server.js  -  receitas por cliente (opencode, kimi-code, Claude Desktop, Cursor) no README.',
     '   Windows: caminho com \\ entre pastas. Reinicie o cliente para o servidor subir.',
     '',
     '8. ATUALIZAR (qualquer instalacao, COM ou SEM git):',
@@ -1626,7 +1626,7 @@ async function toolGuiaInstalacao() {
 }
 
 const TERMO_RESPONSABILIDADE = [
-  'TERMO DE RESPONSABILIDADE E FINALIDADE (LGPD) - CONTRATO DE USO DO ESCRIVAO-MCP',
+  'TERMO DE RESPONSABILIDADE E FINALIDADE (LGPD) - CONTRATO DE USO DO CAPIVARADIGITAL-MCP',
   '',
   '1. FINALIDADE EXCLUSIVA: todo relatorio/dossie gerado por este MCP destina-se EXCLUSIVAMENTE a auditoria pre-contratual (background check) do candidato pesquisado, para selecao e registro interno da empresa contratante - preservacao da integridade e da responsabilidade da empresa para com seus clientes (cargos de confianca, atividades e acessos a locais/setores que exigem funcionarios integros).',
   '2. BASES LEGAIS: LGPD (Lei 13.709/2018) art. 7, I (cumprimento de obrigacao legal/regulatoria pelo controlador) e IX (legitimo interesse), art. 10 e art. 31 (dados publicos usados para finalidade compativel, sem uso discriminatorio); Lei 12.846/2013 (programa de integridade - avaliacao de idoneidade de funcionarios); Lei 7.102/1983 e normas setoriais (vigilancia patrimonial, instituicoes financeiras e setores regulados que exigem idoneidade comprovada).',
@@ -1682,7 +1682,7 @@ async function toolGuiaDossie(args) {
      '3. Cruzar curriculo x processos x empresas: incoerencia documentada e achado relevante.'],
     ['FASE 9 - MONTAGEM DO DOSSIE',
      '1. Dossie x METODO separados: tecnica de pesquisa NUNCA no dossie do documento (vive no relatorio de metodo); no dossie so dados + fontes.',
-     '2. Template: HTML unico autocontido (CSS/JS internos, sem PHP), classes post-*, FontAwesome CDN, JSON-LD, nav por ancoras, filtro JS, tema claro/escuro, footer com data + LGPD + presuncao de inocencia; creditos: criacao = "Escrivao-MCP Gerenciamento de consultas publicas", CanalQb so como autor do prompt 8.5 e hospedador do MCP; titular = "titular da investigacao". Padrao v1.17.2: ordenacao por clique nos cabecalhos (th[data-sort] + aria-sort + suporte a teclado, locale pt-BR numerico) e impressao pericial (@page A4, break-inside:avoid em cards/tabelas/linhas, rodape de auditoria .print-footer-audit visivel so no PDF).',
+     '2. Template: HTML unico autocontido (CSS/JS internos, sem PHP), classes post-*, FontAwesome CDN, JSON-LD, nav por ancoras, filtro JS, tema claro/escuro, footer com data + LGPD + presuncao de inocencia; creditos: criacao = "Capivaradigital-MCP Gerenciamento de consultas publicas", CanalQb so como autor do prompt 8.5 e hospedador do MCP; titular = "titular da investigacao". Padrao v1.17.2: ordenacao por clique nos cabecalhos (th[data-sort] + aria-sort + suporte a teclado, locale pt-BR numerico) e impressao pericial (@page A4, break-inside:avoid em cards/tabelas/linhas, rodape de auditoria .print-footer-audit visivel so no PDF).',
      '3. Secoes: TL;DR 3 bullets com nivel; identidade (ancora dupla); CNPJs; redes/curriculo/vinculos; tabela de processos CONFIRMADOS com coluna de confirmacao; movimentacao integral; detalhes do crime; analise de perfil; pendencias COM proximo passo; fontes; FAQ. Zero emojis, PT-BR.',
      '4. Validar antes de entregar: parser HTML sem erros, JS sem erro de sintaxe, JSON-LD parseavel, grep de homonimos.'],
     ['FASE 10 - FECHAMENTO',
@@ -1691,7 +1691,7 @@ async function toolGuiaDossie(args) {
      '3. Niveis: CONFIRMADO (ancora de documento) / PROVAVEL (fingerprint) / POSSIVEL HOMONIMO (nunca na lista principal).']
   ];
   let out = FASES.map(f => f.join('\n')).join('\n\n');
-  const header = TERMO_RESPONSABILIDADE + '\n\n' + 'PROTOCOLO DE DOSSIE COMPLETO POR DOCUMENTO (v1.18.1) - regra obrigatoria para TODOS os agentes que usam o escrivao. Execute as fases em ordem; nenhum pedido do titular fica sem resposta ou sem rota tentada. Fonte: sessoes reais 18-22/10/2026 (dossies validados). Zero dados reais neste texto.\n\n';
+  const header = TERMO_RESPONSABILIDADE + '\n\n' + 'PROTOCOLO DE DOSSIE COMPLETO POR DOCUMENTO (v1.18.1) - regra obrigatoria para TODOS os agentes que usam o capivaradigital. Execute as fases em ordem; nenhum pedido do titular fica sem resposta ou sem rota tentada. Fonte: sessoes reais 18-22/10/2026 (dossies validados). Zero dados reais neste texto.\n\n';
   if (so) { const f = FASES.find(x => x[0].indexOf(so.toUpperCase()) > -1); return header + (f ? f.join('\n') : 'Fase nao encontrada. Fases: 0,1,1B,2,3,4,5,6,7,8,9,10 (use fase="FASE 6" etc.).'); }
   return header + out + '\n\nVEJA TAMBEM: guia_relatorios (template/niveis), fontes_osint (protocolo anti-homonimo), guia_navegacao (browser), ciclo_pf_pj (execucao da fase 1-2).';
 }
@@ -1955,7 +1955,7 @@ const TOOLS = [
   },
   {
     name: 'termo_responsabilidade',
-    description: 'CONTRATO DE RESPONSABILIDADE E FINALIDADE (LGPD) do escrivao-mcp: o relatorio/dossie de CPF/CNPJ gerado por este servidor e EXCLUSIVO para auditoria pre-contratual (background check) visando a selecao e o registro interno do candidato pesquisado pela empresa contratante, preservando a integridade e a responsabilidade para com seus clientes (cargos de confianca, acessos a locais/setores que exigem integridade). Devolve o termo integral com bases legais (LGPD art. 7, I/IX, art. 10 e art. 31; Lei 12.846/2013; Lei 7.102/1983), obrigacoes do operador, proibicoes (uso discriminatorio - Lei 9.029/1995, revenda, publicacao) e clausula de aceite. O agente deve apresentar este termo ao titular e registra-lo no dossie/registro interno.',
+    description: 'CONTRATO DE RESPONSABILIDADE E FINALIDADE (LGPD) do capivaradigital-mcp: o relatorio/dossie de CPF/CNPJ gerado por este servidor e EXCLUSIVO para auditoria pre-contratual (background check) visando a selecao e o registro interno do candidato pesquisado pela empresa contratante, preservando a integridade e a responsabilidade para com seus clientes (cargos de confianca, acessos a locais/setores que exigem integridade). Devolve o termo integral com bases legais (LGPD art. 7, I/IX, art. 10 e art. 31; Lei 12.846/2013; Lei 7.102/1983), obrigacoes do operador, proibicoes (uso discriminatorio - Lei 9.029/1995, revenda, publicacao) e clausula de aceite. O agente deve apresentar este termo ao titular e registra-lo no dossie/registro interno.',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
     _run: async () => TERMO_RESPONSABILIDADE
   },
@@ -1998,7 +1998,7 @@ const TOOLS = [
   },
   {
     name: 'guia_instalacao',
-    description: 'Comandos prontos para instalar tudo do zero: Node.js via winget (Windows 10/11), alternativas (choco/scoop/MSI, apt/dnf/brew), obtencao deste servidor (git clone ou download do server.js), teste via stdin e registro nos clientes MCP. Use quando o usuario ou o agente nao possuir Node ou o escrivao.',
+    description: 'Comandos prontos para instalar tudo do zero: Node.js via winget (Windows 10/11), alternativas (choco/scoop/MSI, apt/dnf/brew), obtencao deste servidor (git clone ou download do server.js), teste via stdin e registro nos clientes MCP. Use quando o usuario ou o agente nao possuir Node ou o capivaradigital.',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
     _run: toolGuiaInstalacao
   },
@@ -2016,7 +2016,7 @@ const TOOLS = [
   },
   {
     name: 'mcp_atualizar',
-    description: 'Autoatualizacao do servidor: baixa a ultima versao do server.js direto do GitHub (canalqb/escrivao-mcp), guarda backup (.bak) e substitui o arquivo local; a nova versao sobe apos reiniciar o cliente MCP. Funciona em QUALQUER instalacao (com ou sem git) - e a rota oficial de atualizacao.',
+    description: 'Autoatualizacao do servidor: baixa a ultima versao do server.js direto do GitHub (canalqb/capivaradigital-mcp), guarda backup (.bak) e substitui o arquivo local; a nova versao sobe apos reiniciar o cliente MCP. Funciona em QUALQUER instalacao (com ou sem git) - e a rota oficial de atualizacao.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -2032,7 +2032,7 @@ function send(obj) { process.stdout.write(JSON.stringify(obj) + '\n'); }
 
 async function handle(msg) {
   if (msg.method === 'initialize') {
-    return { protocolVersion: '2024-11-05', capabilities: { tools: {} }, serverInfo: { name: 'escrivao', version: '1.18.3' } };
+    return { protocolVersion: '2024-11-05', capabilities: { tools: {} }, serverInfo: { name: 'capivaradigital', version: '1.18.4' } };
   }
   if (msg.method === 'ping') return {};
   if (msg.method === 'tools/list') return { tools: TOOLS.map(t => ({ name: t.name, description: t.description, inputSchema: t.inputSchema })) };

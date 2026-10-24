@@ -1,19 +1,19 @@
 'use strict';
 /*
- * escrivao-mcp - ponte HTTP (Streamable HTTP + OAuth 2.1 com DCR e PKCE)
+ * capivaradigital-mcp - ponte HTTP (Streamable HTTP + OAuth 2.1 com DCR e PKCE)
  *
- * Expoe o server.js do escrivao (stdio) como conector remoto para o claude.ai.
+ * Expoe o server.js do capivaradigital (stdio) como conector remoto para o claude.ai.
  * Zero dependencias: apenas Node 18+ nativo. O server.js NAO e modificado:
  * cada requisicao JSON-RPC vira um processo `node server.js` efemero.
  * Fonte: implementação.txt (22/10/2026), codigo testado contra o server.js real
  * (26 verificacoes automaticas passaram). Adaptacao local: candidatos do SERVER_JS.
  *
  * Variaveis de ambiente:
- *   PUBLIC_URL        (obrigatoria) URL publica HTTPS sem barra final, ex.: https://escrivao.exemplo.com.br
+ *   PUBLIC_URL        (obrigatoria) URL publica HTTPS sem barra final, ex.: https://capivaradigital.exemplo.com.br
  *   ADMIN_PASSWORD    (obrigatoria) senha pedida na tela de consentimento OAuth
  *   PORT              porta local (padrao 8787)
  *   HOST              interface local (padrao 127.0.0.1; atras de proxy reverso/tunel)
- *   SERVER_JS         caminho do server.js (padrao ./server.js, ./escrivao-mcp/server.js ou ../escrivao-mcp/server.js)
+ *   SERVER_JS         caminho do server.js (padrao ./server.js, ./capivaradigital-mcp/server.js ou ../capivaradigital-mcp/server.js)
  *   STATE_FILE        arquivo JSON para clientes/refresh tokens (padrao ./oauth-state.json)
  *   DISABLE_TOOLS     ferramentas bloqueadas, separadas por virgula
  *                     (padrao: mcp_atualizar,guia_instalacao)
@@ -41,7 +41,7 @@ const NO_LOGIN_SECRET = process.env.NO_LOGIN_SECRET || '';
 const DISABLED = new Set((process.env.DISABLE_TOOLS === undefined ? 'mcp_atualizar,guia_instalacao' : process.env.DISABLE_TOOLS)
   .split(',').map(s => s.trim()).filter(Boolean));
 const SERVER_JS = process.env.SERVER_JS ||
-  [path.join(__dirname, 'server.js'), path.join(__dirname, 'escrivao-mcp', 'server.js'), path.join(__dirname, '..', 'escrivao-mcp', 'server.js')].find(p => fs.existsSync(p)) || '';
+  [path.join(__dirname, 'server.js'), path.join(__dirname, 'capivaradigital-mcp', 'server.js'), path.join(__dirname, '..', 'capivaradigital-mcp', 'server.js')].find(p => fs.existsSync(p)) || '';
 
 const ALLOWED_REDIRECTS = ['https://claude.ai/api/mcp/auth_callback'];
 const ACCESS_TTL = 3600;                 // 1 h
@@ -50,10 +50,10 @@ const CODE_TTL = 300;                    // 5 min
 const MAX_BODY = 1024 * 1024;
 
 if (!PUBLIC_URL || !/^https:\/\//.test(PUBLIC_URL) && !/^http:\/\/localhost/.test(PUBLIC_URL)) {
-  console.error('ERRO: defina PUBLIC_URL com a URL publica HTTPS (ex.: https://escrivao.exemplo.com.br).'); process.exit(1);
+  console.error('ERRO: defina PUBLIC_URL com a URL publica HTTPS (ex.: https://capivaradigital.exemplo.com.br).'); process.exit(1);
 }
 if (ADMIN_PASSWORD.length < 12) { console.error('ERRO: defina ADMIN_PASSWORD com pelo menos 12 caracteres.'); process.exit(1); }
-if (!SERVER_JS || !fs.existsSync(SERVER_JS)) { console.error('ERRO: server.js do escrivao nao encontrado. Defina SERVER_JS.'); process.exit(1); }
+if (!SERVER_JS || !fs.existsSync(SERVER_JS)) { console.error('ERRO: server.js do capivaradigital nao encontrado. Defina SERVER_JS.'); process.exit(1); }
 
 /* ---------------- estado persistente (clientes DCR + refresh tokens) ---------------- */
 let state = { clients: {}, refresh: {} };
@@ -117,7 +117,7 @@ function ok(ip) { attempts.delete(ip); }
 /* ---------------- metadados de descoberta ---------------- */
 const MCP_URL = PUBLIC_URL + '/mcp';
 function protectedResourceMeta() {
-  return { resource: MCP_URL, authorization_servers: [PUBLIC_URL], bearer_methods_supported: ['header'], scopes_supported: ['mcp'], resource_name: 'escrivao' };
+  return { resource: MCP_URL, authorization_servers: [PUBLIC_URL], bearer_methods_supported: ['header'], scopes_supported: ['mcp'], resource_name: 'capivaradigital' };
 }
 function authServerMeta() {
   return {
@@ -156,12 +156,12 @@ function loginPage(p, msg) {
   const hidden = ['client_id', 'redirect_uri', 'state', 'code_challenge', 'code_challenge_method', 'scope', 'response_type', 'resource']
     .map(k => `<input type="hidden" name="${k}" value="${esc(p[k] || '')}">`).join('');
   let host = ''; try { host = new URL(p.redirect_uri).hostname; } catch (e) { /* ignora */ }
-  return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Autorizar escrivao</title>
+  return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Autorizar capivaradigital</title>
 <style>body{font-family:system-ui,sans-serif;background:#f5f5f5;color:#333;display:grid;place-items:center;min-height:100vh;margin:0}
 main{background:#fff;padding:28px;border-radius:12px;max-width:380px;width:calc(100% - 32px);box-shadow:0 2px 12px #0002}
 h1{font-size:1.2rem;margin:0 0 8px}p{color:#555;line-height:1.5;font-size:.95rem}input[type=password]{width:100%;padding:12px;margin:8px 0 14px;border:1px solid #bbb;border-radius:8px;font-size:1rem;box-sizing:border-box}
 button{width:100%;padding:12px;border:0;border-radius:8px;background:#28a745;color:#fff;font-size:1rem;cursor:pointer}.err{color:#d32f2f;font-weight:600}</style></head>
-<body><main><h1>Autorizar o conector escrivao</h1>
+<body><main><h1>Autorizar o conector capivaradigital</h1>
 <p>O aplicativo <strong>${esc(host)}</strong> quer acessar as ferramentas de OSINT judicial deste servidor. Informe a senha de administrador para permitir.</p>
 ${msg ? `<p class="err">${esc(msg)}</p>` : ''}
 <form method="post" action="/authorize">${hidden}<input type="password" name="password" autocomplete="current-password" placeholder="Senha" required autofocus><button type="submit">Autorizar</button></form></main></body></html>`;
@@ -253,7 +253,7 @@ async function handleRpc(msg) {
   if (msg.method === 'initialize') {                                         // respondida aqui: negocia a versao do cliente
     const want = msg.params && msg.params.protocolVersion;
     const known = ['2025-11-25', '2025-06-18', '2025-03-26', '2024-11-05'];
-    return { jsonrpc: '2.0', id: msg.id, result: { protocolVersion: known.includes(want) ? want : known[0], capabilities: { tools: {} }, serverInfo: { name: 'escrivao', version: 'http-bridge-1.0' } } };
+    return { jsonrpc: '2.0', id: msg.id, result: { protocolVersion: known.includes(want) ? want : known[0], capabilities: { tools: {} }, serverInfo: { name: 'capivaradigital', version: 'http-bridge-1.0' } } };
   }
   if (msg.method === 'ping') return { jsonrpc: '2.0', id: msg.id, result: {} };
   if (msg.method === 'tools/call') {
@@ -303,4 +303,4 @@ const server = http.createServer(async (req, res) => {
 server.requestTimeout = TOOL_TIMEOUT_MS + 20000;
 server.headersTimeout = 30000;
 server.keepAliveTimeout = 65000;
-server.listen(PORT, HOST, () => console.log(`escrivao-http ouvindo em ${HOST}:${PORT} | conector: ${MCP_URL} | desativadas: ${[...DISABLED].join(',') || '-'}`));
+server.listen(PORT, HOST, () => console.log(`capivaradigital-http ouvindo em ${HOST}:${PORT} | conector: ${MCP_URL} | desativadas: ${[...DISABLED].join(',') || '-'}`));
