@@ -17,6 +17,11 @@
  *   STATE_FILE        arquivo JSON para clientes/refresh tokens (padrao ./oauth-state.json)
  *   DISABLE_TOOLS     ferramentas bloqueadas, separadas por virgula
  *                     (padrao: mcp_atualizar,guia_instalacao)
+ *   NO_LOGIN_SECRET   modo SEM LOGIN (claude.ai "Sem login"): se definido, o
+ *                     caminho /mcp/<NO_LOGIN_SECRET> aceita requisicoes SEM
+ *                     OAuth. O /mcp puro continua exigindo token. Quem tiver
+ *                     a URL completa tem acesso — mais fraco que OAuth
+ *                     (a URL pode vazar em logs), use com segredo longo.
  *   TOOL_TIMEOUT_MS   limite por chamada (padrao 280000; o claude.ai desiste em 300 s)
  *   EXA_API_KEY, DATAJUD_API_KEY   repassadas ao server.js quando definidas
  */
@@ -32,6 +37,7 @@ const PORT = parseInt(process.env.PORT || '8787', 10);
 const HOST = process.env.HOST || '127.0.0.1';
 const STATE_FILE = process.env.STATE_FILE || path.join(__dirname, 'oauth-state.json');
 const TOOL_TIMEOUT_MS = parseInt(process.env.TOOL_TIMEOUT_MS || '280000', 10);
+const NO_LOGIN_SECRET = process.env.NO_LOGIN_SECRET || '';
 const DISABLED = new Set((process.env.DISABLE_TOOLS === undefined ? 'mcp_atualizar,guia_instalacao' : process.env.DISABLE_TOOLS)
   .split(',').map(s => s.trim()).filter(Boolean));
 const SERVER_JS = process.env.SERVER_JS ||
@@ -288,6 +294,7 @@ const server = http.createServer(async (req, res) => {
     if (p === '/authorize' && (req.method === 'GET' || req.method === 'POST')) return await authorize(req, res, url, ip);
     if (p === '/token' && req.method === 'POST') return await token(req, res);
     if (p === '/mcp') { if (!authed(req)) return unauthorized(res); return await mcp(req, res); }
+    if (NO_LOGIN_SECRET && p === '/mcp/' + NO_LOGIN_SECRET) return await mcp(req, res);
     json(res, 404, { error: 'not_found' });
   } catch (e) {
     if (!res.headersSent) json(res, e.status || 500, { error: 'server_error', error_description: String(e.message || e) });
