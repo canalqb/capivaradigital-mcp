@@ -1,0 +1,1158 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dossiê de Investigação — {{NOME_PESQUISADO}} — {{CPF_PESQUISADO}}</title>
+<meta name="description" content="Dossiê de auditoria pré-contratual gerado pelo Capivaradigital-MCP v9.4">
+<meta name="generator" content="Capivaradigital-MCP Gerenciamento de consultas públicas">
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://cdnjs.cloudflare.com">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkcmfRyVX3pBnMFcV7oQPJkl9QevSCWr3W6A==" crossorigin="anonymous" referrerpolicy="no-referrer">
+<style>
+/* ===== CAPITVARADIGITAL-MCP REPORT TEMPLATE v9.4 ===== */
+/* CSS Variables for theming */
+:root {
+  --color-bg: #fafafa;
+  --color-surface: #ffffff;
+  --color-text: #1a1a2e;
+  --color-text-muted: #555;
+  --color-primary: #1e3a5f;
+  --color-primary-light: #2d5a8a;
+  --color-accent: #c0392b;
+  --color-border: #e0e0e0;
+  --color-border-focus: #1e3a5f;
+  --color-success: #27ae60;
+  --color-warning: #f39c12;
+  --color-danger: #c0392b;
+  --color-info: #2980b9;
+  --font-sans: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+  --spacing-xs: 0.25rem;
+  --spacing-sm: 0.5rem;
+  --spacing-md: 1rem;
+  --spacing-lg: 1.5rem;
+  --spacing-xl: 2rem;
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.08);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.1);
+  --shadow-lg: 0 8px 24px rgba(0,0,0,0.12);
+  --transition: 0.2s ease;
+}
+
+/* Dark theme */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-bg: #121212;
+    --color-surface: #1e1e1e;
+    --color-text: #eaeaea;
+    --color-text-muted: #aaa;
+    --color-primary: #4a90d9;
+    --color-primary-light: #6bb3e0;
+    --color-accent: #e74c3c;
+    --color-border: #333;
+    --color-border-focus: #4a90d9;
+    --shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
+    --shadow-md: 0 4px 12px rgba(0,0,0,0.4);
+    --shadow-lg: 0 8px 24px rgba(0,0,0,0.5);
+  }
+}
+
+/* Manual theme override */
+html[data-theme="light"] {
+  --color-bg: #fafafa;
+  --color-surface: #ffffff;
+  --color-text: #1a1a2e;
+  --color-text-muted: #555;
+  --color-primary: #1e3a5f;
+  --color-primary-light: #2d5a8a;
+  --color-accent: #c0392b;
+  --color-border: #e0e0e0;
+  --color-border-focus: #1e3a5f;
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.08);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.1);
+  --shadow-lg: 0 8px 24px rgba(0,0,0,0.12);
+}
+html[data-theme="dark"] {
+  --color-bg: #121212;
+  --color-surface: #1e1e1e;
+  --color-text: #eaeaea;
+  --color-text-muted: #aaa;
+  --color-primary: #4a90d9;
+  --color-primary-light: #6bb3e0;
+  --color-accent: #e74c3c;
+  --color-border: #333;
+  --color-border-focus: #4a90d9;
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.4);
+  --shadow-lg: 0 8px 24px rgba(0,0,0,0.5);
+}
+
+/* Reset & Base */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; font-size: 16px; }
+body {
+  font-family: var(--font-sans);
+  background: var(--color-bg);
+  color: var(--color-text);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+a { color: var(--color-primary); text-decoration: none; transition: color var(--transition); }
+a:hover { color: var(--color-accent); text-decoration: underline; }
+a:focus-visible { outline: 2px solid var(--color-border-focus); outline-offset: 2px; border-radius: 2px; }
+img { max-width: 100%; height: auto; display: block; }
+button { font-family: inherit; cursor: pointer; border: none; background: none; }
+input, select, textarea { font-family: inherit; font-size: inherit; }
+
+/* Skip Link */
+.skip-link {
+  position: absolute; top: -100%; left: 50%; transform: translateX(-50%);
+  background: var(--color-primary); color: #fff; padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--radius-md); z-index: 10000; font-weight: 600;
+}
+.skip-link:focus { top: var(--spacing-md); }
+
+/* Layout */
+.post-container { max-width: 900px; margin: 0 auto; padding: var(--spacing-xl) var(--spacing-md); }
+
+/* Topbar */
+.post-topbar {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: var(--spacing-md) var(--spacing-lg);
+  background: var(--color-surface); border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg); margin-bottom: var(--spacing-lg);
+  box-shadow: var(--shadow-sm); flex-wrap: wrap; gap: var(--spacing-sm);
+}
+.post-brand { display: flex; align-items: center; gap: var(--spacing-sm); font-weight: 700; font-size: 1.1rem; color: var(--color-primary); }
+.post-brand i { font-size: 1.3rem; }
+.theme-toggle {
+  display: flex; align-items: center; justify-content: center;
+  width: 44px; height: 44px; border-radius: 50%;
+  background: var(--color-bg); border: 1px solid var(--color-border);
+  color: var(--color-text); transition: all var(--transition);
+}
+.theme-toggle:hover { background: var(--color-primary); color: #fff; border-color: var(--color-primary); }
+
+/* Navigation */
+.post-nav {
+  position: sticky; top: 0; z-index: 100;
+  background: var(--color-surface); border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg); padding: var(--spacing-sm);
+  margin-bottom: var(--spacing-lg); box-shadow: var(--shadow-sm);
+  overflow-x: auto; white-space: nowrap;
+}
+.post-nav ul { display: flex; gap: var(--spacing-xs); list-style: none; flex-wrap: wrap; }
+.post-nav a {
+  display: inline-flex; align-items: center; gap: var(--spacing-xs);
+  padding: var(--spacing-xs) var(--spacing-md); border-radius: var(--radius-md);
+  color: var(--color-text-muted); font-size: 0.875rem; font-weight: 500;
+  transition: all var(--transition); white-space: nowrap;
+}
+.post-nav a:hover, .post-nav a.active { background: var(--color-primary); color: #fff; text-decoration: none; }
+.post-nav i { font-size: 0.75rem; }
+
+/* Hero */
+.post-hero {
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-light) 100%);
+  color: #fff; border-radius: var(--radius-lg); padding: var(--spacing-xl);
+  margin-bottom: var(--spacing-lg); position: relative; overflow: hidden;
+}
+.post-hero::before {
+  content: ''; position: absolute; top: -50%; right: -10%; width: 200%; height: 200%;
+  background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+  pointer-events: none;
+}
+.post-badges { display: flex; flex-wrap: wrap; gap: var(--spacing-sm); margin-bottom: var(--spacing-md); }
+.badge {
+  display: inline-flex; align-items: center; gap: var(--spacing-xs);
+  padding: var(--spacing-xs) var(--spacing-sm); border-radius: 999px;
+  font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;
+  background: rgba(255,255,255,0.2); backdrop-filter: blur(4px);
+}
+.badge.confirmed { background: rgba(39,174,96,0.3); border: 1px solid rgba(39,174,96,0.5); }
+.badge.probable { background: rgba(243,156,18,0.3); border: 1px solid rgba(243,156,18,0.5); }
+.badge.no-doc { background: rgba(192,57,43,0.3); border: 1px solid rgba(192,57,43,0.5); }
+.post-hero h1 { font-size: clamp(1.75rem, 4vw, 2.5rem); font-weight: 700; margin-bottom: var(--spacing-sm); line-height: 1.2; }
+.post-lead { font-size: 1.1rem; opacity: 0.95; margin-bottom: var(--spacing-md); max-width: 700px; }
+.post-meta { display: flex; flex-wrap: wrap; gap: var(--spacing-lg); font-size: 0.875rem; opacity: 0.9; }
+.post-meta item { display: flex; align-items: center; gap: var(--spacing-xs); }
+
+/* TL;DR */
+.post-tldr {
+  background: var(--color-surface); border: 1px solid var(--color-border);
+  border-left: 4px solid var(--color-primary); border-radius: var(--radius-md);
+  padding: var(--spacing-md) var(--spacing-lg); margin-bottom: var(--spacing-lg);
+}
+.post-tldr summary { cursor: pointer; font-weight: 600; display: flex; align-items: center; gap: var(--spacing-sm); color: var(--color-primary); }
+.post-tldr summary::-webkit-details-marker { display: none; }
+.post-tldr summary::before { content: '\f070'; font-family: 'Font Awesome 6 Free'; font-weight: 900; font-size: 0.875rem; transition: transform var(--transition); }
+.post-tldr[open] summary::before { transform: rotate(180deg); }
+.post-tldr-content { margin-top: var(--spacing-md); display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--spacing-md); }
+.tldr-bullet { display: flex; align-items: flex-start; gap: var(--spacing-sm); padding: var(--spacing-sm); background: var(--color-bg); border-radius: var(--radius-sm); }
+.tldr-bullet i { color: var(--color-primary); margin-top: 2px; font-size: 0.875rem; }
+.tldr-bullet strong { display: block; font-size: 0.875rem; margin-bottom: 2px; }
+.tldr-bullet span { font-size: 0.875rem; color: var(--color-text-muted); }
+
+/* KPIs Block (mandatory post-TL;DR) */
+.post-kpis {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: var(--spacing-md);
+  margin-bottom: var(--spacing-lg);
+}
+.post-kpi {
+  background: var(--color-surface); border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg); padding: var(--spacing-lg); text-align: center;
+  transition: transform var(--transition), box-shadow var(--transition);
+}
+.post-kpi:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+.post-kpi strong { display: block; font-size: 2rem; font-weight: 700; color: var(--color-primary); line-height: 1.2; }
+.post-kpi span { display: block; margin-top: var(--spacing-xs); font-size: 0.875rem; color: var(--color-text-muted); }
+.post-kpi .source { display: block; margin-top: var(--spacing-xs); font-size: 0.75rem; color: var(--color-primary-light); font-weight: 500; }
+
+/* Sections */
+.post-section {
+  background: var(--color-surface); border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg); margin-bottom: var(--spacing-lg); overflow: hidden;
+}
+.post-section-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: var(--spacing-md) var(--spacing-lg); background: var(--color-bg);
+  border-bottom: 1px solid var(--color-border); flex-wrap: wrap; gap: var(--spacing-sm);
+}
+.post-section-header h2 { font-size: 1.25rem; font-weight: 600; color: var(--color-primary); display: flex; align-items: center; gap: var(--spacing-sm); }
+.post-section-header h2 i { font-size: 1.1rem; }
+.section-status {
+  display: inline-flex; align-items: center; gap: var(--spacing-xs);
+  padding: var(--spacing-xs) var(--spacing-sm); border-radius: 999px;
+  font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
+}
+.section-status.pending { background: var(--color-border); color: var(--color-text-muted); }
+.section-status.in-progress { background: rgba(41,128,185,0.15); color: var(--color-info); }
+.section-status.waiting-source { background: rgba(243,156,18,0.15); color: var(--color-warning); }
+.section-status.validated { background: rgba(39,174,96,0.15); color: var(--color-success); }
+.section-status.completed { background: rgba(30,58,95,0.15); color: var(--color-primary); }
+.post-section[aria-hidden="true"] { display: none; }
+.post-section-content { padding: var(--spacing-lg); }
+
+/* Answer Block */
+.post-answer {
+  background: linear-gradient(90deg, var(--color-primary) 0%, var(--color-primary-light) 100%);
+  color: #fff; border-radius: var(--radius-md); padding: var(--spacing-md) var(--spacing-lg);
+  margin-bottom: var(--spacing-lg); font-size: 0.95rem; line-height: 1.7;
+  box-shadow: var(--shadow-sm);
+}
+.post-answer strong { color: #fff; }
+
+/* Tables */
+.post-table-wrap { overflow-x: auto; margin: var(--spacing-md) 0; }
+.post-table { width: 100%; border-collapse: collapse; font-size: 0.875rem; min-width: 600px; }
+.post-table th, .post-table td { padding: var(--spacing-sm) var(--spacing-md); text-align: left; border-bottom: 1px solid var(--color-border); vertical-align: top; }
+.post-table th { background: var(--color-bg); font-weight: 600; color: var(--color-primary); white-space: nowrap; cursor: pointer; user-select: none; position: sticky; top: 0; z-index: 10; }
+.post-table th:hover { background: var(--color-border); }
+.post-table th[aria-sort="ascending"]::after { content: '\f0de'; font-family: 'Font Awesome 6 Free'; font-weight: 900; margin-left: var(--spacing-xs); font-size: 0.7rem; }
+.post-table th[aria-sort="descending"]::after { content: '\f0dd'; font-family: 'Font Awesome 6 Free'; font-weight: 900; margin-left: var(--spacing-xs); font-size: 0.7rem; }
+.post-table tr:hover td { background: var(--color-bg); }
+.post-table .badge-cell { white-space: nowrap; }
+.post-filters { display: flex; flex-wrap: wrap; gap: var(--spacing-sm); margin-bottom: var(--spacing-md); align-items: center; }
+.post-filters label { display: flex; align-items: center; gap: var(--spacing-xs); font-size: 0.875rem; color: var(--color-text-muted); }
+.post-filters input, .post-filters select { padding: var(--spacing-xs) var(--spacing-sm); border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-surface); color: var(--color-text); }
+.post-filters input:focus, .post-filters select:focus { outline: none; border-color: var(--color-border-focus); }
+.table-counter { margin-left: auto; font-size: 0.875rem; color: var(--color-text-muted); }
+
+/* Cards Grid */
+.post-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: var(--spacing-md); }
+.post-card {
+  background: var(--color-bg); border: 1px solid var(--color-border);
+  border-radius: var(--radius-md); padding: var(--spacing-md); transition: all var(--transition);
+}
+.post-card:hover { border-color: var(--color-primary); box-shadow: var(--shadow-md); }
+.post-card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: var(--spacing-sm); }
+.post-card-title { font-weight: 600; color: var(--color-primary); font-size: 0.95rem; }
+.post-card-meta { font-size: 0.75rem; color: var(--color-text-muted); display: flex; gap: var(--spacing-md); flex-wrap: wrap; }
+.post-card-body { font-size: 0.875rem; line-height: 1.6; }
+.post-card-footer { margin-top: var(--spacing-sm); padding-top: var(--spacing-sm); border-top: 1px solid var(--color-border); display: flex; gap: var(--spacing-sm); flex-wrap: wrap; }
+.post-card-link { display: inline-flex; align-items: center; gap: var(--spacing-xs); font-size: 0.8rem; color: var(--color-primary); font-weight: 500; }
+
+/* FAQ */
+.post-faq { border: 1px solid var(--color-border); border-radius: var(--radius-md); overflow: hidden; }
+.post-faq summary { padding: var(--spacing-md) var(--spacing-lg); background: var(--color-bg); cursor: pointer; font-weight: 600; display: flex; align-items: center; justify-content: space-between; color: var(--color-primary); }
+.post-faq summary::-webkit-details-marker { display: none; }
+.post-faq summary::after { content: '\f078'; font-family: 'Font Awesome 6 Free'; font-weight: 900; font-size: 0.75rem; transition: transform var(--transition); }
+.post-faq[open] summary::after { transform: rotate(180deg); }
+.post-faq-content { padding: var(--spacing-md) var(--spacing-lg); line-height: 1.7; }
+.post-faq-content p { margin-bottom: var(--spacing-sm); }
+.post-faq-content p:last-child { margin-bottom: 0; }
+
+/* Progress Bar */
+.post-progress { height: 4px; background: var(--color-border); border-radius: 2px; overflow: hidden; margin-bottom: var(--spacing-lg); }
+.post-progress-bar { height: 100%; background: linear-gradient(90deg, var(--color-primary), var(--color-primary-light)); border-radius: 2px; transition: width 0.3s ease; }
+
+/* Footer */
+.post-footer {
+  border-top: 2px solid var(--color-border); padding-top: var(--spacing-xl); margin-top: var(--spacing-xl);
+}
+.post-signature {
+  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--spacing-md); margin-bottom: var(--spacing-lg);
+}
+.post-signature-brand { display: flex; align-items: center; gap: var(--spacing-sm); font-weight: 600; color: var(--color-primary); }
+.post-signature-brand i { font-size: 1.2rem; }
+.post-signature-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; font-size: 0.8rem; color: var(--color-text-muted); text-align: right; }
+.ld-json { display: none; }
+
+/* Print Footer Audit */
+.print-footer-audit { display: none; }
+@media print {
+  .post-topbar, .post-nav, .theme-toggle, .post-progress, .post-filters, .post-card-link, .theme-toggle { display: none !important; }
+  .post-section { break-inside: avoid; page-break-inside: avoid; border: 1px solid #ccc; }
+  .post-hero { background: var(--color-primary) !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .post-kpi { border: 1px solid #ccc; }
+  .print-footer-audit {
+    display: block; position: fixed; bottom: 0; left: 0; right: 0;
+    background: #f5f5f5; border-top: 1px solid #ccc; padding: var(--spacing-sm) var(--spacing-md);
+    font-size: 0.7rem; color: #666; text-align: center; z-index: 1000;
+  }
+  @page { margin: 2cm; size: A4; }
+  body { background: #fff; }
+}
+
+/* Responsive */
+@media (max-width: 600px) {
+  .post-container { padding: var(--spacing-md) var(--spacing-sm); }
+  .post-hero { padding: var(--spacing-lg); }
+  .post-section-content { padding: var(--spacing-md); }
+  .post-nav { padding: var(--spacing-xs); }
+  .post-nav a { padding: var(--spacing-xs) var(--spacing-sm); font-size: 0.8rem; }
+  .post-kpis { grid-template-columns: 1fr 1fr; }
+  .post-kpi strong { font-size: 1.5rem; }
+  .tldr-bullet { flex-direction: column; align-items: flex-start; }
+}
+
+/* Utility */
+.visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+.text-center { text-align: center; }
+.text-muted { color: var(--color-text-muted); }
+.mt-sm { margin-top: var(--spacing-sm); }
+.mt-md { margin-top: var(--spacing-md); }
+.mt-lg { margin-top: var(--spacing-lg); }
+.mb-sm { margin-bottom: var(--spacing-sm); }
+.mb-md { margin-bottom: var(--spacing-md); }
+.mb-lg { margin-bottom: var(--spacing-lg); }
+</style>
+</head>
+<body>
+<a href="#main-content" class="skip-link">Pular para o conteúdo principal</a>
+
+<div class="post-container">
+  <!-- Progress Bar -->
+  <div class="post-progress" role="progressbar" aria-valuenow="{{PROGRESS_CURRENT}}" aria-valuemin="0" aria-valuemax="{{PROGRESS_TOTAL}}" aria-label="Progresso do dossiê">
+    <div class="post-progress-bar" style="width: {{PROGRESS_PERCENT}}%"></div>
+  </div>
+
+  <!-- Topbar -->
+  <header class="post-topbar" role="banner">
+    <div class="post-brand">
+      <i class="fa-solid fa-shield-halved"></i>
+      <span>Capivaradigital-MCP Gerenciamento de consultas públicas</span>
+    </div>
+    <button class="theme-toggle" id="themeToggle" aria-label="Alternar tema" title="Alternar tema claro/escuro">
+      <i class="fa-solid fa-sun" id="themeIconSun" style="display: none;"></i>
+      <i class="fa-solid fa-moon" id="themeIconMoon" style="display: none;"></i>
+    </button>
+  </header>
+
+  <!-- Navigation -->
+  <nav class="post-nav" aria-label="Índice do dossiê">
+    <ul>
+      <li><a href="#identificacao" data-section="identificacao"><i class="fa-solid fa-id-card"></i> Identificação</a></li>
+      <li><a href="#ficha-identificacao" data-section="ficha-identificacao"><i class="fa-solid fa-user"></i> Ficha de Identificação</a></li>
+      <li><a href="#processos-cpf" data-section="processos-cpf"><i class="fa-solid fa-gavel"></i> Processos por CPF</a></li>
+      <li><a href="#processos-cnpj" data-section="processos-cnpj"><i class="fa-solid fa-building"></i> Processos por CNPJ</a></li>
+      <li><a href="#diarios-oficiais" data-section="diarios-oficiais"><i class="fa-solid fa-newspaper"></i> Diários Oficiais</a></li>
+      <li><a href="#cadastros-publicos" data-section="cadastros-publicos"><i class="fa-solid fa-database"></i> Cadastros Públicos</a></li>
+      <li><a href="#redes-sociais" data-section="redes-sociais"><i class="fa-solid fa-globe"></i> Redes Sociais</a></li>
+      <li><a href="#curriculo" data-section="curriculo"><i class="fa-solid fa-graduation-cap"></i> Currículo e Certificados</a></li>
+      <li><a href="#vinculos" data-section="vinculos"><i class="fa-solid fa-briefcase"></i> Vínculos Empregatícios</a></li>
+      <li><a href="#detalhes-crime" data-section="detalhes-crime"><i class="fa-solid fa-scale-balanced"></i> Detalhes de Crime</a></li>
+      <li><a href="#movimentacao" data-section="movimentacao"><i class="fa-solid fa-timeline"></i> Movimentação Integral</a></li>
+      <li><a href="#sem-documento" data-section="sem-documento"><i class="fa-solid fa-ban"></i> Sem Documento Cruzado</a></li>
+      <li><a href="#pendencias" data-section="pendencias"><i class="fa-solid fa-clipboard-list"></i> Pendências</a></li>
+      <li><a href="#limites" data-section="limites"><i class="fa-solid fa-triangle-exclamation"></i> Limites Declarados</a></li>
+      <li><a href="#fontes" data-section="fontes"><i class="fa-solid fa-link"></i> Fontes e Status</a></li>
+    </ul>
+  </nav>
+
+  <!-- Hero -->
+  <section class="post-hero" aria-labelledby="hero-title">
+    <div class="post-badges">
+      <span class="badge confirmed" id="badgeConfirmed"><i class="fa-solid fa-check-circle"></i> CONFIRMADO: <span id="countConfirmed">0</span></span>
+      <span class="badge probable" id="badgeProbable"><i class="fa-solid fa-circle-question"></i> PROVÁVEL: <span id="countProbable">0</span></span>
+      <span class="badge no-doc" id="badgeNoDoc"><i class="fa-solid fa-circle-xmark"></i> SEM DOCUMENTO: <span id="countNoDoc">0</span></span>
+    </div>
+    <h1 id="hero-title">{{NOME_PESQUISADO}}</h1>
+    <p class="post-lead">Dossiê de auditoria pré-contratual — Investigação baseada em documento (CPF: {{CPF_PESQUISADO}})</p>
+    <div class="post-meta">
+      <item><i class="fa-solid fa-calendar"></i> Gerado em: {{DATA_GERACAO}}</item>
+      <item><i class="fa-solid fa-gear"></i> Versão: 9.4</item>
+      <item><i class="fa-solid fa-server"></i> Capivaradigital-MCP</item>
+      <item><i class="fa-solid fa-user"></i> Titular da investigação: {{TITULAR_INVESTIGACAO}}</item>
+    </div>
+  </section>
+
+  <!-- TL;DR -->
+  <details class="post-tldr" open>
+    <summary><i class="fa-solid fa-circle-info"></i> Resumo Executivo (TL;DR)</summary>
+    <div class="post-tldr-content">
+      <div class="tldr-bullet"><i class="fa-solid fa-check"></i><div><strong>Âncora documental</strong><span>CPF {{CPF_PESQUISADO}} validado como documento base da investigação</span></div></div>
+      <div class="tldr-bullet"><i class="fa-solid fa-check"></i><div><strong>Ciclo PF↔PJ</strong><span>Executado: CPF → CNPJs vinculados (BrasilAPI) → CPFs do QSA (mascarados + quebra)</span></div></div>
+      <div class="tldr-bullet"><i class="fa-solid fa-check"></i><div><strong>Anti-homônimo</strong><span>Regra aplicada: achado por nome sem cruzamento de documento NUNCA entra na lista principal</span></div></div>
+    </div>
+  </details>
+
+  <!-- KPIs Block (Mandatory) -->
+  <section class="post-kpis" aria-label="Números do dossiê">
+    <div class="post-kpi"><strong id="kpiProcessosCpf">0</strong><span>Processos por CPF</span><span class="source">DataJud + e-SAJ</span></div>
+    <div class="post-kpi"><strong id="kpiProcessosCnpj">0</strong><span>Processos por CNPJ</span><span class="source">Ciclo PF↔PJ</span></div>
+    <div class="post-kpi"><strong id="kpiDiarios">0</strong><span>Publicações em Diários</span><span class="source">DJE-SP + DJEN + DOU</span></div>
+    <div class="post-kpi"><strong id="kpiVinculos">0</strong><span>Vínculos Empregatícios</span><span class="source">CAGED/RAIS (limite declarado)</span></div>
+    <div class="post-kpi"><strong id="kpiRedes">0</strong><span>Perfis Sociais</span><span class="source">WhatsMyName Scanner</span></div>
+    <div class="post-kpi"><strong id="kpiPendencias">0</strong><span>Pendências</span><span class="source">Próximos passos declarados</span></div>
+  </section>
+
+  <main id="main-content">
+
+    <!-- SECTION 1: Identificação -->
+    <section class="post-section" id="identificacao" aria-labelledby="sec1-title" data-section="identificacao">
+      <header class="post-section-header">
+        <h2 id="sec1-title"><i class="fa-solid fa-id-card"></i> Identificação do Pesquisado</h2>
+        <span class="section-status completed" id="status-identificacao">Concluída</span>
+      </header>
+      <div class="post-section-content">
+        <div class="post-answer">Esta seção apresenta os dados de identificação do pesquisado que servem de âncora documental para toda a investigação. O CPF é o documento base; todos os achados são cruzados com este identificador.</div>
+        <div class="post-table-wrap">
+          <table class="post-table" id="table-identificacao">
+            <thead><tr><th scope="col" data-sort>Campo</th><th scope="col" data-sort>Valor</th><th scope="col" data-sort>Fonte</th><th scope="col" data-sort>Confirmação</th></tr></thead>
+            <tbody>
+              <tr><td>Nome Completo</td><td>{{NOME_PESQUISADO}}</td><td>Documento base</td><td><span class="badge-cell badge confirmed">CONFIRMADO</span></td></tr>
+              <tr><td>CPF</td><td>{{CPF_PESQUISADO}}</td><td>Documento base</td><td><span class="badge-cell badge confirmed">CONFIRMADO</span></td></tr>
+              <tr><td>Data de Nascimento</td><td>{{DATA_NASCIMENTO}}</td><td>{{FONTE_NASCIMENTO}}</td><td><span class="badge-cell" id="badge-nascimento">{{CONF_NASCIMENTO}}</span></td></tr>
+              <tr><td>Nome da Mãe</td><td>{{NOME_MAE}}</td><td>{{FONTE_MAE}}</td><td><span class="badge-cell" id="badge-mae">{{CONF_MAE}}</span></td></tr>
+              <tr><td>Nome do Pai</td><td>{{NOME_PAI}}</td><td>{{FONTE_PAI}}</td><td><span class="badge-cell" id="badge-pai">{{CONF_PAI}}</span></td></tr>
+              <tr><td>Último Endereço Público</td><td>{{ULTIMO_ENDERECO}}</td><td>{{FONTE_ENDERECO}}</td><td><span class="badge-cell" id="badge-endereco">{{CONF_ENDERECO}}</span></td></tr>
+              <tr><td>Telefones</td><td>{{TELEFONES}}</td><td>{{FONTE_TELEFONES}}</td><td><span class="badge-cell" id="badge-telefones">{{CONF_TELEFONES}}</span></td></tr>
+              <tr><td>E-mails</td><td>{{EMAILS}}</td><td>{{FONTE_EMAILS}}</td><td><span class="badge-cell" id="badge-emails">{{CONF_EMAILS}}</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="post-filters">
+          <label><input type="search" id="filter-identificacao" placeholder="Filtrar tabela..."></label>
+          <span class="table-counter" id="counter-identificacao">8 registros</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 2: Ficha de Identificação (FASE 1B) -->
+    <section class="post-section" id="ficha-identificacao" aria-labelledby="sec2-title" data-section="ficha-identificacao">
+      <header class="post-section-header">
+        <h2 id="sec2-title"><i class="fa-solid fa-user"></i> Ficha de Identificação (FASE 1B)</h2>
+        <span class="section-status completed" id="status-ficha">Concluída</span>
+      </header>
+      <div class="post-section-content">
+        <div class="post-answer">Ficha completa de identificação do pesquisado contendo genitores, nascimento, filhos maiores, documentos descobertos, último endereço válido de registro público, telefones, e-mails e fontes por campo. A técnica dos 4 campos-chave (nome + CPF + nascimento + nome da mãe) desbloqueia consultas em portais de situação cadastral e títulos.</div>
+        <div class="post-cards" id="cards-ficha">
+          <!-- Cards gerados dinamicamente -->
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 3: Processos por CPF -->
+    <section class="post-section" id="processos-cpf" aria-labelledby="sec3-title" data-section="processos-cpf">
+      <header class="post-section-header">
+        <h2 id="sec3-title"><i class="fa-solid fa-gavel"></i> Processos por CPF (DataJud + e-SAJ)</h2>
+        <span class="section-status completed" id="status-processos-cpf">Concluída</span>
+      </header>
+      <div class="post-section-content">
+        <div class="post-answer">Busca de processos usando o CPF como âncora documental nos índices DataJud (partes.documento e partes.pessoa.documentoReplicado) e e-SAJ (DOCPARTE) nos tribunais TJSP, TJAL, TJCE. A API pública DataJud não publica mais o campo partes (verificado 24/10/2026); e-SAJ DOCPARTE é a palavra final por documento no TJSP.</div>
+        <div class="post-filters">
+          <label><input type="search" id="filter-processos-cpf" placeholder="Filtrar processos..."></label>
+          <label><select id="filter-tribunal-cpf"><option value="">Todos os tribunais</option><option value="tjsp">TJSP</option><option value="tjal">TJAL</option><option value="tjce">TJCE</option><option value="tjpr">TJPR</option><option value="tjsc">TJSC</option><option value="tjmg">TJMG</option><option value="tjsp-2g">TJSP 2º Grau</option></select></label>
+          <label><select id="filter-grau-cpf"><option value="">Todos os graus</option><option value="1">1º Grau</option><option value="2">2º Grau</option></select></label>
+          <span class="table-counter" id="counter-processos-cpf">0 processos</span>
+        </div>
+        <div class="post-table-wrap">
+          <table class="post-table" id="table-processos-cpf">
+            <thead>
+              <tr>
+                <th scope="col" data-sort>Número CNJ</th>
+                <th scope="col" data-sort>Tribunal</th>
+                <th scope="col" data-sort>Grau</th>
+                <th scope="col" data-sort>Classe</th>
+                <th scope="col" data-sort>Assunto</th>
+                <th scope="col" data-sort>Órgão Julgador</th>
+                <th scope="col" data-sort>Data Ajuizamento</th>
+                <th scope="col" data-sort>Situação</th>
+                <th scope="col" data-sort>Polo</th>
+                <th scope="col" data-sort>Confirmação</th>
+                <th scope="col" data-sort>Fonte</th>
+              </tr>
+            </thead>
+            <tbody>
+              <!-- Linhas preenchidas dinamicamente -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 4: Processos por CNPJ (Ciclo PF↔PJ) -->
+    <section class="post-section" id="processos-cnpj" aria-labelledby="sec4-title" data-section="processos-cnpj">
+      <header class="post-section-header">
+        <h2 id="sec4-title"><i class="fa-solid fa-building"></i> Processos por CNPJ — Ciclo PF↔PJ</h2>
+        <span class="section-status completed" id="status-processos-cnpj">Concluída</span>
+      </header>
+      <div class="post-section-content">
+        <div class="post-answer">Ciclo obrigatório PF↔PJ: a partir do CPF do pesquisado, buscamos CNPJs vinculados via BrasilAPI (razão social costuma embutir o CPF do titular). Com cada CNPJ, extraímos os CPFs mascarados do QSA e executamos cpf_desmascarar + datajud_por_cpf. CNPJ só entra no dossiê com âncora no CPF do pesquisado.</div>
+        <div class="post-cards" id="cards-cnpj">
+          <!-- Cards de CNPJ gerados dinamicamente -->
+        </div>
+        <div class="post-table-wrap">
+          <table class="post-table" id="table-processos-cnpj">
+            <thead>
+              <tr>
+                <th scope="col" data-sort>CNPJ</th>
+                <th scope="col" data-sort>Razão Social</th>
+                <th scope="col" data-sort>CPF no QSA (desmascarado)</th>
+                <th scope="col" data-sort>Processos Encontrados</th>
+                <th scope="col" data-sort>Confirmação</th>
+                <th scope="col" data-sort>Fonte</th>
+              </tr>
+            </thead>
+            <tbody>
+              <!-- Linhas preenchidas dinamicamente -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 5: Diários Oficiais -->
+    <section class="post-section" id="diarios-oficiais" aria-labelledby="sec5-title" data-section="diarios-oficiais">
+      <header class="post-section-header">
+        <h2 id="sec5-title"><i class="fa-solid fa-newspaper"></i> Diários Oficiais (DJE-SP, DJEN, DOU)</h2>
+        <span class="section-status completed" id="status-diarios">Concluída</span>
+      </header>
+      <div class="post-section-content">
+        <div class="post-answer">Busca textual no DJE-SP (01/10/2007 até última edição) via pipeline validado: POST consultaAvancada.do + paginação AJAX trocaDePagina.do. DJEN para intimações/comunicações oficiais. DOU para nomeações/exonerações. Regra anti-homônimo: publicação citando o pesquisado por nome EXIGE cruzamento por CPF/CNPJ ou número do processo.</div>
+        <div class="post-filters">
+          <label><input type="search" id="filter-diarios" placeholder="Filtrar publicações..."></label>
+          <label><select id="filter-diario-tipo"><option value="">Todos</option><option value="dje-sp">DJE-SP</option><option value="djen">DJEN</option><option value="dou">DOU</option></select></label>
+          <span class="table-counter" id="counter-diarios">0 publicações</span>
+        </div>
+        <div class="post-table-wrap">
+          <table class="post-table" id="table-diarios">
+            <thead>
+              <tr>
+                <th scope="col" data-sort>Data</th>
+                <th scope="col" data-sort>Diário</th>
+                <th scope="col" data-sort>Caderno</th>
+                <th scope="col" data-sort>Página</th>
+                <th scope="col" data-sort>Trecho</th>
+                <th scope="col" data-sort>Processos Citados</th>
+                <th scope="col" data-sort>PDF Oficial</th>
+                <th scope="col" data-sort>Confirmação</th>
+              </tr>
+            </thead>
+            <tbody>
+              <!-- Linhas preenchidas dinamicamente -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 6: Cadastros Públicos -->
+    <section class="post-section" id="cadastros-publicos" aria-labelledby="sec6-title" data-section="cadastros-publicos">
+      <header class="post-section-header">
+        <h2 id="sec6-title"><i class="fa-solid fa-database"></i> Cadastros Públicos (BrasilAPI, Receita Federal, CAGED/RAIS)</h2>
+        <span class="section-status completed" id="status-cadastros">Concluída</span>
+      </header>
+      <div class="post-section-content">
+        <div class="post-answer">Consultas em bases públicas: BrasilAPI (CNPJ → razão social, sócios, CNAE, situação, endereço), Receita Federal (situação cadastral CPF/CNPJ), CAGED/RAIS (vínculos empregatícios formais — limite declarado: apenas vínculos com empregador identificado em fonte pública).</div>
+        <div class="post-cards" id="cards-cadastros">
+          <!-- Cards gerados dinamicamente -->
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 7: Redes Sociais e Presença Digital -->
+    <section class="post-section" id="redes-sociais" aria-labelledby="sec7-title" data-section="redes-sociais">
+      <header class="post-section-header">
+        <h2 id="sec7-title"><i class="fa-solid fa-globe"></i> Redes Sociais e Presença Digital</h2>
+        <span class="section-status completed" id="status-redes">Concluída</span>
+      </header>
+      <div class="post-section-content">
+        <div class="post-answer">Scanner WhatsMyName (base pública github.com/WebBreacher/WhatsMyName) verifica perfis por nick em dezenas de redes. AVISO CRÍTICO: perfil EXISTENTE não é perfil DA PESSOA — nicks têm homônimos; valide por bio/foto/cidade/vínculos antes de atribuir (LGPD). Busca semântica via Exa API (requer EXA_API_KEY) para menções, notícias, homônimos.</div>
+        <div class="post-filters">
+          <label><input type="search" id="filter-redes" placeholder="Filtrar perfis..."></label>
+          <label><select id="filter-rede-status"><option value="">Todos</option><option value="exists">Existente</option><option value="missing">Ausente</option><option value="inconclusive">Inconclusivo</option></select></label>
+          <span class="table-counter" id="counter-redes">0 perfis</span>
+        </div>
+        <div class="post-table-wrap">
+          <table class="post-table" id="table-redes">
+            <thead>
+              <tr>
+                <th scope="col" data-sort>Rede Social</th>
+                <th scope="col" data-sort>URL do Perfil</th>
+                <th scope="col" data-sort>Status</th>
+                <th scope="col" data-sort>Validação Manual</th>
+                <th scope="col" data-sort>Observação</th>
+              </tr>
+            </thead>
+            <tbody>
+              <!-- Linhas preenchidas dinamicamente -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 8: Currículo e Certificados -->
+    <section class="post-section" id="curriculo" aria-labelledby="sec8-title" data-section="curriculo">
+      <header class="post-section-header">
+        <h2 id="sec8-title"><i class="fa-solid fa-graduation-cap"></i> Currículo e Certificados (e-MEC, Conselhos Profissionais)</h2>
+        <span class="section-status completed" id="status-curriculo">Concluída</span>
+      </header>
+      <div class="post-section-content">
+        <div class="post-answer">Validação de formação acadêmica via e-MEC (cursos reconhecidos, diplomas) e conselhos profissionais (CRM, OAB, CREA, CRC, etc.). Busca por nome completo + CPF + nascimento + nome da mãe (4 campos-chave) nos portais oficiais.</div>
+        <div class="post-table-wrap">
+          <table class="post-table" id="table-curriculo">
+            <thead>
+              <tr>
+                <th scope="col" data-sort>Instituição / Conselho</th>
+                <th scope="col" data-sort>Curso / Registro</th>
+                <th scope="col" data-sort>Situação</th>
+                <th scope="col" data-sort>Data</th>
+                <th scope="col" data-sort>Fonte</th>
+                <th scope="col" data-sort>Confirmação</th>
+              </tr>
+            </thead>
+            <tbody>
+              <!-- Linhas preenchidas dinamicamente -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 9: Vínculos Empregatícios -->
+    <section class="post-section" id="vinculos" aria-labelledby="sec9-title" data-section="vinculos">
+      <header class="post-section-header">
+        <h2 id="sec9-title"><i class="fa-solid fa-briefcase"></i> Vínculos Empregatícios (CAGED/RAIS + Cruzamento Processos)</h2>
+        <span class="section-status completed" id="status-vinculos">Concluída</span>
+      </header>
+      <div class="post-section-content">
+        <div class="post-answer">Levantamento de vínculos formais via CAGED/RAIS (limite declarado: apenas vínculos com empregador identificado em fonte pública). Cruzamento: empregador (CNPJ) × processos do pesquisado — identificação de conflitos de interesse, ações trabalhistas, etc.</div>
+        <div class="post-table-wrap">
+          <table class="post-table" id="table-vinculos">
+            <thead>
+              <tr>
+                <th scope="col" data-sort>Empregador</th>
+                <th scope="col" data-sort>CNPJ</th>
+                <th scope="col" data-sort>Admissão</th>
+                <th scope="col" data-sort>Desligamento</th>
+                <th scope="col" data-sort>Cargo</th>
+                <th scope="col" data-sort>Processos Relacionados</th>
+                <th scope="col" data-sort>Fonte</th>
+              </tr>
+            </thead>
+            <tbody>
+              <!-- Linhas preenchidas dinamicamente -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 10: Detalhes de Crime -->
+    <section class="post-section" id="detalhes-crime" aria-labelledby="sec10-title" data-section="detalhes-crime">
+      <header class="post-section-header">
+        <h2 id="sec10-title"><i class="fa-solid fa-scale-balanced"></i> Detalhes de Crime (Artigo + Rito como Hipótese)</h2>
+        <span class="section-status completed" id="status-crime">Concluída</span>
+      </header>
+      <div class="post-section-content">
+        <div class="post-answer">Identificação do artigo penal pelo assunto do processo (ex.: Art. 157 CP → Roubo). Rito processual como hipótese (comum, júri, especial). Denúncia exige acesso aos autos — não é pública. Marcação clara: hipótese baseada em assunto, não confirmação.</div>
+        <div class="post-cards" id="cards-crime">
+          <!-- Cards gerados dinamicamente -->
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 11: Movimentação Integral (Opcional) -->
+    <section class="post-section" id="movimentacao" aria-labelledby="sec11-title" data-section="movimentacao" aria-hidden="true">
+      <header class="post-section-header">
+        <h2 id="sec11-title"><i class="fa-solid fa-timeline"></i> Movimentação Integral dos Processos</h2>
+        <span class="section-status pending" id="status-movimentacao">Pendente</span>
+      </header>
+      <div class="post-section-content">
+        <div class="post-answer">Linha do tempo completa de movimentações dos processos principais (quando solicitado pelo titular). Extraída via DataJud (últimos movimentos) ou e-SAJ/DOCPARTE. Inclui datas, descrições, prazos e decisões.</div>
+        <div class="post-table-wrap">
+          <table class="post-table" id="table-movimentacao">
+            <thead>
+              <tr>
+                <th scope="col" data-sort>Processo</th>
+                <th scope="col" data-sort>Data</th>
+                <th scope="col" data-sort>Movimentação</th>
+                <th scope="col" data-sort>Complemento</th>
+              </tr>
+            </thead>
+            <tbody>
+              <!-- Linhas preenchidas dinamicamente -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 12: Achados sem Documento Cruzado (Controle Negativo) -->
+    <section class="post-section" id="sem-documento" aria-labelledby="sec12-title" data-section="sem-documento" aria-hidden="true">
+      <header class="post-section-header">
+        <h2 id="sec12-title"><i class="fa-solid fa-ban"></i> Achados sem Documento Cruzado — Controle Negativo</h2>
+        <span class="section-status completed" id="status-sem-documento">Concluída</span>
+      </header>
+      <div class="post-section-content">
+        <div class="post-answer">Registro de achados por nome que NÃO puderam ser cruzados com o CPF/CNPJ do pesquisado. Classificados como SEM DOCUMENTO (controle negativo com fonte e data). NUNCA entram na lista principal — regra anti-homônimo obrigatória. Mantidos apenas para auditoria e rastreabilidade.</div>
+        <div class="post-table-wrap">
+          <table class="post-table" id="table-sem-documento">
+            <thead>
+              <tr>
+                <th scope="col" data-sort>Achado</th>
+                <th scope="col" data-sort>Fonte</th>
+                <th scope="col" data-sort>Data da Consulta</th>
+                <th scope="col" data-sort>Motivo da Exclusão</th>
+                <th scope="col" data-sort>Próximo Passo</th>
+              </tr>
+            </thead>
+            <tbody>
+              <!-- Linhas preenchidas dinamicamente -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 13: Pendências e Próximos Passos -->
+    <section class="post-section" id="pendencias" aria-labelledby="sec13-title" data-section="pendencias">
+      <header class="post-section-header">
+        <h2 id="sec13-title"><i class="fa-solid fa-clipboard-list"></i> Pendências e Próximos Passos</h2>
+        <span class="section-status completed" id="status-pendencias">Concluída</span>
+      </header>
+      <div class="post-section-content">
+        <div class="post-answer">Declaração explícita de pendências com próximo passo e fonte. Nenhum pedido é respondido com "não é possível" antes de esgotar todas as rotas públicas gratuitas e declarar os limites com fonte.</div>
+        <div class="post-table-wrap">
+          <table class="post-table" id="table-pendencias">
+            <thead>
+              <tr>
+                <th scope="col" data-sort>Pendência</th>
+                <th scope="col" data-sort>Fonte Tentada</th>
+                <th scope="col" data-sort>Limite Identificado</th>
+                <th scope="col" data-sort>Próximo Passo</th>
+                <th scope="col" data-sort>Responsável</th>
+              </tr>
+            </thead>
+            <tbody>
+              <!-- Linhas preenchidas dinamicamente -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 14: Limites Declarados e Pedidos Fora do Escopo -->
+    <section class="post-section" id="limites" aria-labelledby="sec14-title" data-section="limites">
+      <header class="post-section-header">
+        <h2 id="sec14-title"><i class="fa-solid fa-triangle-exclamation"></i> Limites Declarados e Pedidos Fora do Escopo</h2>
+        <span class="section-status completed" id="status-limites">Concluída</span>
+      </header>
+      <div class="post-section-content">
+        <div class="post-answer">Todo pedido do titular que não pode ser atendido por via pública gratuita recebe aqui o limite declarado com a fonte (ex.: CAGED/RAIS são bases fechadas; teor da denúncia exige autos; TJSP suprime partes criminais na consulta anônima). Nenhum pedido recebe "não é possível" antes de esgotar as rotas públicas.</div>
+        <div class="post-table-wrap">
+          <table class="post-table" id="table-limites">
+            <thead>
+              <tr>
+                <th scope="col" data-sort>Pedido do Titular</th>
+                <th scope="col" data-sort>Rotas Públicas Tentadas</th>
+                <th scope="col" data-sort>Limite Declarado</th>
+                <th scope="col" data-sort>Fonte do Limite</th>
+              </tr>
+            </thead>
+            <tbody>
+              <!-- Linhas preenchidas dinamicamente -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 15: Fontes, Chaves de Consulta, Datas e Status por Fonte -->
+    <section class="post-section" id="fontes" aria-labelledby="sec15-title" data-section="fontes">
+      <header class="post-section-header">
+        <h2 id="sec15-title"><i class="fa-solid fa-link"></i> Fontes, Chaves de Consulta e Status por Fonte</h2>
+        <span class="section-status completed" id="status-fontes">Concluída</span>
+      </header>
+      <div class="post-section-content">
+        <div class="post-answer">Tabela "Status por fonte" obrigatória: cada fonte consultada recebe um estado — OK-0, OK-ACHADO, BLOQUEADO, SUPRIMIDO, DESATUALIZADO, NAO EXECUTADA ou FALHA — com data/hora e próximo passo. Estados BLOQUEADO/SUPRIMIDO/NAO EXECUTADA/FALHA/DESATUALIZADO proíbem a menção "controle negativo documentado" (usar "auditoria em curso, N pendências").</div>
+        <div class="post-table-wrap">
+          <table class="post-table" id="table-fontes">
+            <thead>
+              <tr>
+                <th scope="col" data-sort>Fonte</th>
+                <th scope="col" data-sort>Chave de Consulta</th>
+                <th scope="col" data-sort>Estado</th>
+                <th scope="col" data-sort>Data/Hora</th>
+                <th scope="col" data-sort>Próximo Passo</th>
+              </tr>
+            </thead>
+            <tbody>
+              <!-- Linhas preenchidas dinamicamente -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- FAQ -->
+  <section class="post-section" aria-labelledby="faq-title">
+    <header class="post-section-header">
+      <h2 id="faq-title"><i class="fa-solid fa-circle-question"></i> Perguntas Frequentes</h2>
+    </header>
+    <div class="post-section-content">
+      <details class="post-faq">
+        <summary>Este dossiê é uma certidão oficial ou parecer jurídico?</summary>
+        <div class="post-faq-content"><p><strong>Não.</strong> Este relatório é uma compilação de dados públicos para fins de auditoria pré-contratual (background check). Não substitui certidões oficiais, não constitui parecer jurídico e não deve ser usado como único critério de decisão.</p></div>
+      </details>
+      <details class="post-faq">
+        <summary>Por que alguns processos não aparecem na lista principal?</summary>
+        <div class="post-faq-content"><p>A regra anti-homônimo exige cruzamento por documento (CPF/CNPJ). Achados apenas por nome são classificados como "Sem Documento" e ficam na seção de controle negativo. Isso evita atribuição indevida a homônimos.</p></div>
+      </details>
+      <details class="post-faq">
+        <summary>O que significa CONFIRMADO, PROVÁVEL e SEM DOCUMENTO?</summary>
+        <div class="post-faq-content"><p><strong>CONFIRMADO:</strong> documento próprio do pesquisado batendo (CPF/CNPJ no polo). <strong>PROVÁVEL:</strong> fingerprint coerente (órgão+classe+assunto+datas) sem documento próprio. <strong>SEM DOCUMENTO:</strong> controle negativo — achado por nome sem cruzamento documental, mantido apenas para auditoria.</p></div>
+      </details>
+      <details class="post-faq">
+        <summary>Como funciona o ciclo PF↔PJ?</summary>
+        <div class="post-faq-content"><p>CPF do pesquisado → BrasilAPI busca CNPJs vinculados (razão social costuma embutir CPF) → para cada CNPJ, extrai CPFs mascarados do QSA → cpf_desmascarar quebra a máscara → datajud_por_cpf busca processos desses CPFs. CNPJ só entra no dossiê com âncora no CPF.</p></div>
+      </details>
+      <details class="post-faq">
+        <summary>Os dados sensíveis (LGPD) estão protegidos?</summary>
+        <div class="post-faq-content"><p>Este dossiê trata apenas de dados públicos oficiais. A LGPD é observada como advertência no README do projeto: finalidade exclusiva de auditoria pré-contratual, minimização de terceiros, proibição de uso discriminatório (Lei 9.029/1995), retenção apenas pelo necessário. O MCP não bloqueia consultas por LGPD — cabe ao usuário a conformidade.</p></div>
+      </details>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="post-footer" role="contentinfo">
+    <div class="post-signature">
+      <div class="post-signature-brand">
+        <i class="fa-solid fa-shield-halved"></i>
+        <span>Capivaradigital-MCP Gerenciamento de consultas públicas</span>
+      </div>
+      <div class="post-signature-meta">
+        <span>Versão 9.4 — Template Unificado</span>
+        <span>Gerado em {{DATA_GERACAO}}</span>
+        <span>Titular da investigação: {{TITULAR_INVESTIGACAO}}</span>
+      </div>
+    </div>
+    <div class="print-footer-audit" id="printAuditFooter">
+      Auditoria: Dossiê gerado pelo Capivaradigital-MCP v9.4 | Finalidade: Auditoria pré-contratual (LGPD art. 7º, I e IX) | Dados: Fontes públicas oficiais | Hash do relatório: {{REPORT_HASH}}
+    </div>
+  </footer>
+
+  <!-- JSON-LD Structured Data -->
+  <script type="application/ld+json" class="ld-json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Report",
+    "name": "Dossiê de Investigação — {{NOME_PESQUISADO}}",
+    "description": "Dossiê de auditoria pré-contratual gerado pelo Capivaradigital-MCP v9.4",
+    "author": {
+      "@type": "Organization",
+      "name": "Capivaradigital-MCP Gerenciamento de consultas públicas"
+    },
+    "publisher": {
+      "@type": "Organization",
+      "name": "Capivaradigital-MCP Gerenciamento de consultas públicas"
+    },
+    "copyrightHolder": {
+      "@type": "Organization",
+      "name": "Capivaradigital-MCP Gerenciamento de consultas públicas"
+    },
+    "datePublished": "{{DATA_GERACAO_ISO}}",
+    "dateModified": "{{DATA_GERACAO_ISO}}",
+    "inLanguage": "pt-BR",
+    "about": {
+      "@type": "Person",
+      "name": "{{NOME_PESQUISADO}}",
+      "identifier": "{{CPF_PESQUISADO}}"
+    },
+    "mainEntityOfPage": {
+      "@type": "WebPage",
+      "@id": "{{REPORT_URL}}"
+    }
+  }
+  </script>
+
+  <script>
+/* ===== CAPITVARADIGITAL-MCP REPORT TEMPLATE v9.4 — JAVASCRIPT ===== */
+
+// Theme Management
+const THEME_KEY = 'capivaradigital-theme';
+const themeToggle = document.getElementById('themeToggle');
+const themeIconSun = document.getElementById('themeIconSun');
+const themeIconMoon = document.getElementById('themeIconMoon');
+
+function applyTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  if (theme === 'dark') {
+    themeIconSun.style.display = 'block';
+    themeIconMoon.style.display = 'none';
+  } else {
+    themeIconSun.style.display = 'none';
+    themeIconMoon.style.display = 'block';
+  }
+  localStorage.setItem(THEME_KEY, theme);
+}
+
+function initTheme() {
+  const saved = localStorage.getItem(THEME_KEY);
+  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  applyTheme(saved || (prefersDark ? 'dark' : 'light'));
+}
+
+themeToggle.addEventListener('click', () => {
+  const current = document.documentElement.getAttribute('data-theme');
+  applyTheme(current === 'dark' ? 'light' : 'dark');
+});
+
+// Initialize theme
+initTheme();
+
+// Table Sorting
+function initTableSorting() {
+  document.querySelectorAll('.post-table th[data-sort]').forEach(th => {
+    th.addEventListener('click', () => sortTable(th));
+    th.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); sortTable(th); }
+    });
+  });
+}
+
+function sortTable(th) {
+  const table = th.closest('.post-table');
+  const tbody = table.querySelector('tbody');
+  const rows = Array.from(tbody.querySelectorAll('tr'));
+  const colIndex = Array.from(th.parentNode.children).indexOf(th);
+  const currentSort = th.getAttribute('aria-sort');
+  const newSort = currentSort === 'ascending' ? 'descending' : 'ascending';
+
+  // Reset other headers
+  table.querySelectorAll('th[aria-sort]').forEach(h => {
+    if (h !== th) h.removeAttribute('aria-sort');
+  });
+  th.setAttribute('aria-sort', newSort);
+
+  rows.sort((a, b) => {
+    const aText = a.children[colIndex]?.textContent.trim() || '';
+    const bText = b.children[colIndex]?.textContent.trim() || '';
+    const aNum = parseFloat(aText.replace(/[^\d.-]/g, ''));
+    const bNum = parseFloat(bText.replace(/[^\d.-]/g, ''));
+    const isNumeric = !isNaN(aNum) && !isNaN(bNum) && aText.match(/^[\d.,\s-]+$/);
+
+    let cmp = 0;
+    if (isNumeric) cmp = aNum - bNum;
+    else cmp = aText.localeCompare(bText, 'pt-BR', { numeric: true, sensitivity: 'base' });
+
+    return newSort === 'ascending' ? cmp : -cmp;
+  });
+
+  rows.forEach(row => tbody.appendChild(row));
+}
+
+// Table Filtering
+function initTableFiltering() {
+  document.querySelectorAll('input[type="search"][id^="filter-"]').forEach(input => {
+    const targetId = input.id.replace('filter-', 'table-');
+    const table = document.getElementById(targetId);
+    if (!table) return;
+
+    input.addEventListener('input', () => filterTable(table, input.value.toLowerCase()));
+  });
+}
+
+function filterTable(table, query) {
+  const rows = table.querySelectorAll('tbody tr');
+  let visible = 0;
+  rows.forEach(row => {
+    const text = row.textContent.toLowerCase();
+    const match = text.includes(query);
+    row.style.display = match ? '' : 'none';
+    if (match) visible++;
+  });
+  updateCounter(table.id, visible);
+}
+
+function updateCounter(tableId, count) {
+  const counterId = tableId.replace('table-', 'counter-');
+  const counter = document.getElementById(counterId);
+  if (counter) counter.textContent = `${count} registro${count !== 1 ? 's' : ''}`;
+}
+
+// Progress Bar Update
+function updateProgress(current, total) {
+  const percent = total > 0 ? Math.round((current / total) * 100) : 0;
+  const bar = document.querySelector('.post-progress-bar');
+  const progress = document.querySelector('.post-progress');
+  if (bar) bar.style.width = `${percent}%`;
+  if (progress) {
+    progress.setAttribute('aria-valuenow', current);
+    progress.setAttribute('aria-valuemax', total);
+  }
+}
+
+// Section Visibility Toggle (for optional sections)
+function showSection(sectionId) {
+  const section = document.getElementById(sectionId);
+  if (section) {
+    section.removeAttribute('aria-hidden');
+    const navLink = document.querySelector(`.post-nav a[data-section="${sectionId}"]`);
+    if (navLink) navLink.style.display = '';
+  }
+}
+
+function hideSection(sectionId) {
+  const section = document.getElementById(sectionId);
+  if (section) {
+    section.setAttribute('aria-hidden', 'true');
+    const navLink = document.querySelector(`.post-nav a[data-section="${sectionId}"]`);
+    if (navLink) navLink.style.display = 'none';
+  }
+}
+
+// Navigation Active State
+function initNavigation() {
+  const navLinks = document.querySelectorAll('.post-nav a[data-section]');
+  const sections = document.querySelectorAll('.post-section[data-section]');
+
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        const id = entry.target.getAttribute('data-section');
+        navLinks.forEach(link => {
+          link.classList.toggle('active', link.getAttribute('data-section') === id);
+        });
+      }
+    });
+  }, { rootMargin: '-20% 0px -70% 0px', threshold: 0 });
+
+  sections.forEach(section => observer.observe(section));
+
+  navLinks.forEach(link => {
+    link.addEventListener('click', e => {
+      e.preventDefault();
+      const targetId = link.getAttribute('href').slice(1);
+      const target = document.getElementById(targetId);
+      if (target) {
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        history.pushState(null, '', `#${targetId}`);
+      }
+    });
+  });
+}
+
+// KPI Counters Animation
+function animateKPIs() {
+  const kpis = document.querySelectorAll('.post-kpi strong');
+  kpis.forEach(kpi => {
+    const target = parseInt(kpi.textContent) || 0;
+    if (target > 0) {
+      let current = 0;
+      const increment = Math.max(1, Math.ceil(target / 30));
+      const timer = setInterval(() => {
+        current += increment;
+        if (current >= target) { current = target; clearInterval(timer); }
+        kpi.textContent = current;
+      }, 30);
+    }
+  });
+}
+
+// Badge Counts Update
+function updateBadgeCounts() {
+  const confirmed = document.querySelectorAll('.badge.confirmed, .badge-cell.confirmed').length;
+  const probable = document.querySelectorAll('.badge.probable, .badge-cell.probable').length;
+  const noDoc = document.querySelectorAll('.badge.no-doc, .badge-cell.no-doc, .badge-cell[style*="danger"]').length;
+
+  const elConfirmed = document.getElementById('countConfirmed');
+  const elProbable = document.getElementById('countProbable');
+  const elNoDoc = document.getElementById('countNoDoc');
+
+  if (elConfirmed) elConfirmed.textContent = confirmed;
+  if (elProbable) elProbable.textContent = probable;
+  if (elNoDoc) elNoDoc.textContent = noDoc;
+}
+
+// Print Hash Generation
+function generateReportHash() {
+  const content = document.body.innerText.slice(0, 10000);
+  let hash = 0;
+  for (let i = 0; i < content.length; i++) {
+    hash = ((hash << 5) - hash) + content.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash).toString(16).toUpperCase().padStart(8, '0');
+}
+
+// Initialize all
+document.addEventListener('DOMContentLoaded', () => {
+  initTableSorting();
+  initTableFiltering();
+  initNavigation();
+  animateKPIs();
+  updateBadgeCounts();
+
+  // Update print footer hash
+  const hashEl = document.getElementById('printAuditFooter');
+  if (hashEl) {
+    const hash = generateReportHash();
+    hashEl.textContent = hashEl.textContent.replace('{{REPORT_HASH}}', hash);
+  }
+
+  // Update JSON-LD date
+  const ldScripts = document.querySelectorAll('.ld-json');
+  ldScripts.forEach(script => {
+    try {
+      const data = JSON.parse(script.textContent);
+      data.datePublished = new Date().toISOString().split('T')[0];
+      data.dateModified = data.datePublished;
+      script.textContent = JSON.stringify(data, null, 2);
+    } catch (e) { /* ignore */ }
+  });
+
+  console.log('[Capivaradigital-MCP] Report template v9.4 initialized');
+});
+
+// Export functions for dynamic content injection
+window.CapivaradigitalReport = {
+  showSection,
+  hideSection,
+  updateProgress,
+  updateBadgeCounts,
+  filterTable,
+  sortTable
+};
+  </script>
+</body>
+</html>

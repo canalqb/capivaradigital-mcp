@@ -271,7 +271,7 @@ async function handleRpc(msg) {
   if (msg.method === 'initialize') {                                         // respondida aqui: negocia a versao do cliente
     const want = msg.params && msg.params.protocolVersion;
     const known = ['2025-11-25', '2025-06-18', '2025-03-26', '2024-11-05'];
-    return { jsonrpc: '2.0', id: msg.id, result: { protocolVersion: known.includes(want) ? want : known[0], capabilities: { tools: {} }, serverInfo: { name: 'capivaradigital', version: 'http-bridge-1.1' } } };
+    return { jsonrpc: '2.0', id: msg.id, result: { protocolVersion: known.includes(want) ? want : known[0], capabilities: { tools: {} }, serverInfo: { name: 'capivaradigital', version: 'http-bridge-1.2' } } };
   }
   if (msg.method === 'ping') return { jsonrpc: '2.0', id: msg.id, result: {} };
   if (msg.method === 'tools/call') {
@@ -281,6 +281,92 @@ async function handleRpc(msg) {
   const r = await runRpc(msg);
   if (msg.method === 'tools/list' && r.result && Array.isArray(r.result.tools)) r.result.tools = r.result.tools.filter(t => !DISABLED.has(t.name));
   return r;
+}
+
+/* ---------------- SSE legado (compatibilidade com clientes so-SSE) ----------------
+ * Protocolo MCP/2024-11-05 sobre SSE:
+ *   1) GET  /sse            -> abre o stream, envia evento "endpoint" com a URL de POST
+ *   2) POST /messages?sessionId=..&token=..  -> JSON-RPC entra; a resposta volta pelo stream
+ * A execucao reutiliza handleRpc (mesmo nucleo do /mcp): zero duplicacao de ferramenta.
+ * Autenticacao: mesmo esquema do HTTP - Bearer OAuth no GET ou caminho /sse/<NO_LOGIN_SECRET>.
+ * O token de sessao (256 bits) e a capacidade de escrita do POST: quem nao tem o stream
+ * nao consegue falar com a sessao.
+ */
+const SSE_MAX_SESSIONS = 20;
+const SSE_IDLE_MS = 30 * 60 * 1000;
+const SSE_HEARTBEAT_MS = 15000;
+const sseSessions = new Map();   // sessionId -> { res, token, last, hb }
+
+function sseEnd(id) {
+  const s = sseSessions.get(id);
+  if (!s) return;
+  sseSessions.delete(id);
+  console.error('SSE: sessao ' + id.slice(0, 8) + ' encerrada | stack: ' + new Error().stack.split('\n').slice(1, 4).join(' <- '));
+  try { clearInterval(s.hb); } catch (e) { /* noop */ }
+  try { s.res.end(); } catch (e) { /* already closed */ }
+}
+function sseSend(id, payload) {
+  const s = sseSessions.get(id);
+  if (!s) { console.error('SSE DEBUG send sem sessao'); return; }
+  try {
+    const ok = s.res.write('event: message\ndata: ' + JSON.stringify(payload) + '\n\n');
+    console.error('SSE DEBUG send id=' + id.slice(0, 6) + ' write=' + ok + ' destroyed=' + s.res.destroyed + ' ended=' + s.res.writableEnded);
+    s.last = Date.now();
+  } catch (e) { console.error('SSE DEBUG send erro: ' + e.message); sseEnd(id); }
+}
+setInterval(() => {
+  const t = Date.now();
+  for (const [id, s] of sseSessions) {
+    if (t - s.last > SSE_IDLE_MS) { sseEnd(id); continue; }
+    try { s.res.write(': ping\n\n'); } catch (e) { sseEnd(id); }
+  }
+}, SSE_HEARTBEAT_MS).unref();
+
+function sseStart(req, res) {
+  if (sseSessions.size >= SSE_MAX_SESSIONS) return json(res, 503, { error: 'too_many_sse_sessions' });
+  const id = rnd(16);
+  const token = rnd(24);
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream; charset=utf-8',
+    'Cache-Control': 'no-cache, no-transform',
+    'Connection': 'keep-alive',
+    'X-Accel-Buffering': 'no'
+  });
+  const s = { res, token, last: Date.now(), hb: null };
+  sseSessions.set(id, s);
+  const endpoint = PUBLIC_URL + '/messages?sessionId=' + encodeURIComponent(id) + '&token=' + encodeURIComponent(token);
+  try {
+    res.write('retry: 3000\n\n');
+    res.write('event: endpoint\ndata: ' + endpoint + '\n\n');
+  } catch (e) { sseEnd(id); return; }
+  s.hb = setInterval(() => { try { res.write(': ping\n\n'); } catch (e) { sseEnd(id); } }, SSE_HEARTBEAT_MS);
+  s.hb.unref();
+  res.on('finish', () => console.error('SSE DEBUG finish'));
+  res.on('close', () => console.error('SSE DEBUG close writableEnded=' + res.writableEnded + ' destroyed=' + res.destroyed));
+  req.socket.on('close', () => console.error('SSE DEBUG socket close'));
+  // fecha no fim da RESPOSTA (o 'close' do request dispara quando o GET sem corpo termina)
+  res.on('close', () => sseEnd(id));
+  console.error('SSE: sessao ' + id.slice(0, 6) + ' aberta (' + sseSessions.size + '/' + SSE_MAX_SESSIONS + ')');
+}
+
+async function sseMessages(req, res, url) {
+  const id = url.searchParams.get('sessionId') || '';
+  const token = url.searchParams.get('token') || '';
+  const s = sseSessions.get(id);
+  console.error('SSE: POST /messages id=' + id.slice(0, 8) + ' tokenOk=' + (s ? safeEq(token, s.token) : 'sem-sessao') + ' vivas=' + sseSessions.size);
+  if (!s || !safeEq(token, s.token)) return json(res, 404, { error: 'unknown_session' });
+  if (req.method === 'DELETE') { sseEnd(id); res.writeHead(204); return res.end(); }
+  if (req.method !== 'POST') { res.writeHead(405, { Allow: 'POST, DELETE, OPTIONS' }); return res.end(); }
+  let body;
+  try { body = JSON.parse(await readBody(req)); } catch (e) { return json(res, 400, { jsonrpc: '2.0', id: null, error: { code: -32700, message: 'JSON invalido' } }); }
+  const msgs = Array.isArray(body) ? body : [body];
+  const out = [];
+  for (const msg of msgs) {
+    const r = await handleRpc(msg);
+    if (r) { sseSend(id, r); out.push(r); }
+  }
+  res.writeHead(202, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+  res.end(JSON.stringify({ accepted: out.length }));
 }
 
 async function mcp(req, res) {
@@ -313,6 +399,9 @@ const server = http.createServer(async (req, res) => {
     if (p === '/token' && req.method === 'POST') return await token(req, res);
     if (p === '/mcp') { if (!authed(req)) return unauthorized(res); return await mcp(req, res); }
     if (NO_LOGIN_SECRET && p === '/mcp/' + NO_LOGIN_SECRET) return await mcp(req, res);
+    if (p === '/sse') { if (!authed(req)) return unauthorized(res); return sseStart(req, res); }
+    if (NO_LOGIN_SECRET && p === '/sse/' + NO_LOGIN_SECRET) return sseStart(req, res);
+    if (p === '/messages') return await sseMessages(req, res, url);
     json(res, 404, { error: 'not_found' });
   } catch (e) {
     if (!res.headersSent) json(res, e.status || 500, { error: 'server_error', error_description: String(e.message || e) });

@@ -8,11 +8,20 @@ const DATAJUD_KEY_FALLBACK = 'cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1Rdn
 const DJEN_BASE = 'https://comunicaapi.pje.jus.br/api/v1/comunicacao';
 const BRASILAPI_CNPJ = 'https://brasilapi.com.br/api/cnpj/v1/';
 const ESAJ_SEARCH = 'https://esaj.tjsp.jus.br/cpopg/search.do';
+// e-SAJ: mesma arquitetura replicada em outros TJ (verificado ao vivo em 24/10/2026:
+// search.do responde 200 e devolve "Nao existem informacoes"/lista em todos).
+// TJAL e TJCE usam cposg5 no 2o grau; TJSP usa cposg.
+const ESAJ_TRIBUNAIS = {
+  tjsp: { base: 'https://esaj.tjsp.jus.br', rotulo: 'e-SAJ TJSP', graus: { '1': 'cpopg', '2': 'cposg' }, criminais: true },
+  tjal: { base: 'https://www2.tjal.jus.br', rotulo: 'e-SAJ TJAL', graus: { '1': 'cpopg', '2': 'cposg5' } },
+  tjce: { base: 'https://esaj.tjce.jus.br', rotulo: 'e-SAJ TJCE', graus: { '1': 'cpopg', '2': 'cposg5' } }
+};
 const DJE_SEARCH = 'https://esaj.tjsp.jus.br/cdje/consultaAvancada.do';
 const DJE_TROCA_PG = 'https://esaj.tjsp.jus.br/cdje/trocaDePagina.do';
 const DJE_PDF = 'https://esaj.tjsp.jus.br/cdje/getPaginaDoDiario.do';
 const EXA_SEARCH = 'https://api.exa.ai/search';
 const JUSBRASIL_BUSCA = 'https://www.jusbrasil.com.br/busca?q=';
+const ESCAVADOR_BUSCA = 'https://www.escavador.com/busca?q=';
 const UPDATE_URL = 'https://raw.githubusercontent.com/canalqb/capivaradigital-mcp/main/server.js';
 const WMN_DATA_URL = 'https://raw.githubusercontent.com/WebBreacher/WhatsMyName/main/wmn-data.json';
 const BRASILAPI_DDD = 'https://brasilapi.com.br/api/ddd/v1/';
@@ -72,17 +81,46 @@ function endpointFromNumero(n20) {
   return ep;
 }
 
+function sleepMs(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// options.retries (default 0, max 5): tenta de novo so em erro transitorio
+// (rede/timeout, HTTP 429, HTTP 5xx). Com retries=0 o comportamento e identico
+// ao anterior (mensagem de erro "HTTP <status>: ..." preservada).
 async function fetchWithTimeout(url, options, ms) {
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), ms || 30000);
-  try {
-    const res = await fetch(url, Object.assign({}, options, { signal: ctrl.signal }));
-    const text = await res.text();
-    if (!res.ok) throw new Error(`HTTP ${res.status}: ${text.slice(0, 400)}`);
-    return text;
-  } finally {
-    clearTimeout(timer);
+  const opts = Object.assign({}, options);
+  const retries = Math.min(Math.max(Number(opts.retries) || 0, 0), 5);
+  delete opts.retries;
+  const timeout = ms || 30000;
+  let lastErr;
+  for (let tentativa = 0; tentativa <= retries; tentativa++) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), timeout);
+    try {
+      const res = await fetch(url, Object.assign({}, opts, { signal: ctrl.signal }));
+      const text = await res.text();
+      if (!res.ok) {
+        const err = new Error(`HTTP ${res.status}: ${text.slice(0, 400)}`);
+        err.status = res.status;
+        err.retryAfter = res.headers && res.headers.get ? res.headers.get('retry-after') : null;
+        throw err;
+      }
+      return text;
+    } catch (e) {
+      lastErr = e;
+      const st = e && e.status;
+      const msg = String(e && e.message ? e.message : e);
+      const transitorio = (st === 429 || (st >= 500 && st <= 599)) ||
+        (!st && /abort|fetch failed|ECONNRESET|ETIMEDOUT|ECONNREFUSED|network/i.test(msg));
+      if (!transitorio || tentativa >= retries) throw e;
+      let espera = tentativa === 0 ? 2000 : 5000;
+      const ra = Number(e && e.retryAfter);
+      if (st === 429 && ra > 0 && ra <= 30) espera = ra * 1000;
+      await sleepMs(espera);
+    } finally {
+      clearTimeout(timer);
+    }
   }
+  throw lastErr;
 }
 
 async function fetchRaw(url, options, ms) {
@@ -470,7 +508,8 @@ async function toolDjenIntimacoes(a) {
   if (!a.nome_parte) throw new Error('Informe nome_parte (nome da parte no DJEN).');
   const params = new URLSearchParams();
   params.set('nomeParte', String(a.nome_parte));
-  params.set('itensPorPagina', String(Math.min(Number(a.itens_por_pagina) || 30, 100)));
+  // LIMITE REAL DO DJEN: acima de 50 falha silenciosamente (skill rvsanches/skills-datajud-djen, 2026)
+  params.set('itensPorPagina', String(Math.min(Number(a.itens_por_pagina) || 30, 50)));
   params.set('pagina', String(Math.max(Number(a.pagina) || 1, 1)));
   const text = await fetchWithTimeout(`${DJEN_BASE}?${params.toString()}`, { headers: { 'Accept': 'application/json', 'User-Agent': 'Mozilla/5.0' } }, 45000);
   const dados = JSON.parse(text);
@@ -530,7 +569,7 @@ async function toolDatajudBuscar(a) {
     if (pt.length) l += '\n  partes: ' + pt.join(' | ').slice(0, 400);
     return l;
   }).join('\n');
-  if (!hits.length) out += 'Nenhum resultado. Dicas: nome exato entre aspas duplas ("NOME COMPLETO"), CPF formatado entre aspas ("000.000.000-00") ou numero CNJ de 20 digitos.';
+  if (!hits.length) out += 'Nenhum resultado. Dicas: nome exato entre aspas duplas ("NOME COMPLETO"), CPF formatado entre aspas ("000.000.000-00") ou numero CNJ de 20 digitos. NOTA (24/10/2026): os indices publicos do DataJud nao publicam o campo partes - buscas por nome/CPF retornam 0 por causa estrutural; para PARTE use esaj_buscar DOCPARTE/NMPARTE (tjsp/tjal/tjce), dje_sp_buscar ou DJEN; para EXISTENCIA/FINGERPRINT use o numero CNJ de 20 digitos.';
   out += `\n\n${avisoAncora(consulta)}`;
   return out;
 }
@@ -559,7 +598,10 @@ async function toolDatajudPorCpf(a) {
   });
   const hits = hitsToArray(dados);
   if (!hits.length) {
-    return `0 processos por documento ${doc} em ${endpoint}. ATENCAO: 0 NAO significa que o pesquisado nao tem processos - a API publica mascara o documento da parte em varios tribunais (a busca ja tenta as DUAS grafias, com e sem pontuacao, nos campos partes.documento e documentoReplicado); resultado negativo e INDICIO, nao prova. Tente datajud_buscar com "${fmt}" (formatado e entre aspas duplas), datajud_varrer em varios tribunais ou a consulta publica do tribunal de origem.\n\n${avisoAncora(doc)}`;
+    const notaCnpj = doc.length === 14
+      ? ' CNPJ: o DataJud publico praticamente NAO indexa CNPJ de parte (teste em 24/10/2026: 0 hits com CNPJ de grande empresa em tst/tjsp/tjmg) - a rota certa e o ciclo PF<->PJ: brasilapi_cnpj para achar os CNPJs vinculados e extrair os CPFs do QSA, depois datajud_por_cpf/esaj_buscar DOCPARTE por cada CPF.'
+      : '';
+    return `0 processos por documento ${doc} em ${endpoint}.${notaCnpj}\n\nCAUSA ESTRUTURAL VERIFICADA EM 24/10/2026: os indices publicos do DataJud (tjsp, tjpr, tre-sp, tst) NAO publicam o campo partes - consulta exists em partes.nome/documento/pessoa.* = 0 e 0 em 100 amostras, com o indice atualizado no dia anterior. Ou seja: este 0 e ESTRUTURAL (nao mascara pontual, nao ausencia de processos). Rota que funciona POR DOCUMENTO hoje: esaj_buscar DOCPARTE (tjsp/tjal/tjce, 1o e 2o grau), dje_sp_buscar (texto do diario) e DJEN (intimacoes). DataJud segue util para existencia/fingerprint (numero, orgao, classe, assunto, movimentos) via datajud_pesquisar/datajud_processo. Reexecute esta ferramenta periodicamente: se o CNJ retomar a publicacao de partes, ela volta a acertar.\n\n${avisoAncora(doc)}`;
   }
   let out = `DataJud ${endpoint} por documento ${doc}: ${hits.length} processo(s)\n`;
   out += hits.map(h => {
@@ -618,7 +660,7 @@ async function toolDatajudPorNome(a) {
     if (pt.length) l += '\n  partes: ' + pt.slice(0, 6).join(' | ').slice(0, 300);
     return l;
   }).join('\n');
-  if (!hits.length) out += 'Nenhum resultado. A API publica omite/mascara as partes em varios tribunais - nesse caso use datajud_buscar com "NOME COMPLETO" entre aspas (query_string varre o texto integral dos autos) ou a consulta publica do tribunal (e-SAJ NMPARTE).';
+  if (!hits.length) out += 'Nenhum resultado. CAUSA ESTRUTURAL VERIFICADA EM 24/10/2026: os indices publicos do DataJud nao publicam o campo partes (exists=0 em todos os subcampos, 4 indices testados) - por nome, va direto ao e-SAJ NMPARTE (esaj_buscar em tjsp/tjal/tjce), dje_sp_buscar ou DJEN. O query_string do datajud_buscar continua valendo so para campos publicos (classe, assunto, movimentos, orgao) - nao ha texto integral de autos no DataJud.';
   out += `\n\n${avisoAncora(nome)}`;
   return out;
 }
@@ -645,9 +687,13 @@ async function toolDatajudVarrer(a) {
   let alvos;
   if (a.escopo) {
     const esc = String(a.escopo).trim().toLowerCase();
-    const grupo = ESCOPOS_VARREDURA[esc];
-    if (!grupo) throw new Error(`escopo invalido: "${a.escopo}". Use tj, trf, trt, tre, superiores, militares ou todos.`);
-    alvos = esc === 'todos' ? TODOS_TRIBUNAIS.slice() : grupo.slice();
+    if (esc === 'todos') {
+      alvos = TODOS_TRIBUNAIS.slice();
+    } else {
+      const grupo = ESCOPOS_VARREDURA[esc];
+      if (!grupo) throw new Error(`escopo invalido: "${a.escopo}". Use tj, trf, trt, tre, superiores, militares ou todos.`);
+      alvos = grupo.slice();
+    }
   } else if (a.tribunais) {
     alvos = String(a.tribunais).split(/[,;\s]+/).map(s => s.trim().toLowerCase()).filter(Boolean);
   } else if (a.todos_tribunais) {
@@ -765,35 +811,56 @@ async function toolCpfDesmascarar(a) {
 
 async function toolEsajBuscar(a) {
   const valor = String(a.nome_ou_doc || '').trim();
-  if (!valor) throw new Error('Informe nome_ou_doc: nome da parte, CPF/CNPJ ou numero do processo.');
+  if (!valor) throw new Error('Informe nome_ou_doc: nome da parte, CPF/CNPJ, numero do processo ou numero da OAB.');
   const tipo = String(a.tipo || 'NMPARTE').toUpperCase();
-  if (['NMPARTE', 'DOCPARTE', 'NUMPROC'].indexOf(tipo) < 0) throw new Error('tipo deve ser NMPARTE (nome), DOCPARTE (CPF/CNPJ) ou NUMPROC (numero).');
+  if (['NMPARTE', 'DOCPARTE', 'NUMPROC', 'NUMOAB', 'NMADVOGADO'].indexOf(tipo) < 0) throw new Error('tipo deve ser NMPARTE (nome), DOCPARTE (CPF/CNPJ), NUMPROC (numero), NUMOAB (numero da OAB) ou NMADVOGADO (nome do advogado).');
+  const tkey = String(a.tribunal || 'tjsp').toLowerCase();
+  const tri = ESAJ_TRIBUNAIS[tkey];
+  if (!tri) throw new Error('tribunal deve ser tjsp, tjal ou tjce (os tres com e-SAJ publico).');
+  const grau = String(a.grau == null ? 1 : a.grau).trim();
+  if (grau !== '1' && grau !== '2') throw new Error('grau deve ser 1 (1o grau) ou 2 (2o grau).');
+  const modulo = tri.graus[grau];
+  const rotulo = `${tri.rotulo} ${grau}o grau (${modulo})`;
   const params = new URLSearchParams();
   params.set('conversationId', '');
   params.set('cbPesquisa', tipo);
   params.set('dadosConsulta.valorConsulta', valor);
   params.set('cdForo', String(a.foro || '-1'));
-  const html = await fetchWithTimeout(`${ESAJ_SEARCH}?${params.toString()}`, { headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'text/html' } }, 90000);
+  const html = await fetchWithTimeout(`${tri.base}/${modulo}/search.do?${params.toString()}`, { headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'text/html' }, retries: 3 }, 90000);
   const plano = html
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
     .replace(/<script[\s\S]*?<\/script>/gi, ' ')
     .replace(/<style[\s\S]*?<\/style>/gi, ' ')
     .replace(/<[^>]+>/g, ' ')
     .replace(/\s+/g, ' ');
-  if (/nao existem informa/i.test(plano)) return `e-SAJ TJSP: 0 processos para "${valor}" (a consulta anonima SUPRIME partes de processos criminais - sigilo legal). ATENCAO: 0 e INDICIO, nao prova - o indice de partes do e-SAJ tem lacunas; cruze com DataJud (datajud_buscar/datajud_varrer) e DJEN antes de concluir ausencia.\n\n${avisoAncora(valor)}`;
+  if (/nao existem informa/i.test(plano)) {
+    const hoje = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+    if (tri.criminais) return `[SUPRIMIDO - NAO VERIFICADO] ${rotulo}: a consulta anonima do ${tri.rotulo} NAO cobre processos criminais (sigilo legal) em ${hoje} - este "0" NAO e ausencia de processos. Contra-prova obrigatoria antes de qualquer conclusao: DJEN (djen_intimacoes), DJE-SP (dje_sp_buscar) e e-SAJ por nome nos outros estados (tjal/tjce).\n\n${avisoAncora(valor)}`;
+    return `${rotulo}: 0 processos para "${valor}" (tipo ${tipo}) em ${hoje}. ATENCAO: 0 e INDICIO, nao prova - o indice de partes do e-SAJ tem lacunas; cruze com as OUTRAS casas e-SAJ (mesmo CPF em tjal/tjce via esta ferramenta) e com DJEN/dje_sp_buscar antes de concluir ausencia.\n\n${avisoAncora(valor)}`;
+  }
+  if (/encontrados muitos processos/i.test(plano)) return `${rotulo}: muitos resultados para "${valor}" (tipo ${tipo}) - o e-SAJ pede refinamento e nao lista nada. Refine: informe o foro (param foro), use o documento (DOCPARTE) ou o numero exato (NUMPROC).\n\n${avisoAncora(valor)}`;
   const m = plano.match(/(\d+)\s*Processos?\s*encontrados?/i);
-  const leuContagem = !!m;
-  const total = m ? m[1] : '0 (nao foi possivel ler a contagem)';
-  const numeros = plano.match(/\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}/g) || [];
+  const numeros = [...new Set(plano.match(/\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}/g) || [])];
+  let total = m ? m[1] : null;
+  let notaContagem = '';
+  if (!total && numeros.length) {
+    total = String(numeros.length);
+    notaContagem = ' | CONTAGEM PELA LISTA (o e-SAJ nao publicou a frase de contagem - caso classico: UNICO resultado, o servidor da 302 direto para a pagina do processo via show.do)';
+  } else if (!total) {
+    total = '0 (nao foi possivel ler a contagem)';
+  }
+  const contagemLinha = m || numeros.length ? `CONTAGEM: ${total}` : 'CONTAGEM: desconhecida';
   const i = plano.search(/Processos? encontrados?/i);
   const trecho = i >= 0 ? plano.slice(i, i + 3000) : plano.slice(0, 3000);
-  let out = `e-SAJ TJSP - ${total} processo(s) encontrado(s) para "${valor}" (tipo ${tipo})${leuContagem ? '' : ` | HTML recebido: ${html.length} bytes`}:\n${trecho}`;
-  if (numeros.length) out += `\n\nNumeros listados (${numeros.length}):\n${[...new Set(numeros)].join('\n')}`;
+  let out = `${rotulo} - ${total} processo(s) encontrado(s) para "${valor}" (tipo ${tipo})${m ? '' : ` | HTML: ${html.length} bytes`}${notaContagem}:\n${contagemLinha}\n${trecho}`;
+  if (numeros.length) out += `\n\nNumeros listados (${numeros.length}):\n${numeros.join('\n')}`;
   out += `\n\n${tipo === 'DOCPARTE'
-    ? 'DOCUMENTO como ancora: correto pela regra do servidor - cruze com DataJud/DJEN antes de marcar CONFIRMADO. CICLO OBRIGATORIO PF<->PJ: com CPF, procure os CNPJs vinculados; com CNPJ, extraia os CPFs do QSA (brasilapi_cnpj) e procure os processos dessas pessoas.'
+    ? 'DOCUMENTO como ancora: correto pela regra do servidor - cruze com DJEN/dje_sp_buscar antes de marcar CONFIRMADO. ATENCAO: o DataJud publico NAO publica mais o campo partes (verificado em 24/10/2026) - este DOCPARTE e hoje a palavra final por documento no TJSP/TJAL/TJCE. CICLO OBRIGATORIO PF<->PJ: com CPF, procure os CNPJs vinculados; com CNPJ, extraia os CPFs do QSA (brasilapi_cnpj) e procure os processos dessas pessoas.'
     : tipo === 'NMPARTE'
-      ? 'PROIBICAO: busca por NOME produz HOMONIMOS - PROIBIDO lista-los como sendo do pesquisado sem cruzamento pelo CPF/CNPJ (DOCPARTE ou datajud_por_cpf); sem documento que bate = POSSIVEL HOMONIMO, fora da lista principal (protocolo em fontes_osint).'
-      : 'Busca por NUMERO: ancora unica.'}`;
+      ? 'PROIBICAO: busca por NOME produz HOMONIMOS - PROIBIDO lista-los como sendo do pesquisado sem cruzamento pelo CPF/CNPJ (DOCPARTE aqui ou cpf_desmascarar); sem documento que bate = POSSIVEL HOMONIMO, fora da lista principal (protocolo em fontes_osint).'
+      : tipo === 'NUMOAB' || tipo === 'NMADVOGADO'
+        ? 'Busca por ADVOGADO (OAB/nome): eixo auxiliar anti-homonimo - o processo do advogado NAO e processo do pesquisado; use para localizar atuacoes e vinculos (escritorio, co-réus), sempre cruzando pelo CPF. Achados sao INDICIO de vinculo, nunca prova.'
+        : 'Busca por NUMERO: ancora unica.'}`;
   return out;
 }
 
@@ -835,6 +902,16 @@ function djeStripTags(s) {
   return djeDecodeEnt(String(s).replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').trim();
 }
 
+function diasAtras(ddmmaaaa) {
+  const m = String(ddmmaaaa || '').match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!m) return null;
+  const d = new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]));
+  if (isNaN(d.getTime())) return null;
+  const agora = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+  const hoje = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate());
+  return Math.round((hoje - d) / 86400000);
+}
+
 function djeNormData(v, fallback) {
   const s = String(v || '').trim();
   if (!s) return fallback || '';
@@ -853,7 +930,7 @@ function djeHiddenValue(html, nome) {
   return v ? v[1] : '';
 }
 
-async function djeFetch(url, options, ms, jar) {
+async function djeFetchOnce(url, options, ms, jar) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), ms || 90000);
   try {
@@ -879,6 +956,22 @@ async function djeFetch(url, options, ms, jar) {
   } finally {
     clearTimeout(timer);
   }
+}
+
+async function djeFetch(url, options, ms, jar) {
+  let ultimoErro = null;
+  for (let tentativa = 0; tentativa < 3; tentativa++) {
+    try {
+      return await djeFetchOnce(url, options, ms, jar);
+    } catch (e) {
+      ultimoErro = e;
+      const s = String((e && e.message) || e);
+      const transitorio = /HTTP 429|HTTP 5\d\d|fetch failed|ECONNRESET|ETIMEDOUT|aborted|timeout/i.test(s);
+      if (!transitorio || tentativa >= 2) throw e;
+      await sleepMs(tentativa === 0 ? 2000 : 5000);
+    }
+  }
+  throw ultimoErro;
 }
 
 function djeParseHits(html) {
@@ -947,6 +1040,11 @@ async function toolDjeSpBuscar(a) {
   const limRaw = djeHiddenValue(form, 'dtLimiteFim') || djeHiddenValue(form, 'dtDiario');
   let ultimoDia = '';
   if (limRaw) { try { ultimoDia = djeNormData(limRaw, ''); } catch (e) { ultimoDia = ''; } }
+  let alertaDje = '';
+  if (ultimoDia) {
+    const idade = diasAtras(ultimoDia);
+    if (idade !== null && idade > 7) alertaDje = '[DJE DESATUALIZADO - cobertura ate ' + ultimoDia + ' (' + idade + ' dias atras)] a base de busca do DJE-SP nao traz edicoes novas; resultados podem estar incompletos na janela recente.\n';
+  }
   const dtFim = djeNormData(a.data_fim, ultimoDia);
   const dtIni = djeNormData(a.data_inicio, dtFim);
   if (!dtFim || !dtIni) throw new Error('Nao foi possivel deduzir a janela de datas do DJE-SP nesta resposta - informe data_inicio e data_fim (dd/mm/aaaa; a base comeca em 01/10/2007).');
@@ -977,6 +1075,7 @@ async function toolDjeSpBuscar(a) {
     if (/nenhum registro correspondente/i.test(semScripts)) {
       let zero = 'DJE-SP: 0 publicacoes para ' + termo + ' entre ' + dtIni + ' e ' + dtFim + ' (caderno: ' + DJE_CADERNOS[caderno] + ').';
       if (ultimoDia) zero += '\nUltima edicao publicada na base: ' + ultimoDia + ' (janelas futuras retornam zero).';
+      if (alertaDje) zero += '\n' + alertaDje;
       zero += '\nATENCAO: 0 aqui e INDICIO, nao prova - o DJE-SP so publica decisoes do TJSP (nao cobre Justica do Trabalho/Federal/Eleitoral nem outros estados).';
       return zero;
     }
@@ -996,6 +1095,7 @@ async function toolDjeSpBuscar(a) {
   }
   let out = 'DJE-SP (Diario da Justica Eletronico do TJSP) - busca por ' + termo + ' | janela ' + dtIni + ' a ' + dtFim + ' | caderno: ' + DJE_CADERNOS[caderno] + '\n';
   if (ultimoDia) out += 'Ultima edicao publicada na base: ' + ultimoDia + '\n';
+  if (alertaDje) out += alertaDje;
   out += 'Total: ' + total + ' publicacoes | lidas: ' + todas.length + ' (paginas 1-' + Math.min(maxPaginas, totalPaginas) + ' de ' + totalPaginas + '; cada pagina = 10 hits; aumente max_paginas ate 10 para ler mais)\n';
   todas.forEach((h, i) => {
     out += '\n[' + (i + 1) + '] ' + (h.data || 'data?') + ' - ' + (h.caderno || 'caderno?') + (h.ocorrencias ? ' | ocorrencias na pagina: ' + h.ocorrencias : '') + '\n';
@@ -1121,13 +1221,13 @@ async function toolJusbrasilBuscar(a) {
   let html = '';
   let bloqueado = false;
   try {
-    html = await fetchWithTimeout(url, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36', 'Accept': 'text/html', 'Accept-Language': 'pt-BR,pt;q=0.9' } }, 45000);
+    html = await fetchWithTimeout(url, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36', 'Accept': 'text/html', 'Accept-Language': 'pt-BR,pt;q=0.9' }, retries: 3 }, 45000);
   } catch (e) {
     if (/HTTP 40[03]|HTTP 429/.test(String(e))) bloqueado = true;
     else throw e;
   }
   if (!bloqueado && /Just a moment|challenges\.cloudflare|Enable JavaScript/.test(html)) bloqueado = true;
-  if (bloqueado) return rotaBrowser + '\n\n' + avisoAncora(consulta);
+  if (bloqueado) return 'STATUS: NAO CONSULTADO - Jusbrasil bloqueou o HTTP direto (403/Cloudflare); a rota browser abaixo NAO foi executada pelo servidor (execute via MCP Playwright e registre como fonte propria). Nunca trate como "0 mencoes".\n\n' + rotaBrowser + '\n\n' + avisoAncora(consulta);
   const itens = [];
   const vistos = new Set();
   const re = /<a[^>]+href="(https?:\/\/(?:[\w-]+\.)*jusbrasil\.com\.br\/[^"#?]+)"[^>]*>([^<]{4,180})<\/a>/g;
@@ -1142,6 +1242,55 @@ async function toolJusbrasilBuscar(a) {
   const completos = [...new Set(html.match(/\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}/g) || [])];
   const mascarados = [...new Set(html.match(/(?:\d{0,7}X{1,7}|X{2,7})-?(?:XX|\d{0,2})\.\d{4}\.\d\.\d{2}\.\d{4}/g) || [])];
   let out = `Jusbrasil (via HTTP): "${consulta}"\n`;
+  if (itens.length) {
+    out += `\nResultados (${itens.length}):\n`;
+    out += itens.join('\n');
+  } else {
+    out += '\nSem itens extraidos via HTTP (a pagina renderiza via JavaScript e/ou limita bots).\n';
+    out += '\n' + rotaBrowser;
+  }
+  if (completos.length) out += `\n\nNumeros completos na pagina (${completos.length}):\n${completos.join('\n')}`;
+  if (mascarados.length) out += `\n\nNumeros MASCARADOS na pagina (${mascarados.length}) - use cnj_desmascarar (loop cpf/nome):\n${mascarados.join('\n')}`;
+  out += `\n\n${avisoAncora(consulta)}`;
+  return out;
+}
+
+async function toolEscavadorBuscar(a) {
+  const consulta = String(a.consulta || '').trim();
+  if (!consulta) throw new Error('Informe a consulta: nome exato entre aspas duplas, CPF/CNPJ formatado entre aspas ou termo livre.');
+  const url = ESCAVADOR_BUSCA + encodeURIComponent(consulta);
+  const rotaBrowser = [
+    'Escavador bloqueia HTTP puro (Cloudflare, 403) - use o BROWSER (MCP Playwright):',
+    `1. browser_navigate: ${url}`,
+    '2. browser_snapshot / browser_find: procure links de /sobre/, /processos/, /diarios/ e numeros de processo (alguns vem mascarados XXXX conforme o plano).',
+    '3. Numeros mascarados vao para o loop cnj_desmascarar com cpf (e/ou nome).',
+    '',
+    'Consulta ideal: CPF/CNPJ formatado entre aspas duplas (ancora por documento, regra do servidor); nome entre aspas so como complemento.'
+  ].join('\n');
+  let html = '';
+  let bloqueado = false;
+  try {
+    html = await fetchWithTimeout(url, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36', 'Accept': 'text/html', 'Accept-Language': 'pt-BR,pt;q=0.9' }, retries: 3 }, 45000);
+  } catch (e) {
+    if (/HTTP 40[03]|HTTP 429/.test(String(e))) bloqueado = true;
+    else throw e;
+  }
+  if (!bloqueado && /Just a moment|challenges\.cloudflare|Enable JavaScript/.test(html)) bloqueado = true;
+  if (bloqueado) return 'STATUS: NAO CONSULTADO - Escavador bloqueou o HTTP direto (403/Cloudflare); a rota browser abaixo NAO foi executada pelo servidor (execute via MCP Playwright e registre como fonte propria). Nunca trate como "0 mencoes".\n\n' + rotaBrowser + '\n\n' + avisoAncora(consulta);
+  const itens = [];
+  const vistos = new Set();
+  const re = /<a[^>]+href="(https?:\/\/(?:[\w-]+\.)*escavador\.com\/[^"#?]+)"[^>]*>([^<]{4,180})<\/a>/g;
+  let m;
+  while ((m = re.exec(html)) && itens.length < 25) {
+    if (/\/(login|registro|assinatura|planos|cadastrar|assine)/.test(m[1])) continue;
+    const chave = m[1].replace(/\/$/, '');
+    if (vistos.has(chave)) continue;
+    vistos.add(chave);
+    itens.push(`- ${m[2].replace(/\s+/g, ' ').trim()}\n  ${m[1]}`);
+  }
+  const completos = [...new Set(html.match(/\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}/g) || [])];
+  const mascarados = [...new Set(html.match(/(?:\d{0,7}X{1,7}|X{2,7})-?(?:XX|\d{0,2})\.\d{4}\.\d\.\d{2}\.\d{4}/g) || [])];
+  let out = `Escavador (via HTTP): "${consulta}"\n`;
   if (itens.length) {
     out += `\nResultados (${itens.length}):\n`;
     out += itens.join('\n');
@@ -1198,14 +1347,25 @@ async function toolEsajGuia() {
     '- A busca por NOME/DOCUMENTO via HTTP funciona (ferramenta esaj_buscar: GET search.do com cbPesquisa=NMPARTE/DOCPARTE/NUMPROC). O acesso DIRETO ao link do processo (show.do) falha com "Nao foi possivel validar o seu acesso a esse recurso" - abra o processo a partir da lista de resultados ou use o formulario.',
     '- A consulta ANONIMA suprime partes de processos CRIMINAIS (nem co-reus comprovados aparecem); para criminais e preciso acesso OAB ou certidao de distribuicao.',
     '- Buscas que exigem captcha: use o MCP Playwright e deixe o usuario resolver o captcha manualmente na tela.',
-    '- Casos de uso comprovados: confirmar execucao penal (relatorios SAP/PSC), verificar vinculados/origem, eliminar candidatos falsos por fingerprint de datas.'
+    '- Casos de uso comprovados: confirmar execucao penal (relatorios SAP/PSC), verificar vinculados/origem, eliminar candidatos falsos por fingerprint de datas.',
+    '',
+    'A BRICA DO E-SAJ: E UM PADRAO NACIONAL (campo formulado em 24/10/2026)',
+    '- O mesmo cpopg/cposg do TJSP existe em TJAL e TJCE (e provavelmente em mais tribunais e-SAJ): a ferramenta esaj_buscar ja aceita tribunal=tjsp|tjal|tjce e grau=1|2 (TJAL e TJCE usam cposg5 no 2o grau). Use as 3 casas como contra-prova de homonimo: mesmo CPF procurado nos tres.',
+    '- Formulario com os MESMOS campos em todos: cbPesquisa aceita NUMPROC, NMPARTE, DOCPARTE, NMADVOGADO, NUMOAB (OAB), PRECATORIA, DOCDELEG, NUMCDA.',
+    '',
+    'JULGADOS/SENTENCAS (modulos extras do TJSP - banco de sentencas e acordaoes):',
+    '- cjpg (1o grau, banco de sentencas): https://esaj.tjsp.jus.br/cjpg/ - form action POST /cjpg/pesquisar.do; campos principais: dadosConsulta.pesquisaLivre (TEXTO LIVRE nas sentencas, com operadores E/OU/NAO, aspas e asterisco), dadosConsulta.nuProcesso / nuProcessoAntigo (numero), dadosConsulta.dtInicio + dtFim (periodo), classeTreeSelection/assuntoTreeSelection/varasTreeSelection (filtros) e cdAgente (juiz).',
+    '- cjsg (2o grau, acordaoes): https://esaj.tjsp.jus.br/cjsg/consultaCompleta.do - form action POST /cjsg/resultadoCompleta.do; campos: dados.buscaEmenta (busca na ementa), dados.buscaInteiroTeor (busca no INTEIRO TEOR - "Pesquisa Livre: busca acordaos que contenham as palavras desejadas"), classes/assuntos/comarca, juizProlator.',
+    '- Para que serve no dossie: localizar SENTENCAS/ACORDAOES que citam o pesquisado quando NAO ha numero de processo (nome no inteiro teor) - leva a numeros correlatos e a qualificacao judicial; e fonte de prova de precedentes. e hoje a maior base de texto publico do TJSP apos o DataJud ter deixado de publicar as partes.',
+    '- Execucao: via MCP Playwright (preencher e submeter o form) - acao do form traz jsessionid na URL, entao abra a pagina primeiro e clique em Pesquisar em vez de montar a URL.',
+    '- Verificado ao vivo em 24/10/2026 (GET /cjpg/ 200 e /cjsg/consultaCompleta.do 200, form fields extraidos do HTML).'
   ].join('\n');
 }
 
 async function toolFontesOsint() {
   return [
     'PROTOCOLO OBRIGATORIO DE PESQUISA (vale para TODA consulta feita com este servidor):',
-    '1. DOCUMENTO MANDA: havendo CPF/CNPJ do pesquisado, a busca PRINCIPAL e pelo DOCUMENTO (datajud_por_cpf; datajud_buscar/datajud_varrer com o CPF formatado entre aspas; esaj_buscar DOCPARTE). Nome e apenas complemento.',
+    '1. DOCUMENTO MANDA: havendo CPF/CNPJ do pesquisado, a busca PRINCIPAL e pelo DOCUMENTO (esaj_buscar DOCPARTE em tjsp/tjal/tjce - palavra final por documento; dje_sp_buscar e DJEN porque o CPF aparece no texto das publicacoes; datajud_por_cpf para rechecagem - veja a nota de 24/10/2026: o DataJud publico nao publica mais partes). Nome e apenas complemento.',
     '2. HOMONIMO E PROIBIDO: achado de busca por nome sem documento que bata = POSSIVEL HOMONIMO - PROIBIDO apresenta-lo como sendo do pesquisado; nunca entra na lista principal do relatorio (no maximo, secao separada claramente marcada).',
     '3. CRUZAMENTO OBRIGATORIO: nenhuma afirmacao de vinculo sem cruzar DataJud + DJEN + e-SAJ + BrasilAPI (CNPJ) + web (jusbrasil_buscar, exa_buscar).',
     '4. CONFIRMADO so com documento (CPF/CNPJ) exato batendo; sem documento, no maximo PROVAVEL (fingerprint orgao+classe+assunto+datas).',
@@ -1214,9 +1374,9 @@ async function toolFontesOsint() {
     '7. CONFIRMACAO RAPIDA POR NUMERO: datajud_pesquisar (terms com o numero de 20 digitos) confirma a existencia do processo em segundos (1 hit por fingerprint) - use antes do datajud_processo para checagens rapidas de existencia.',
     '',
     'BASES PUBLICAS (onde achar):',
-    '- API publica DataJud/CNJ: https://api-publica.datajud.cnj.jus.br (endpoint api_publica_{tjsp|tjpr|tre-sp|...}/_search; chave publica na wiki https://datajud-wiki.cnj.jus.br/api-publica/acesso/). As partes seguem DOIS formatos de indexacao conforme o tribunal (partes.nome/polo/documento ou partes.pessoa.* estilo MTD) - datajud_por_nome e datajud_por_cpf cobrem ambos via bool.should; nos que omitem, classifique por orgao+classe+assunto+datas (fingerprint). Paginacao alem dos 10.000 hits: datajud_pesquisar com ordenar=atualizacao + apartir_de (cursor search_after).',
+    '- API publica DataJud/CNJ: https://api-publica.datajud.cnj.jus.br (endpoint api_publica_{tjsp|tjpr|tre-sp|...}/_search; chave publica na wiki https://datajud-wiki.cnj.jus.br/api-publica/acesso/). ATENCAO VERIFICADA EM 24/10/2026: os indices publicos NAO publicam mais o campo partes - consulta exists=0 em partes.nome/documento/pessoa.* nos indices tjsp, tjpr, tre-sp e tst, 0 em 100 amostras de documentos, com o indice atualizado no dia anterior. Logo: datajud_por_cpf/datajud_por_nome DEVEM 0 hoje por causa estrutural (nao mascara pontual nem ausencia de processos). O DataJud segue util para EXISTENCIA/FINGERPRINT (numero, orgao, classe, assunto, movimentos, datas) - datajud_pesquisar/datajud_processo. Busca por PARTE hoje: e-SAJ DOCPARTE/NMPARTE (tjsp/tjal/tjce), dje_sp_buscar e DJEN. Reexecute datajud_por_cpf de tempos em tempos: se o CNJ retomar a publicacao, volta a acertar. Paginacao alem dos 10.000 hits: datajud_pesquisar com ordenar=atualizacao + apartir_de (cursor search_after).',
     '- DJEN/CNJ: https://comunicaapi.pje.jus.br/api/v1/comunicacao?nomeParte=... - intimacoes com TEXTO INTEGRAL (sentencas completas); citam numeros correlatos.',
-    '- e-SAJ TJSP: consulta publica por numero via formulario (use a ferramenta esaj_tjsp_guia); busca por nome exige captcha manual.',
+    '- e-SAJ (padrao nacional, NAO so TJSP): esaj_buscar cobre tjsp/tjal/tjce nos dois graus por nome/documento/numero/OAB via HTTP; julgados/sentencas do TJSP em cjpg (texto livre) e cjsg (inteiro teor) - ver esaj_tjsp_guia.',
     '- BrasilAPI: https://brasilapi.com.br (CNPJ gratuito, sem chave).',
     '- Diarios oficiais (DJSP e equivalentes): editais de citacao, publicacoes de sentenca.',
     '- Escavador: agregador (paywall; mascara numeros conforme plano; login 2FA; numeros RELACIONADOS costumam aparecer completos).',
@@ -1264,7 +1424,9 @@ async function toolFontesOsint() {
     '- Lista oficial de tribunais: https://www.cnj.jus.br/poder-judiciario/tribunais/',
     '- Justica Federal (foruns): https://www.jfsp.jus.br/foruns-federais/',
     'ROTAS POR TRIBUNAL (validadas na pratica):',
-    '- TJSP: e-SAJ cpopg - esaj_buscar (HTTP) por nome/documento; consultar processo via formulario (esaj_tjsp_guia); ANONIMO SUPRIME criminais.',
+    '- TJSP: e-SAJ cpopg/cposg - esaj_buscar (HTTP) por nome/documento/numero/OAB, 1o e 2o grau; julgados em cjpg/cjsg (esaj_tjsp_guia); ANONIMO SUPRIME criminais.',
+    '- TJAL e TJCE: o MESMO e-SAJ do TJSP - esaj_buscar tribunal=tjal|tjce (1o grau cpopg, 2o grau cposg5), por nome/documento/numero/OAB - contra-prova de homonimo em 3 estados com a MESMA ferramenta.',
+    '- STJ: https://processo.stj.jus.br/processo/pesquisa/ POR BROWSER (Turnstile do Cloudflare: recarregar e resubmeter) - 3 formatos de numero, devolve partes/advogados/movimentos.',
     '- TJSC: eproc 1g/2g POR BROWSER (Turnstile: recarregar a pagina e resubmeter resolve); nao funciona via HTTP puro.',
     '- TJBA: PJe consulta publica (captcha slider manual a cada busca).',
     '- TJPI: e-TJPI 2a instancia por documento; 1o grau exige login gov.br no PDPJ.',
@@ -1277,6 +1439,7 @@ async function toolFontesOsint() {
     '6. EVIDENCIAS: salve o HTML/PDF bruto, registre data/hora da consulta e a cadeia de confirmacao.',
     '7. CRUZAMENTO EMPREGOS x PROCESSOS: vinculos de trabalho aparecem em processos trabalhistas (TRT: empregador + periodo), no QSA/CNPJ (brasilapi_cnpj) e nas sentencas integrais do DJEN; cruze empregador x periodo x processo - ex.: reclamante de TRT contra o empregador na mesma epoca em que o QSA o lista como socio. Cada cruzamento cita empregador, CNPJ e periodo.',
     '8. RELACIONAMENTOS (pais, filhos, irmaos, conjuge): extraia da QUALIFICACAO JUDICIAL nos autos (genitora, genitor, data de nascimento) e dos textos integrais do DJEN; parente entra no dossie SO com ancora propria - mesmo sobrenome NAO e vinculo (homonimo de parente tambem e PROIBIDO).',
+    '9. OAB COMO EIXO (novo, 24/10/2026): esaj_buscar tipo=NUMOAB ou NMADVOGADO lista TODOS os processos de um advogado - usa para achar atuacoes, escritorios e co-réus quando so ha a OAB ou o nome do advogado. Processo do advogado NUNCA e atribuido ao pesquisado: cruze por CPF/qualificacao antes de qualquer atribuicao.',
     'ETICA/LEGAL:',
     '- Use apenas fontes publicas; nao contorne paywall; LGPD (Lei 13.709/2018) com minimizacao.',
     '- Proteja vitimas de violencia domestica (Lei 11.340/2006) e NUNCA identifique menores (ECA).',
@@ -1289,8 +1452,8 @@ async function toolGuiaNavegacao() {
     'REGRAS E PROMPTS DO MANTENEDOR (ler ANTES de gerar relatorio/documento):',
     '- Master Rules (protocolo central, ponto de partida obrigatorio): https://drive.google.com/file/d/1h9sjA3ZfBFGiczqyy8HjsZjaUzI4nYIo/view',
     '- Pasta de regras (LLMs): https://drive.google.com/drive/folders/1U5U9QNx__hVio5GTKSVflZP9-b_E0OLm',
-    '- Prompt 8.5 ("Criar um post" - padrao de relatorio/conteudo): https://docs.google.com/document/d/1hRoAQEZnKufWdUnzwTxuuwjbAA05sAfTf2oY1MnIky4/edit',
-    '  Resumo do padrao 8.5: TL;DR de 3 bullets no topo; pattern interrupt curto (ate 15 palavras, sem exclamacao); titulos em forma de pergunta (H2) com resposta de 40-60 palavras; zero caracteres decorativos/emojis; FAQ ao final; PT-BR.',
+    '- Prompt 9.4 ("Criar um post" - padrao de relatorio/conteudo, versao UNICA oficial): https://docs.google.com/document/d/1WGFspgXb79mpb7rDce3Kv6k665vqDFasNCVU0qWbEwI/edit',
+    '  Resumo do padrao 9.4: TL;DR de 3 bullets no topo; pattern interrupt curto (ate 15 palavras, sem exclamacao); titulos em forma de pergunta (H2) com resposta de 40-60 palavras; zero caracteres decorativos/emojis; FAQ ao final; PT-BR.',
     '',
     'NAVEGACAO POR BROWSER AUTOMATIZADO (quando HTTP puro falha: captcha, JS, login):',
     '- Cliente: MCP Playwright (@playwright/mcp) - ferramentas browser_navigate, browser_snapshot, browser_find, browser_click, browser_type, browser_fill_form, browser_select_option, browser_network_requests, browser_take_screenshot, browser_evaluate.',
@@ -1299,6 +1462,12 @@ async function toolGuiaNavegacao() {
     '- Armadilhas validadas: acesso DIRETO a URL de processo do e-SAJ (show.do) falha com "Nao foi possivel validar o seu acesso" - abra SEMPRE a partir da lista de resultados ou do formulario (ver esaj_tjsp_guia).',
     '- Turnstile/Cloudflare (ex.: eproc TJSC): recarregar a pagina e resubmeter costuma resolver.',
     '- Outros navegadores uteis: browser_tabs (multi-abas), browser_navigate_back, browser_wait_for (esperar texto carregar), browser_press_key.',
+    '',
+    'ROTAS NOVAS (campo em 24/10/2026):',
+    '- STJ (tribunal superior fora do DataJud/DJEN): https://processo.stj.jus.br/processo/pesquisa/ POR BROWSER - busca por 3 formatos de numero e devolve partes, advogados e movimentos; CAPTCHA Turnstile do Cloudflare, a mesma tecnica do eproc TJSC resolve (recarregar a pagina e resubmeter). Referencia de implementacao: github.com/DanielMarcelino/desafio-tecnico-jusbrasil-stj (usa FlareSolverr - nao precisa: browser manual resolve).',
+    '- BUSCA POR OAB NAO EXIGE BROWSER: o e-SAJ ja responde por HTTP puro - esaj_buscar tipo=NUMOAB (numero) ou NMADVOGADO (nome), em tjsp/tjal/tjce. E o eixo anti-homonimo novo: localiza TODAS as atuacoes de um advogado quando so se tem a OAB (co-réus, escritorio, vinculos). ATENCAO: processo do advogado NUNCA e atribuido ao pesquisado - cruze sempre por CPF/qualificacao.',
+    '- PJe por OAB: os portais PJe tem "Consulta publica -> advogado/OAB" (referencia de seletores: github.com/Antonio-Kleberson/Automatizador_Processos_OAB, TJMG); navegador nacional: https://www.pje.jus.br/navegador/. Rota por browser, nao testada ao vivo.',
+    '- e-SAJ em 3 estados: esaj_buscar ja cobre tribunal=tjsp|tjal|tjce nos DOIS graus (TJAL/TJCE usam cposg5 no 2o grau) e, no TJSP, os modulos de julgados cjpg (sentencas, texto livre) e cjsg (acordaoes, inteiro teor) - ver esaj_tjsp_guia.',
     '',
     'MCPS COMPANHEIROS - AUTOINSTALACAO (nada e pre-instalado: o npx/uvx baixa na primeira execucao):',
     '- Playwright (browser automatizado, oficial Microsoft): comando "npx -y @playwright/mcp" - autoinstala o pacote; na PRIMEIRA execucao baixa o browser Chromium (demora varios minutos, so acontece uma vez). Resolve sites com captcha/JS: e-SAJ, TSE, Receita, infoRegistro.',
@@ -1395,12 +1564,13 @@ async function toolGuiaRelatorios(a) {
       '7. Checklist final: ( ) nada de homonimo publicado; ( ) nenhum dado de terceiro em texto integral; ( ) pendencias com proximo passo; ( ) data de geracao no rodape.',
       '8. Ficha de identificacao: campos do pesquisado (nome+variacoes, nascimento, genitora/genitor, filhos maiores, documentos descobertos, ultimo endereco valido de registro publico, telefones, e-mails) com fonte e nivel - tecnica dos 4 campos-chave (nome+CPF+nascimento+nome da mae) e fontes por campo no guia_dossie FASE 1B.',
       '9. Montagem: links de perfil sempre clicaveis (target="_blank" rel="noopener noreferrer"); secao sem dado nenhum NAO existe no relatorio (nem card de "por que nada aparece") - a ausencia fica na resposta curta da secao ou nas pendencias.',
+      '10. ESTADOS DE CONSULTA OBRIGATORIOS: toda fonte consultada recebe um estado: OK-0 | OK-ACHADO | BLOQUEADO | SUPRIMIDO | DESATUALIZADO | NAO EXECUTADA | FALHA. Tabela "Status por fonte" (fonte | estado | data/hora | proximo passo) obrigatoria no relatorio. BLOQUEADO/SUPRIMIDO/NAO EXECUTADA/FALHA/DESATUALIZADO PROIBE "controle negativo documentado" - use "auditoria em curso, N pendencias". KPI "0 processos" so soma estados OK-0 e vem pareado com "partes mascaradas". Zero do DataJud e INDICIO, nunca veredito. Apos qualquer OK-0,cadeia obrigatoria: escavador_buscar/jusbrasil_buscar (rota browser) -> djen_intimacoes -> dje_sp_buscar -> esaj_buscar NMPARTE em tjsp+tjal+tjce. e-SAJ TJSP com 0 e cobertura criminal parcialmente oculta (secao obrigatoria no relatorio). CAPTCHA/anomalia = FALHA, nunca "0 mencoes".',
       'Guia tecnico completo (HTML, secoes, WCAG, temas): chame guia_relatorios sem escopo.'
     ].join('\n');
   }
   return [
-    'OBRIGACAO (padrao 8.5 + master_rules.md): todo relatorio/dossie gerado com dados deste servidor segue OBRIGATORIAMENTE o padrao 8.5 E as estruturas do master_rules.md adaptadas ao HTML estatico (SEM PHP). CONTEUDO INTEGRAL dos .md: ferramenta regras_ler (whitelist: master_rules, prompt_8_5) - se a pasta regras/ nao existir na instalacao (instalacao so-server.js), monte pelo RESUMO deste guia, que e autocontido. AVISO: o prompt_8_5 original e GENERICO de blog/YouTube (thumbnail, hashtags, monetizacao) - use dele apenas o que aplicavel ao dossie (Answer Target, FAQ, temas claro/escuro, CSS sem duplicatas).',
-    'ORDEM OBRIGATORIA DE MONTAGEM DO HTML: (1) PRIMEIRO monte a pagina aplicando os .md aplicaveis da pasta regras/, comecando pelo master_rules.md (semantica W3C, WCAG AA, temas claro/escuro com persistencia, CSS sem duplicatas, zero alert, PT-BR); (2) DEPOIS finalize o CONTEUDO com o padrao do prompt 8.5 (regras/prompt_8_5.md): TL;DR de 3 bullets, titulos em forma de pergunta com resposta de 40-60 palavras, FAQ ao final, zero emojis.',
+    'OBRIGACAO (padrao 9.4 + master_rules.md): todo relatorio/dossie gerado com dados deste servidor segue OBRIGATORIAMENTE o padrao 9.4 E as estruturas do master_rules.md adaptadas ao HTML estatico (SEM PHP). CONTEUDO INTEGRAL dos .md: ferramenta regras_ler (whitelist: master_rules, prompt_9_4) - se a pasta regras/ nao existir na instalacao (instalacao so-server.js), monte pelo RESUMO deste guia, que e autocontido. AVISO: o prompt_9_4 original e GENERICO de blog/YouTube (thumbnail, hashtags, monetizacao) - use dele apenas o que aplicavel ao dossie (Answer Target, FAQ, temas claro/escuro, CSS sem duplicatas).',
+    'ORDEM OBRIGATORIA DE MONTAGEM DO HTML: (1) PRIMEIRO monte a pagina aplicando os .md aplicaveis da pasta regras/, comecando pelo master_rules.md (semantica W3C, WCAG AA, temas claro/escuro com persistencia, CSS sem duplicatas, zero alert, PT-BR); (2) DEPOIS finalize o CONTEUDO com o padrao do prompt 9.4 (regras/prompt_9.4.md): TL;DR de 3 bullets, titulos em forma de pergunta com resposta de 40-60 palavras, FAQ ao final, zero emojis.',
     'FORMATO PADRAO: UM unico arquivo HTML autocontido - apenas HTML, CSS e JS INTERNOS (tags <style> e <script> embutidas), sem PHP, sem arquivos separados, sem CDN - abrindo offline; outro formato (PDF, DOCX etc.) SOMENTE quando o usuario pedir explicitamente.',
     '',
     'TECNICAS DE RELATORIO (validadas na pratica - dossies de investigacao judicial):',
@@ -1415,10 +1585,10 @@ async function toolGuiaRelatorios(a) {
     '  * Temas claro E escuro: obrigatorios, com alternancia dinamica (botao no cabecalho) e persistencia via localStorage.',
     '  * JS interno: ZERO alert()/confirm()/prompt() - aviso via showToast() (toast em CSS/JS embutidos).',
     '  * CSS sem duplicatas: cada seletor em um bloco unico; duplicatas aceitaveis apenas para dark mode ([data-theme="dark"]), media queries e pseudo-classes (:hover/:focus).',
-    '  * Titulos <h2> em forma de pergunta com resposta direta de 40-60 palavras logo abaixo (Answer Target do master_rules + prompt 8.5).',
+    '  * Titulos <h2> em forma de pergunta com resposta direta de 40-60 palavras logo abaixo (Answer Target do master_rules + prompt 9.4).',
     '  * Idioma: PT-BR obrigatorio em todo o relatorio.',
     '',
-    '2. PADRAO DE CONTEUDO (adaptacao do prompt 8.5 ao dossie):',
+    '2. PADRAO DE CONTEUDO (adaptacao do prompt 9.4 ao dossie):',
     '- Cabecalho: TL;DR com 3 bullets (total de registros, confirmacoes, pendencias).',
     '- Cada secao com titulo em forma de PERGUNTA seguida de resposta curta e direta (40-60 palavras) antes do detalhe.',
     '- Zero emojis/unicode decorativo; linguagem objetiva em PT-BR.',
@@ -1467,27 +1637,28 @@ async function toolGuiaRelatorios(a) {
     '- POST/DIVULGACAO: so com pedido explicito do titular, anonimizacao/minimizacao e avaliacao juridica propria (o termo de responsabilidade proibe publicacao sem base legal).',
     '- Familiares: incluir somente com documento/ancora propria, nunca por conjetura.',
     '',
-    '9. CHECKLIST FINAL ANTES DE ENTREGAR:',
+    '9. ESTADOS DE CONSULTA OBRIGATORIOS (P7): cada fonte consultada ganha estado OK-0 | OK-ACHADO | BLOQUEADO | SUPRIMIDO | DESATUALIZADO | NAO EXECUTADA | FALHA, com tabela "Status por fonte" (fonte | estado | data/hora | proximo passo) no relatorio. Regras: bloqueado/suprimido/nao-executado/falha/desatualizado PROIBE a formulacao "controle negativo documentado" (use "auditoria em curso, N pendencias"); KPI "0 processos" so soma estados OK-0 e vem pareado com "partes mascaradas"; 0 do DataJud = INDICIO, nunca veredito; apos OK-0 a cadeia obrigatoria e escavador/jusbrasil (browser) -> DJEN -> dje_sp_buscar -> esaj_buscar NMPARTE em tjsp+tjal+tjce; e-SAJ TJSP 0 = cobertura criminal parcialmente oculta (secao obrigatoria); captcha/anomalia = FALHA, nunca "0 mencoes".',
+    '10. CHECKLIST FINAL ANTES DE ENTREGAR:',
     '( ) todos os numeros CNJ validados (cnj_validar); ( ) niveis de confirmacao marcados; ( ) pendencias com proximo passo; ( ) filtro/busca JS funcionando; ( ) data de geracao no rodape; ( ) nenhum dado de homonimo na lista principal (PROIBICAO); ( ) nenhuma secao de homonimo publicada, salvo pedido EXPLICITO do cliente; ( ) nenhum CPF/nome/dado de terceiro em texto integral; ( ) ciclo PF<->PJ executado (ciclo_pf_pj: CPF achou CNPJs vinculados / CNPJ achou CPFs do QSA); ( ) arquivo abre offline.',
     '',
-    'REUSO: este servidor NAO gera o HTML - o agente gera seguindo estas regras. Use fontes_osint (onde/como buscar), guia_navegacao (browser/instalacao), este guia (como apresentar) e guia_publicacao (fontes ao vivo do Drive, template + montagem secao a secao ate 100%, post com o prompt 9.2).'
+    'REUSO: este servidor NAO gera o HTML - o agente gera seguindo estas regras. Use fontes_osint (onde/como buscar), guia_navegacao (browser/instalacao), este guia (como apresentar) e guia_publicacao (fontes ao vivo do Drive, template + montagem secao a secao ate 100%, post com o prompt 9.4).'
   ].join('\n');
 }
 
-// --- guia_publicacao: fontes ao vivo + template + relatorio POR ETAPAS + post (prompt 9.2) ---
+// --- guia_publicacao: fontes ao vivo + template + relatorio POR ETAPAS + post (prompt 9.4) ---
 // Regra do titular (24/10/2026): as regras deste fluxo vivem no Google Drive e no
 // Google Docs e SEMPRE se atualizam. O servidor guarda SOMENTE os links - nunca
 // baixa, copia ou versiona esses arquivos dentro desta pasta (que e publicada).
 
 const LINK_REGRAS_DRIVE = 'https://drive.google.com/drive/folders/1U5U9QNx__hVio5GTKSVflZP9-b_E0OLm';
-const LINK_PROMPT_92 = 'https://docs.google.com/document/d/1F7eeb6OgvOUUzfrBM6x9xHUY-qy_cnW9myi-Y-7PLZc/edit';
+const LINK_PROMPT_94 = 'https://docs.google.com/document/d/1WGFspgXb79mpb7rDce3Kv6k665vqDFasNCVU0qWbEwI/edit';
 
 const GUIA_FONTES_AO_VIVO = [
   '0. FONTES SEMPRE ATUAIS - regra inegociavel (regra do titular, 24/10/2026):',
   '- As regras deste fluxo vivem no Google Drive e no Google Docs, mudam sem aviso e NUNCA sao copiadas para dentro de capivaradigital-mcp/ (a pasta e publicada). A cada execucao abra os links abaixo e leia a versao de hoje; guarde apenas o link.',
   '- LINK 1 - pasta de regras (Drive "regras_llms"): ' + LINK_REGRAS_DRIVE,
-  '- LINK 2 - prompt 9.2 de publicacao de post (Google Docs): ' + LINK_PROMPT_92,
-  '- ORDEM OBRIGATORIA DE LEITURA: (1) abra o LINK 1 e leia o master_rules.md PRIMEIRO; (2) siga os demais arquivos da pasta na ordem e dependencias que o master_rules.md declarar; (3) confira a data de modificacao dos arquivos - versao velha nao vale; (4) execute a etapa; (5) o LINK 2 (prompt 9.2) e lido SO no fim, na etapa do post.',
+  '- LINK 2 - prompt 9.4 de publicacao de post (Google Docs): ' + LINK_PROMPT_94,
+  '- ORDEM OBRIGATORIA DE LEITURA: (1) abra o LINK 1 e leia o master_rules.md PRIMEIRO; (2) siga os demais arquivos da pasta na ordem e dependencias que o master_rules.md declarar; (3) confira a data de modificacao dos arquivos - versao velha nao vale; (4) execute a etapa; (5) o LINK 2 (prompt 9.4) e lido SO no fim, na etapa do post.',
   '- LINK FALHOU (sem permissao, arquivo renomeado, sem rede): NAO invente conteudo, NAO reutilize copia antiga nem o espelho local de regras/ (mirror de versao antiga, serve so para consulta offline via regras_ler) - registre a pendencia com o proximo passo e INTERROMPA a etapa dependente da fonte.',
   '- NUNCA afirme ter lido uma referencia que nao abriu. Diga o que faltou.',
   ''
@@ -1515,13 +1686,13 @@ const GUIA_SECAO_A_SECAO = [
   '- PROHIBIDO gerar o relatorio inteiro de uma vez: o pedido do titular e por etapas - template, depois secao 1 e salvar, depois secao 2 e salvar, e assim ate concluir todas.'
 ].join('\n');
 
-const GUIA_POST_92 = [
-  '3. ETAPA POST (prompt 9.2) - SO depois de "Progresso: Y/Y" (100% das secoes CONCLUIDAS):',
-  '- Abra o LINK 2 e leia a versao ATUAL do Master Rules 9.2 - ele e autossuficiente: substitua as variaveis {VARIAVEL} da Secao 0 pelo valor, sem editar o bloco de configuracao, e siga a estrutura, os minimos e os portoes de qualidade da versao de hoje.',
+const GUIA_POST_94 = [
+  '3. ETAPA POST (prompt 9.4) - SO depois de "Progresso: Y/Y" (100% das secoes CONCLUIDAS):',
+  '- Abra o LINK 2 e leia a versao ATUAL do Master Rules 9.4 - ele e autossuficiente: substitua as variaveis {VARIAVEL} da Secao 0 pelo valor, sem editar o bloco de configuracao, e siga a estrutura, os minimos e os portoes de qualidade da versao de hoje.',
   '- O post nasce do relatorio JA CONCLUIDO: tudo que o post afirma existe no relatorio com fonte; o que nao esta no relatorio nao entra no post.',
   '- Entrega no formato exigido pela versao atual do prompt (arquivos, secoes e metadados vem de la) - nao reutilize o formato gravado em memoria de outra sessao: o prompt muda.',
   '- LGPD DO POST: dado pessoal identificavel do pesquisado ou de terceiro (nome completo + CPF, endereco, numero de processo, menores, vitimas) NAO vai para post publicado - post e uso secundario e publico. Publicar exige pedido EXPLICITO do titular + anonimizacao/minimizacao + avaliacao juridica propria; sem isso o post fica para uso interno. Homonimo nunca aparece. O termo de responsabilidade proibe revenda e publicacao sem base legal.',
-  '- LINK 2 falhou ou o prompt 9.2 sumiu da pasta: INTERROMPA, registre a pendencia - nao improvise outro prompt nem reutilize copia velha.'
+  '- LINK 2 falhou ou o prompt 9.4 sumiu da pasta: INTERROMPA, registre a pendencia - nao improvise outro prompt nem reutilize copia velha.'
 ].join('\n');
 
 const GUIA_CHECKLIST_100 = [
@@ -1532,11 +1703,11 @@ const GUIA_CHECKLIST_100 = [
 
 async function toolGuiaPublicacao(a) {
   const etapa = String((a && a.etapa) || '').trim().toLowerCase();
-  const cabecalho = 'TEMPLATE PADRAO + RELATORIO POR ETAPAS + POST (prompt 9.2) - protocolo de montagem do capivaradigital-mcp (v1.18.7)';
-  if (!etapa) return [cabecalho, '', GUIA_FONTES_AO_VIVO, '', GUIA_TEMPLATE_PADRAO, '', GUIA_SECAO_A_SECAO, '', GUIA_POST_92, '', GUIA_CHECKLIST_100].join('\n');
+  const cabecalho = 'TEMPLATE PADRAO + RELATORIO POR ETAPAS + POST (prompt 9.4) - protocolo de montagem do capivaradigital-mcp (v1.19.1)';
+  if (!etapa) return [cabecalho, '', GUIA_FONTES_AO_VIVO, '', GUIA_TEMPLATE_PADRAO, '', GUIA_SECAO_A_SECAO, '', GUIA_POST_94, '', GUIA_CHECKLIST_100].join('\n');
   if (etapa === 'template') return [cabecalho, '', GUIA_FONTES_AO_VIVO, '', GUIA_TEMPLATE_PADRAO].join('\n');
   if (etapa === 'secoes' || etapa === 'etapas' || etapa === 'sessoes') return [cabecalho, '', GUIA_FONTES_AO_VIVO, '', GUIA_SECAO_A_SECAO].join('\n');
-  if (etapa === 'post' || etapa === '9.2' || etapa === '92') return [cabecalho, '', GUIA_FONTES_AO_VIVO, '', GUIA_POST_92].join('\n');
+  if (etapa === 'post' || etapa === '9.4' || etapa === '94') return [cabecalho, '', GUIA_FONTES_AO_VIVO, '', GUIA_POST_94].join('\n');
   if (etapa === '100' || etapa === 'checklist' || etapa === 'fechamento') return [cabecalho, '', GUIA_CHECKLIST_100].join('\n');
   if (/^\d+$/.test(etapa)) return [cabecalho, '', GUIA_SECAO_A_SECAO, '', 'ETAPA ' + Number(etapa) + ': monte, valide, SALVE, RELIA e confirme a gravacao, atualize o contador - e pare aqui. A secao ' + (Number(etapa) + 1) + ' so comeca depois desta confirmacao.'].join('\n');
   throw new Error('Etapa desconhecida: "' + etapa + '". Opcoes: template | secoes | post | 100 | numero da secao (ex.: "3") | vazio = guia completa.');
@@ -1548,7 +1719,7 @@ async function toolGuiaPublicacao(a) {
 
 const REGRAS_WHITELIST = {
   master_rules: 'master_rules.md',
-  prompt_8_5: 'prompt_8_5.md'
+  prompt_9_4: 'prompt_9.4.md'
 };
 
 async function toolRegrasLer(a) {
@@ -1557,8 +1728,8 @@ async function toolRegrasLer(a) {
   if (alvo.endsWith('.md')) alvo = alvo.slice(0, -3);
   if (!alvo) {
     return 'Use regras_ler({ arquivo: "<chave>" }) para o conteudo INTEGRAL dos .md de regras/. Whitelist (so estes - nenhum outro caminho do servidor e acessivel):\n' + lista +
-      '\n\nAVISO: prompt_8_5.md e o prompt GENERICO de blog/YouTube (thumbnail, hashtags, monetizacao). As normas APLICAVEIS a dossie judicial (Answer Target, FAQ, temas claro/escuro, CSS sem duplicatas, secoes a-i) estao resumidas no guia_relatorios - ao ler o integral, use apenas o que aplicavel.' +
-      '\n\nOrdem de montagem de dossie (padrao do servidor): (1) master_rules (estruturas/sintaxe); (2) guia_relatorios (adaptacao ao dossie + checklist); (3) prompt_8_5 apenas como referencia de conteudo.';
+      '\n\nAVISO: prompt_9.4.md e o prompt GENERICO de blog/YouTube (thumbnail, hashtags, monetizacao). As normas APLICAVEIS a dossie judicial (Answer Target, FAQ, temas claro/escuro, CSS sem duplicatas, secoes a-i) estao resumidas no guia_relatorios - ao ler o integral, use apenas o que aplicavel.' +
+      '\n\nOrdem de montagem de dossie (padrao do servidor): (1) master_rules (estruturas/sintaxe); (2) guia_relatorios (adaptacao ao dossie + checklist); (3) prompt_9_4 apenas como referencia de conteudo.';
   }
   const arq = REGRAS_WHITELIST[alvo];
   if (!arq) throw new Error('Arquivo fora da whitelist: "' + alvo + '". Opcoes:\n' + lista);
@@ -1575,7 +1746,7 @@ async function toolRegrasLer(a) {
   }
   const LIMITE = 70000;
   let out = '=== regras/' + arq + ' (' + texto.length + ' chars) ===\n';
-  if (alvo === 'prompt_8_5') out += 'AVISO: prompt generico de BLOG/YouTube - use apenas as secoes aplicaveis ao dossie (Answer Target, FAQ, temas, CSS sem duplicatas); ignore thumbnail/hashtags/monetizacao. Resumo adaptado: guia_relatorios.\n\n';
+  if (alvo === 'prompt_9_4') out += 'AVISO: prompt generico de BLOG/YouTube - use apenas as secoes aplicaveis ao dossie (Answer Target, FAQ, temas, CSS sem duplicatas); ignore thumbnail/hashtags/monetizacao. Resumo adaptado: guia_relatorios.\n\n';
   if (texto.length > LIMITE) return out + texto.slice(0, LIMITE) + '\n\n[TRUNCADO em ' + LIMITE + ' de ' + texto.length + ' chars]';
   return out + texto;
 }
@@ -1609,7 +1780,7 @@ async function toolCicloPfPj(a) {
 
   try {
     esajOut = await toolEsajBuscar({ nome_ou_doc: docFormatado, tipo: 'DOCPARTE' });
-    partes.push('\n=== 2. e-SAJ TJSP - DOCPARTE (documento) ===\n' + esajOut);
+    partes.push('\n=== 2. e-SAJ TJSP - DOCPARTE (documento) ===\n' + esajOut + '\n CONTRA-PROVA NAS OUTRAS CASAS: repita esaj_buscar com tribunal=tjal e tribunal=tjce (mesmo DOCPARTE) - 3 estados com a mesma ferramenta.');
   } catch (e) { erros.push('e-SAJ: ' + String(e && e.message ? e.message : e).slice(0, 200)); }
 
   try {
@@ -1636,13 +1807,15 @@ async function toolCicloPfPj(a) {
     const t = Number(m[2]);
     if (t > 0) { somaDatajud += t; totaisDatajud.push(m[1] + ': ' + t); }
   }
-  const mEsaj = esajOut.match(/(\d+)\s*Processos?\s*encontrados?/i);
-  const esajTotal = mEsaj ? Number(mEsaj[1]) : (/:\s*0 processos/i.test(esajOut) ? 0 : -1);
+  const mContagem = esajOut.match(/CONTAGEM: (\d+)/);
+  const mEsaj = mContagem ? null : esajOut.match(/(\d+)\s*Processos?\s*encontrados?/i);
+  const esajTotal = mContagem ? Number(mContagem[1]) : (mEsaj ? Number(mEsaj[1]) : (/:\s*0 processos/i.test(esajOut) ? 0 : -1));
   const mDje = djeOut.match(/Total: (\d+) publicacoes/);
   const djeTotal = mDje ? Number(mDje[1]) : -1;
 
   let veredito = '\n=== VEREDITO DO CICLO (' + docFormatado + ') ===\n';
   veredito += '- DataJud por documento (' + (tribunaisArg ? String(tribunaisArg) : 'tribunais padrao') + '): ' + (totaisDatajud.length ? somaDatajud + ' hit(s) em ' + totaisDatajud.join(', ') : somaDatajud + ' hit(s)') + '\n';
+  if (!somaDatajud) veredito += '  * DataJud: 0 ESTRUTURAL (24/10/2026: os indices publicos nao publicam o campo partes) - NAO e evidencia de ausencia; a palavra por documento sai do e-SAJ DOCPARTE, DJE-SP e DJEN.\n';
   veredito += '- e-SAJ DOCPARTE: ' + (esajTotal < 0 ? 'nao lido' : esajTotal + ' processo(s)') + '\n';
   veredito += '- DJE-SP: ' + (djeTotal < 0 ? 'nao lido' : djeTotal + ' publicacao(oes)') + '\n';
   if (erros.length) veredito += '- FONTES COM ERRO (ver pendencias): ' + erros.join(' | ') + '\n';
@@ -1692,7 +1865,7 @@ async function toolGuiaInstalacao() {
     '   A rota oficial e a ferramenta mcp_atualizar - baixa o server.js direto do GitHub raw, guarda backup .bak e se substitui; NAO depende de git.',
     '   Em clone com git tambem vale: git pull. Reinicie o cliente apos atualizar.',
     '',
-    'REGRAS DA CASA: zero dependencias, zero dados reais, Node 18+; todo relatorio segue o padrao 8.5 (ver guia_relatorios).'
+    'REGRAS DA CASA: zero dependencias, zero dados reais, Node 18+; todo relatorio segue o padrao 9.4 (ver guia_relatorios).'
   ].join('\n');
 }
 
@@ -1741,7 +1914,8 @@ async function toolGuiaDossie(args) {
     ['FASE 4 - VARREDURA MULTI-TRIBUNAL E DIARIOS',
      '1. datajud_varrer por documento (default 11 principais; amplie com trt1,trt2,trt15,trf3 - varredura todos_tribunais pode dar timeout no TJSP: repita em janelas menores e documente a pendencia).',
      '2. dje_sp_buscar por nome (triagem interna; so publica com documento cruzado) e por NUMERO de processo (ancora unica, sem risco de homonimo).',
-     '3. djen_intimacoes por nome: textos integrais citam processos correlatos e despachos - mina de ouro para desmascarar; homonimo exigido.'],
+     '3. djen_intimacoes por nome: textos integrais citam processos correlatos e despachos - mina de ouro para desmascarar; homonimo exigido.',
+     '4. ESTADOS POR FONTE (P7): registre cada fonte como OK-0 | OK-ACHADO | BLOQUEADO | SUPRIMIDO | DESATUALIZADO | NAO EXECUTADA | FALHA na tabela "Status por fonte" do relatorio. Apos OK-0 em qualquer fonte, execute a cadeia de revalidacao: escavador_buscar/jusbrasil_buscar (rota browser) -> djen_intimacoes -> dje_sp_buscar -> esaj_buscar NMPARTE em tjsp+tjal+tjce. Bloqueado/suprimido/falha nunca viram "0 processos" no relatorio.'],
     ['FASE 5 - REDES SOCIAIS, CURRICULO DECLARADO E VINCULOS EMPREGATICIOS',
      '1. LinkedIn/web (exa_buscar, buscadores): classificar cada perfil como COMPATIVEL (coerente com CNAE/empresa/geografia, mas SEM documento = nao atribuir) ou DESCARTADO (historico incompativel). Publicar descartes apenas como lista resumida.',
      '2. VINCULOS EMPREGATICIOS (pedido tipico): (a) CONFIRMADO por ancora = apenas a propria empresa do QSA; (b) COMPATIVEL = cargos declarados em perfil publico, SEM nome de empregador; (c) controle negativo = 0 processos trabalhistas por CPF nos TRTs (so assim empregador aparece em via publica); (d) LIMITE DECLARADO: CAGED/Rais sao bases fechadas - nenhuma fonte publica gratuita lista empregadores CLT; escreva isso no dossie.',
@@ -1760,19 +1934,20 @@ async function toolGuiaDossie(args) {
      '3. Cruzar curriculo x processos x empresas: incoerencia documentada e achado relevante.'],
     ['FASE 9 - MONTAGEM DO DOSSIE',
      '1. Dossie x METODO separados: tecnica de pesquisa NUNCA no dossie do documento (vive no relatorio de metodo); no dossie so dados + fontes.',
-     '2. Template: HTML unico autocontido (CSS/JS internos, sem PHP), sistema de classes post-* definido pelo titular (24/10/2026): topbar + nav de indice + hero com badges/lead/meta/TL;DR + secoes .post-section + FAQ em details + .post-signature; FontAwesome CDN, JSON-LD (Article + FAQPage), filtro JS, tema claro/escuro, footer com data + LGPD + presuncao de inocencia; creditos: criacao = "Capivaradigital-MCP Gerenciamento de consultas publicas", CanalQb so como autor do prompt 8.5 e hospedador do MCP; titular = "titular da investigacao". BLOCO DE KPIS OBRIGATORIO logo apos o TL;DR: <section class="post-section" aria-label="Numeros do dossie"> com .post-kpis de .post-kpi (strong = numero CONFIRMADO do proprio relatorio, span = rotulo com a fonte) - nasce zerado no template e so muda quando a secao correspondente fica CONCLUIDA; nunca invente KPI. Padrao v1.17.2: ordenacao por clique nos cabecalhos (th[data-sort] + aria-sort + suporte a teclado, locale pt-BR numerico) e impressao pericial (@page A4, break-inside:avoid em cards/tabelas/linhas, rodape de auditoria .print-footer-audit visivel so no PDF).',
+     '2. Template: HTML unico autocontido (CSS/JS internos, sem PHP), sistema de classes post-* definido pelo titular (24/10/2026): topbar + nav de indice + hero com badges/lead/meta/TL;DR + secoes .post-section + FAQ em details + .post-signature; FontAwesome CDN, JSON-LD (Article + FAQPage), filtro JS, tema claro/escuro, footer com data + LGPD + presuncao de inocencia; creditos: criacao = "Capivaradigital-MCP Gerenciamento de consultas publicas", CanalQb so como autor do prompt 9.4 e hospedador do MCP; titular = "titular da investigacao". BLOCO DE KPIS OBRIGATORIO logo apos o TL;DR: <section class="post-section" aria-label="Numeros do dossie"> com .post-kpis de .post-kpi (strong = numero CONFIRMADO do proprio relatorio, span = rotulo com a fonte) - nasce zerado no template e so muda quando a secao correspondente fica CONCLUIDA; nunca invente KPI. Padrao v1.17.2: ordenacao por clique nos cabecalhos (th[data-sort] + aria-sort + suporte a teclado, locale pt-BR numerico) e impressao pericial (@page A4, break-inside:avoid em cards/tabelas/linhas, rodape de auditoria .print-footer-audit visivel so no PDF).',
      '3. Secoes: TL;DR 3 bullets com nivel; identidade (ancora dupla); CNPJs; redes/curriculo/vinculos; tabela de processos CONFIRMADOS com coluna de confirmacao; movimentacao integral; detalhes do crime; analise de perfil; pendencias COM proximo passo; fontes; FAQ. Zero emojis, PT-BR.',
      '4. Validar antes de entregar: parser HTML sem erros, JS sem erro de sintaxe, JSON-LD parseavel, grep de homonimos.',
-     '5. MONTAGEM POR ETAPAS (regra do titular, 24/10/2026): o relatorio NUNCA e escrito inteiro de uma vez - crie o template e salve, faca a 1a secao e salve, a 2a secao e salve, e assim ate 100%, confirmando a gravacao antes de cada secao seguinte. A ferramenta guia_publicacao devolve o protocolo, as FONTES AO VIVO no Google Drive (master_rules.md PRIMEIRO, depois os demais arquivos da pasta) e o post final com o prompt 9.2 - os arquivos do Drive/Docs NUNCA sao baixados para esta pasta, guarda-se so o link.'],
+     '5. MONTAGEM POR ETAPAS (regra do titular, 24/10/2026): o relatorio NUNCA e escrito inteiro de uma vez - crie o template e salve, faca a 1a secao e salve, a 2a secao e salve, e assim ate 100%, confirmando a gravacao antes de cada secao seguinte. A ferramenta guia_publicacao devolve o protocolo, as FONTES AO VIVO no Google Drive (master_rules.md PRIMEIRO, depois os demais arquivos da pasta) e o post final com o prompt 9.4 - os arquivos do Drive/Docs NUNCA sao baixados para esta pasta, guarda-se so o link.'],
     ['FASE 10 - FECHAMENTO',
      '1. Pendencias com proximo passo concreto (uma por lacuna).',
      '2. Registro da sessao em log interno do projeto (nao no MCP - zero dados reais aqui).',
-     '3. Niveis: CONFIRMADO (ancora de documento) / PROVAVEL (fingerprint) / POSSIVEL HOMONIMO (nunca na lista principal).']
+     '3. Niveis: CONFIRMADO (ancora de documento) / PROVAVEL (fingerprint) / POSSIVEL HOMONIMO (nunca na lista principal).',
+     '4. REVALIDACAO AO VIVO ANTES DE FECHAR (P7): reexecute AO VIVO toda fonte marcada OK-0 e toda cadeia escavador/jusbrasil (browser) -> DJEN -> dje_sp_buscar -> esaj_buscar NMPARTE em 3 estados; confirme que nenhum estado mudou para BLOQUEADO/SUPRIMIDO/DESATUALIZADO/FALHA - se mudou, o relatorio declare "auditoria em curso" e nao "controle negativo".']
   ];
   let out = FASES.map(f => f.join('\n')).join('\n\n');
-  const header = TERMO_RESPONSABILIDADE + '\n\n' + 'PROTOCOLO DE DOSSIE COMPLETO POR DOCUMENTO (v1.18.7) - regra obrigatoria para TODOS os agentes que usam o capivaradigital. Execute as etapas em ordem; nenhum pedido do titular fica sem resposta ou sem rota tentada. Fonte: sessoes reais 18-22/10/2026 (dossies validados). Zero dados reais neste texto.\n\n';
+  const header = TERMO_RESPONSABILIDADE + '\n\n' + 'PROTOCOLO DE DOSSIE COMPLETO POR DOCUMENTO (v1.19.1) - regra obrigatoria para TODOS os agentes que usam o capivaradigital. Execute as etapas em ordem; nenhum pedido do titular fica sem resposta ou sem rota tentada. Fonte: sessoes reais 18-22/10/2026 (dossies validados). Zero dados reais neste texto.\n\n';
   if (so) { const f = FASES.find(x => x[0].indexOf(so.toUpperCase()) > -1); return header + (f ? f.join('\n') : 'Fase nao encontrada. Fases: 0,1,1B,2,3,4,5,6,7,8,9,10 (use fase="FASE 6" etc.).'); }
-  return header + out + '\n\nVEJA TAMBEM: guia_relatorios (template/niveis), guia_publicacao (fontes ao vivo do Drive, montagem secao a secao ate 100%, post 9.2), fontes_osint (protocolo anti-homonimo), guia_navegacao (browser), ciclo_pf_pj (execucao da fase 1-2).';
+  return header + out + '\n\nVEJA TAMBEM: guia_relatorios (template/niveis), guia_publicacao (fontes ao vivo do Drive, montagem secao a secao ate 100%, post 9.4), fontes_osint (protocolo anti-homonimo), guia_navegacao (browser), ciclo_pf_pj (execucao da fase 1-2).';
 }
 
 const TOOLS = [
@@ -1903,7 +2078,7 @@ const TOOLS = [
       type: 'object',
       properties: {
         nome_parte: { type: 'string', description: 'Nome da parte exata (sem mascaras)' },
-        itens_por_pagina: { type: 'number', description: 'Default 30, max 100' },
+        itens_por_pagina: { type: 'number', description: 'Default 30, max 50 (acima de 50 a API falha silenciosamente)' },
         pagina: { type: 'number', description: 'Default 1' },
         incluir_texto: { type: 'boolean', description: 'Incluir texto integral truncado (default: true)' },
         max_texto: { type: 'number', description: 'Caracteres do texto por intimacao (default 600)' }
@@ -1942,12 +2117,14 @@ const TOOLS = [
   },
   {
     name: 'esaj_buscar',
-    description: 'Consulta anonima do 1o grau do TJSP (e-SAJ) por nome da parte (NMPARTE), CPF/CNPJ (DOCPARTE) ou numero (NUMPROC), via HTTP direto. LIMITACAO: a consulta anonima SUPRIME partes de processos criminais (sigilo legal). REGRA: com CPF/CNPJ use DOCPARTE (ancora) - e siga o ciclo PF<->PJ (CPF acha CNPJs vinculados / CNPJ acha CPFs do QSA); NMPARTE (nome) produz homonimos - PROIBIDO lista-los como sendo do pesquisado sem cruzamento por documento.',
+    description: 'Consulta anonima e-SAJ (e-SAJ CNJ) em TRES tribunais - TJSP, TJAL e TJCE - por nome da parte (NMPARTE), CPF/CNPJ (DOCPARTE), numero (NUMPROC), OAB do advogado (NUMOAB) ou nome do advogado (NMADVOGADO), via HTTP direto, no 1o e no 2o grau. LIMITACAO: no TJSP a consulta anonima SUPRIME partes de processos criminais (sigilo legal). REGRA: com CPF/CNPJ use DOCPARTE (ancora) - e siga o ciclo PF<->PJ (CPF acha CNPJs vinculados / CNPJ acha CPFs do QSA); NMPARTE (nome) produz homonimos - PROIBIDO lista-los como sendo do pesquisado sem cruzamento por documento. NAO e mais necessario ir ao DataJud buscar partes: o indice publico do DataJud nao publica o campo partes (verificado em 24/10/2026) - aqui e a palavra final por documento.',
     inputSchema: {
       type: 'object',
       properties: {
-        nome_ou_doc: { type: 'string', description: 'Nome da parte, CPF/CNPJ ou numero do processo' },
-        tipo: { type: 'string', description: 'NMPARTE (nome, default), DOCPARTE (CPF/CNPJ) ou NUMPROC (numero)' },
+        nome_ou_doc: { type: 'string', description: 'Nome da parte, CPF/CNPJ, numero do processo ou numero da OAB' },
+        tipo: { type: 'string', description: 'NMPARTE (nome, default), DOCPARTE (CPF/CNPJ), NUMPROC (numero), NUMOAB (OAB) ou NMADVOGADO (nome do advogado)' },
+        tribunal: { type: 'string', description: 'tjsp (default), tjal ou tjce' },
+        grau: { type: 'string', description: '1 (default, 1o grau) ou 2 (2o grau)' },
         foro: { type: 'string', description: 'Codigo do foro (default -1 = todos)' }
       },
       required: ['nome_ou_doc']
@@ -2016,13 +2193,13 @@ const TOOLS = [
   },
   {
     name: 'guia_navegacao',
-    description: 'Guia de navegacao por browser automatizado: links das regras do mantenedor (master rules, pasta de regras, prompt 8.5 de relatorio), fluxo validado com o MCP Playwright (snapshot/find/fill/click, captchas manuais, armadilhas do e-SAJ) e modulos de Python para scripts locais (requests, playwright, pandas).',
+    description: 'Guia de navegacao por browser automatizado: links das regras do mantenedor (master rules, pasta de regras, prompt 9.4 de relatorio), fluxo validado com o MCP Playwright (snapshot/find/fill/click, captchas manuais, armadilhas do e-SAJ) e modulos de Python para scripts locais (requests, playwright, pandas).',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
     _run: toolGuiaNavegacao
   },
   {
     name: 'guia_dossie',
-    description: 'PROTOCOLO DE DOSSIE COMPLETO POR DOCUMENTO (v1.18.7): regra obrigatoria para todo agente - FASE 00 ISOLAMENTO DE CONSULTAS: cada CPF/CNPJ e uma consulta NOVA E INDEPENDENTE, nada de consultas anteriores entra no dossie novo salvo pedido explicito do titular de cruzar duas pessoas. TODOS os pedidos do titular da investigacao (empresas em que trabalhou, artigo do crime, redes sociais, curriculo, mascaras) viram etapa executavel deste checklist de 13 etapas (00, 0, 1, 1B, 2-10): ancora por documento, ciclo PF<->PJ forcado (CNPJ sempre com o CPF), loop de mascaras CNJ com contra-prova no e-SAJ DOCPARTE, varredura multi-tribunal e diarios, redes/curriculo/vinculos empregaticios (com limite declarado do CAGED/Rais), detalhes do crime (artigo pelo assunto + rito como hipotese + denuncia exige autos), familiares maiores/terceiros minimizados, validacao de curriculo/certificados (e-MEC/conselhos), montagem (dossie x metodo separados, template HTML autocontido, creditos oficiais) e fechamento com pendencias. Use ANTES de iniciar qualquer dossie de novo CPF/CNPJ.',
+    description: 'PROTOCOLO DE DOSSIE COMPLETO POR DOCUMENTO (v1.19.1): regra obrigatoria para todo agente - FASE 00 ISOLAMENTO DE CONSULTAS: cada CPF/CNPJ e uma consulta NOVA E INDEPENDENTE, nada de consultas anteriores entra no dossie novo salvo pedido explicito do titular de cruzar duas pessoas. TODOS os pedidos do titular da investigacao (empresas em que trabalhou, artigo do crime, redes sociais, curriculo, mascaras) viram etapa executavel deste checklist de 13 etapas (00, 0, 1, 1B, 2-10): ancora por documento, ciclo PF<->PJ forcado (CNPJ sempre com o CPF), loop de mascaras CNJ com contra-prova no e-SAJ DOCPARTE, varredura multi-tribunal e diarios, redes/curriculo/vinculos empregaticios (com limite declarado do CAGED/Rais), detalhes do crime (artigo pelo assunto + rito como hipotese + denuncia exige autos), familiares maiores/terceiros minimizados, validacao de curriculo/certificados (e-MEC/conselhos), montagem (dossie x metodo separados, template HTML autocontido, creditos oficiais) e fechamento com pendencias. Use ANTES de iniciar qualquer dossie de novo CPF/CNPJ.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -2040,7 +2217,7 @@ const TOOLS = [
   },
   {
     name: 'guia_relatorios',
-    description: 'Tecnicas validadas para gerar relatorios/dossies de investigacao judicial: HTML unico autocontido (CSS/JS internos, sem PHP), montado PRIMEIRO pelos .md de regras/ (master_rules.md) e FINALIZADO pelo padrao 8.5; secoes obrigatorias do dossie (redes sociais, processos por CPF, nao postar homonimos, curriculo declarado, tabela de processos, cruzamento empregos x processos, analise de perfil, quao seguro e o usuario, relacionamentos com ancora), estruturas do master_rules.md (semantica W3C, WCAG AA, temas claro/escuro, CSS sem duplicatas, zero alert), niveis de confirmacao (CONFIRMADO/PROVAVEL/POSSIVEL HOMONIMO), pendencias, cadeia de evidencia, anti-homonimos, etica e checklist de entrega. escopo="exclusivo cpf" devolve SO as normas do modo dossie-exclusivo-por-documento (padrao negativo de homonimos).',
+    description: 'Tecnicas validadas para gerar relatorios/dossies de investigacao judicial: HTML unico autocontido (CSS/JS internos, sem PHP), montado PRIMEIRO pelos .md de regras/ (master_rules.md) e FINALIZADO pelo padrao 9.4; secoes obrigatorias do dossie (redes sociais, processos por CPF, nao postar homonimos, curriculo declarado, tabela de processos, cruzamento empregos x processos, analise de perfil, quao seguro e o usuario, relacionamentos com ancora), estruturas do master_rules.md (semantica W3C, WCAG AA, temas claro/escuro, CSS sem duplicatas, zero alert), niveis de confirmacao (CONFIRMADO/PROVAVEL/POSSIVEL HOMONIMO), pendencias, cadeia de evidencia, anti-homonimos, etica e checklist de entrega. escopo="exclusivo cpf" devolve SO as normas do modo dossie-exclusivo-por-documento (padrao negativo de homonimos).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -2052,7 +2229,7 @@ const TOOLS = [
   },
   {
     name: 'guia_publicacao',
-    description: 'FONTES AO VIVO + TEMPLATE PADRAO + RELATORIO POR ETAPAS + POST (prompt 9.2). Regra do titular (24/10/2026): as regras deste fluxo vivem no Google Drive (master_rules.md PRIMEIRO, depois os demais arquivos da pasta na ordem que ele declarar) e o prompt 9.2 vive no Google Docs - SEMPRE leia a versao atual pelos links devolvidos aqui e NUNCA baixe/copie esses arquivos para dentro de capivaradigital-mcp (pasta publicada): guarde so o link. Devolve (0) a ordem obrigatoria de leitura e o que fazer quando um link falha; (1) o template base do relatorio_<nome>_<cpf>.html com estados das secoes e rodape LGPD; (2) o fluxo POR ETAPAS - template e salvar, secao 1 e salvar, secao 2 e salvar, ate 100%, com salvamento atomico, retomada e sem duplicar; (3) o post pelo prompt 9.2 SO apos 100%; (4) checklist de conclusao. Use ao montar qualquer relatorio ou dossie deste servidor - sempre por etapas, uma secao por vez.',
+    description: 'FONTES AO VIVO + TEMPLATE PADRAO + RELATORIO POR ETAPAS + POST (prompt 9.4). Regra do titular (24/10/2026): as regras deste fluxo vivem no Google Drive (master_rules.md PRIMEIRO, depois os demais arquivos da pasta na ordem que ele declarar) e o prompt 9.4 vive no Google Docs - SEMPRE leia a versao atual pelos links devolvidos aqui e NUNCA baixe/copie esses arquivos para dentro de capivaradigital-mcp (pasta publicada): guarde so o link. Devolve (0) a ordem obrigatoria de leitura e o que fazer quando um link falha; (1) o template base do relatorio_<nome>_<cpf>.html com estados das secoes e rodape LGPD; (2) o fluxo POR ETAPAS - template e salvar, secao 1 e salvar, secao 2 e salvar, ate 100%, com salvamento atomico, retomada e sem duplicar; (3) o post pelo prompt 9.4 SO apos 100%; (4) checklist de conclusao. Use ao montar qualquer relatorio ou dossie deste servidor - sempre por etapas, uma secao por vez.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -2064,11 +2241,11 @@ const TOOLS = [
   },
   {
     name: 'regras_ler',
-    description: 'Conteudo INTEGRAL dos .md da pasta regras/ (whitelist: master_rules, prompt_8_5). Resolve o acesso por protocolo: agentes sem filesystem do servidor leem aqui os templates que o guia_relatorios cita. AVISO: prompt_8_5 e generico de blog/YouTube - use apenas o aplicavel ao dossie. Se a pasta regras/ nao existir (instalacao so-server.js), devolve instrucoes de fallback.',
+    description: 'Conteudo INTEGRAL dos .md da pasta regras/ (whitelist: master_rules, prompt_9_4). Resolve o acesso por protocolo: agentes sem filesystem do servidor leem aqui os templates que o guia_relatorios cita. AVISO: prompt_9_4 e generico de blog/YouTube - use apenas o aplicavel ao dossie. Se a pasta regras/ nao existir (instalacao so-server.js), devolve instrucoes de fallback.',
     inputSchema: {
       type: 'object',
       properties: {
-        arquivo: { type: 'string', description: 'Chave da whitelist: master_rules | prompt_8_5 (sem argumento: lista as opcoes)' }
+        arquivo: { type: 'string', description: 'Chave da whitelist: master_rules | prompt_9_4 (sem argumento: lista as opcoes)' }
       },
       additionalProperties: false
     },
@@ -2106,6 +2283,18 @@ const TOOLS = [
     _run: toolJusbrasilBuscar
   },
   {
+    name: 'escavador_buscar',
+    description: 'Busca no Escavador (agregador de processos, diarios e dados de empresas/pessoas): tenta via HTTP e, quando o Cloudflare bloqueia (403), devolve a rota pronta via browser (MCP Playwright) com a URL montada e STATUS: NAO CONSULTADO (nunca trate como "0 mencoes"). Numeros mascarados (XXXX) alimentam o loop do cnj_desmascarar com cpf/nome.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        consulta: { type: 'string', description: 'Nome completo entre aspas duplas, CPF/CNPJ formatado entre aspas ou termo livre' }
+      },
+      required: ['consulta']
+    },
+    _run: toolEscavadorBuscar
+  },
+  {
     name: 'mcp_atualizar',
     description: 'Autoatualizacao do servidor: baixa a ultima versao do server.js direto do GitHub (canalqb/capivaradigital-mcp), guarda backup (.bak) e substitui o arquivo local; a nova versao sobe apos reiniciar o cliente MCP. Funciona em QUALQUER instalacao (com ou sem git) - e a rota oficial de atualizacao.',
     inputSchema: {
@@ -2123,7 +2312,7 @@ function send(obj) { process.stdout.write(JSON.stringify(obj) + '\n'); }
 
 async function handle(msg) {
   if (msg.method === 'initialize') {
-    return { protocolVersion: '2024-11-05', capabilities: { tools: {} }, serverInfo: { name: 'capivaradigital', version: '1.18.7' } };
+    return { protocolVersion: '2024-11-05', capabilities: { tools: {} }, serverInfo: { name: 'capivaradigital', version: '1.19.1' } };
   }
   if (msg.method === 'ping') return {};
   if (msg.method === 'tools/list') return { tools: TOOLS.map(t => ({ name: t.name, description: t.description, inputSchema: t.inputSchema })) };

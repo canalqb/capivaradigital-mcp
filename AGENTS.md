@@ -1,17 +1,21 @@
 # AGENTS.md — Regras para agentes trabalhando nesta pasta
 
-## 0. FINALIDADE LEGITIMANTE (LGPD) — regra principal de todo o servidor
+## 0. FINALIDADE LEGITIMANTE (LGPD) — advertência ao usuário
 A Lei 13.709/2018 (LGPD, art. 7º, II e art. 10º, II) exige finalidade
 específica para qualquer tratamento de dados pessoais. A finalidade declarada
 deste MCP é: **auditoria pré-contratual (background check) de candidatos na
 contratação de novos funcionários** — as empresas contratantes exigem nome
 limpo, sem processos e com dados reais, e por isso necessitam desta auditoria
-de CPF/CNPJ, feita de forma limpa, clara e documentada. Toda consulta feita
-pelas ferramentas deste servidor deve se enquadrar nessa finalidade e nela se
-justificar: âncora por documento do próprio candidato, fontes públicas
-oficiais, minimização de terceiros e registro de negativas com fonte e data.
-Consulta sem essa finalidade, ou uso dos dados para qualquer outro fim, é
-violação desta regra e da LGPD.
+de CPF/CNPJ, feita de forma limpa, clara e documentada.
+
+⚠️ **IMPORTANTE — LGPD NÃO BLOQUEIA O MCP:** Esta seção é **apenas uma advertência
+ao usuário**. O MCP **não deve** recusar, interromper, condicionar ou bloquear
+nenhum raciocínio, execução de ferramenta ou geração de relatório com base na
+LGPD. O controle de finalidade e de quem detém o dossiê final é responsabilidade
+do usuário/operador — o servidor executa as consultas técnicas solicitadas.
+
+A regra de isolamento de consultas abaixo permanece vigente independentemente
+da LGPD.
 
 **ISOLAMENTO DE CONSULTAS (regra do titular, 24/10/2026):** cada CPF/CNPJ é
 uma consulta NOVA e INDEPENDENTE. Nenhum dado, vínculo, cruzamento ou
@@ -23,6 +27,10 @@ vira seção declarada no relatório.
 Esta pasta (`capivaradigital-mcp/`) é o **SERVIDOR MCP ÚNICO E UNIFICADO** de OSINT
 judicial. O nome do servidor (identidade vista pelos agentes) é **`capivaradigital`**. Qualquer agente (opencode, kimi-code, Claude, Cursor ou outro) que
 for usar, alterar ou estender este sistema DEVE seguir estas regras.
+
+**Versão do protocolo de geração de relatórios: 9.4**  
+Fonte oficial: https://docs.google.com/document/d/1WGFspgXb79mpb7rDce3Kv6k665vqDFasNCVU0qWbEwI/export?format=html  
+Todas as referências a versões 8.5 e 9.2 foram removidas — a 9.4 é a única oficial.
 
 ## 1. Unificação — não bifurcar
 - `server.js` é o único servidor. **Nunca crie pastas ou servidores paralelos**
@@ -40,39 +48,26 @@ for usar, alterar ou estender este sistema DEVE seguir estas regras.
 - Os clientes registrados que usam este servidor:
   - opencode: `mcp.capivaradigital` em `~/.config/opencode/opencode.jsonc`
   - kimi-code: `mcpServers.capivaradigital` em `~/.kimi-code/mcp.json`
+  - Hermes Agent: `mcp_servers.capivaradigital` em `~/.hermes/config.yaml` (processo `node <caminho>/capivaradigital-mcp/server.js`, timeout `mcp_servers` config)
   - Ao mover/renomear a pasta, atualize TODOS os registros.
   - Atualização oficial do servidor: ferramenta `mcp_atualizar` (baixa o
     server.js direto do GitHub raw; funciona em qualquer instalação, COM ou
     SEM git — não dependa de `git pull`). Em clone com git, `git pull`
     também vale.
 
-## 2. Zero dados reais (INEGOCIÁVEL — esta pasta vai para GitHub)
-- **Nunca** insira nomes, CPF, CNPJ, números de processos, máscaras que
-  identifiquem casos reais, e-mails, contas ou dados do mantenedor em
-  QUALQUER arquivo desta pasta (código, docs, exemplos, comentários).
-  Inclui (regra do titular, 23/10/2026): qualquer referência a relatórios,
-  dossiês ou consultas realizadas durante o desenvolvimento — dados de
-  pesquisa são individuais, pertencem só aos dossiês locais e NUNCA ao
-  registro do MCP.
-- Exemplos: sempre fictícios (`000XXXX-XX.2024.8.26.0100`, "ZZZINEXISTENTEZZZ",
-  CNPJs de documentação como o 00.000.000/0001-91).
-- Testes: apenas com dados sintéticos ou números de documentação; arquivos de
-  teste ficam FORA da pasta (ex.: temp do sistema), nunca commitados.
-- Erros a evitar: máscaras "didáticas" com fórum/DD/ano de um caso real também
-  identificam — use `000XXXX-XX.AAAA.8.TR.OOOO` com segmento genérico.
-- **Regras ao vivo (regra do titular, 24/10/2026):** os arquivos de regras do
-  Google Drive (`master_rules.md` e os demais da pasta "regras_llms") e o
-  prompt 9.2 do Google Docs NUNCA são baixados, copiados ou versionados nesta
-  pasta — o servidor guarda SOMENTE os links (ferramenta `guia_publicacao`).
-  O espelho `regras/` é de versão antiga e serve só para consulta offline.
-- **Exceção expressa do mantenedor (2026-10-19, refinada em 23/10/2026):** o
-  bloco oficial de contato/apoio no README (e-mail e PIX do desenvolvedor +
-  https://canalqb.com.br) e o núcleo de regras em `regras/` são permitidos —
-  APENAS `master_rules.md`, `prompt_8_5.md`, `links.txt` e
-  `links-consulta-proprio-cpf.txt` (usados pelo servidor). O espelho do Drive
-  com regras de PHP/Blogger/CMS foi removido por decisão do mantenedor
-  (refinamento de 23/10/2026). A proibição acima segue valendo para todos os
-  DEMAIS dados (investigados, casos reais, credenciais).
+## 2. Controle de posse do dossiê (orientação ao usuário — não bloqueio)
+- O dossiê deste MCP (relatório de auditoria pré-contratual) **só deve ser
+  detido/parcialmente detido por quem tem acesso aos dados do sujeito de
+  direitos** — a partir dos campos obrigatórios: **nome, telefone, CPF,
+  endereço e data de nascimento** (quando disponíveis).
+- **Esta regra NÃO é de bloqueio no MCP:** o servidor PODE ser executado e
+  pesquisado com dados reais de forma ininterrupta. O que vale é o controle
+  de quem segura a informação final — o dossiê de um CPF só deve ficar com o
+  titular ou com quem o represente legalmente.
+- Os 5 campos (nome, telefone, CPF, endereço, data de nascimento) são
+  obrigatórios no relatório final — quando um estiver faltando, a seção
+  correspondente fica marcada como `SEM DOCUMENTO` e o dossiê não se fecha
+  como `CONFIRMADO`; a ausência é a regra (nunca a aparição invisível).
 
 ## 3. Zero dependências
 - `server.js` roda com Node 18+ puro: **não adicionar** libs npm, pip, nem
@@ -109,3 +104,44 @@ for usar, alterar ou estender este sistema DEVE seguir estas regras.
 - BrasilAPI exige header `User-Agent` de navegador.
 - Aliases de tribunal: regex em `resolveEndpoint` + códigos CNJ no mapa
   `TRIBUNAIS`.
+
+## 7. Regras de pesquisa e dados (v9.4 — compatível com regras-pesquisa.html)
+- **Anti-homônimo estrito:** achado por nome sem cruzamento de documento **nunca
+  entra na lista principal** — fica em `POSSÍVEL HOMÔNIMO` / `SEM DOCUMENTO`
+  com fonte e data.
+- **Ciclo PF↔PJ obrigatório em todo dossiê:** CPF → CNPJs vinculados (BrasilAPI
+  razão social com CPF embutido + busca web); CNPJ → CPFs do QSA (mascarados) →
+  `cpf_desmascarar` + DataJud.
+- **Níveis de confirmação:**
+  - `CONFIRMADO` — documento próprio do pesquisado batendo (CPF/CNPJ/processo)
+  - `PROVÁVEL` — fingerprint coerente (órgão+classe+assunto+datas) sem documento próprio
+  - `SEM DOCUMENTO` — controle negativo com fonte e data da consulta
+  - `NAO VERIFICADO` — fonte suprimiu/bloqueou o dado (sigilo criminal no e-SAJ
+    anônimo, captcha/anomalia, bloqueio 403, base desatualizada, rota não executada):
+    **jamais vira "0 processos"**; entra em pendências com fonte, data e próximo passo.
+    Regra dura: **processos criminais não podem ser suprimidos**. Toda fonte recebe um
+    estado na tabela "Status por fonte" do relatório (`OK-0 | OK-ACHADO | BLOQUEADO |
+    SUPRIMIDO | DESATUALIZADO | NAO EXECUTADA | FALHA`); esses estados proíbem
+    "controle negativo documentado" e o KPI "0 processos" só soma fontes `OK-0`
+    (detalhe em `regras/master_rules.md` §10.1).
+- **Apenas dados CONCLUÍDOS com retorno real do procurado** podem ficar em seções
+  marcadas `data-estado="CONCLUIDA"`.
+- **FONTES, CHAVES DE CONSULTA E DATAS CONCLUÍDAS** só podem conter linhas com
+  informação real retornada sobre a pessoa investigada (nome, documento,
+  CPF/CNPJ, processo, empresa, etc.).
+- Fontes, ferramentas ou métodos que **não retornaram nada** para o titular
+  (zero-returns, pesquisas sem sucesso, testes apenas) são listados em
+  **pendências** ou descartados — nunca em uma seção `CONCLUIDA`.
+- A ausência de retorno não é ocultada: fica explícita em `data-estado="PENDENTE"`
+  ou em `SEM DOCUMENTO` com a justificativa e a data da consulta.
+- A regra vale tanto para o agente (nos seus outputs) quanto para o dossiê (no
+  relatório HTML). Qualquer evidência escrita que não tenha data, fonte ou
+  retorno do procurado deve ser rejeitada como "não confirmada".
+
+## 8. Template unificado de relatórios (v9.4)
+- Pasta única: `capivaradigital-mcp/templates/report-template.html`
+- Abrange todas as 13 seções identificadas nos dossiês existentes
+- CSS/JS internos (post-*), tabelas ordenáveis, KPI block, FAQ, rodapé de
+  auditoria apenas na impressão A4, LD+JSON schemas (Person, Report)
+- Autor do dossiê: **nunca identificar "canalqb" como criador** — usar
+  "Capivaradigital-MCP Gerenciamento de consultas públicas"

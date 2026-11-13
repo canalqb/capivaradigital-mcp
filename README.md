@@ -107,6 +107,16 @@ para o servidor subir. As receitas por cliente estão abaixo.
 }
 ```
 
+### Hermes Agent — `~/.hermes/config.yaml`
+```yaml
+mcp_servers:
+  capivaradigital:
+    command: "node"
+    args: ["<caminho>/capivaradigital-mcp/server.js"]
+    timeout: 300
+    connect_timeout: 60
+```
+
 ### kimi-code — `~/.kimi-code/mcp.json`
 ```json
 { "mcpServers": { "capivaradigital": {
@@ -187,14 +197,14 @@ confirmar instalação, contagem de ferramentas e saúde da rede em segundos.
 cmd /c "node <caminho>\capivaradigital-mcp\server.js < teste.jsonl"
 ```
 
-## Quais são as 28 ferramentas?
+## Quais são as 29 ferramentas?
 
 Uma paleta enxuta cobrindo o ciclo completo de uma pesquisa judicial: validar o
 número, desmascarar o que está oculto, consultar por número, nome, documento ou
 varredura multi-tribunal (com escopos prontos por ramo), ler intimações e
-complementar com CNPJ, web, redes sociais/telefone, navegação
-por browser automatizado e instalação do zero. A tabela abaixo resume cada
-ferramenta e sua fonte.
+complementar com CNPJ, web, agregadores (Jusbrasil/Escavador), redes
+sociais/telefone, navegação por browser automatizado e instalação do zero.
+A tabela abaixo resume cada ferramenta e sua fonte.
 
 | Ferramenta | O que faz | Fonte |
 |---|---|---|
@@ -203,13 +213,13 @@ ferramenta e sua fonte.
 | `cpf_desmascarar` | Quebra CPF mascarado (até 3 dígitos ocultos, ex. `***.123.456-**` ou o bloco de 6 antes do DV): loop 000-999 + DV módulo 11 + verificação em lote no DataJud; devolve CPFs com processos e nomes para o **usuário validar** — depois o dossiê pesquisa tudo pelo CPF, nunca pelo nome | DataJud |
 | `datajud_processo` | Capa do processo por número CNJ (tribunal detectado automaticamente) | DataJud |
 | `datajud_pesquisar` | Pesquisa estruturada: lista de números (terms), classe (nome ou **código**), assunto (nome ou código), órgão (nome ou código), grau e **faixa de ajuizamento** (data_inicio/data_fim); ordenação e **cursor search_after** (`ordenar=atualizacao` + `apartir_de`) para paginar além dos 10.000 hits | DataJud |
-| `datajud_buscar` | Busca textual livre (query_string): nome exato entre aspas duplas, CPF formatado entre aspas, número; ordena por ajuizamento e mostra as partes quando o tribunal as indexa; 3 tentativas para tribunais lentos | DataJud |
-| `datajud_por_cpf` | Por CPF/CNPJ da parte nos campos `partes.documento` **e** `documentoReplicado`, nas **duas grafias** (com e sem pontuação) via `bool.should`; sugere rota alternativa quando o tribunal mascara | DataJud |
-| `datajud_por_nome` | Por **nome completo exato** da parte (match_phrase nos dois formatos de indexação, `partes.nome` e `partes.pessoa.nome`), com polo opcional (ATIVO/PASSIVO, cobrindo Autor/Réu) e ajuizamento decrescente; tribunais que omitem partes: resposta sugere `datajud_buscar` com o nome entre aspas | DataJud |
+| `datajud_buscar` | Busca textual livre (query_string): nome exato entre aspas duplas, CPF formatado entre aspas, número; ordena por ajuizamento e mostra as partes quando o tribunal as indexa (hoje nenhum — nota 24/10/2026 abaixo); 3 tentativas para tribunais lentos | DataJud |
+| `datajud_por_cpf` | Por CPF/CNPJ da parte nos campos `partes.documento` **e** `documentoReplicado`, nas **duas grafias** (com e sem pontuação) via `bool.should`; **nota estrutural (24/10/2026)**: os índices públicos não publicam mais o campo `partes`, então o 0 atual é **estrutural** — a resposta explica e redireciona para e-SAJ DOCPARTE (3 estados), DJE-SP e DJEN; para CNPJ, a rota é o ciclo PF↔PJ (DataJud quase não indexa CNPJ de parte) | DataJud |
+| `datajud_por_nome` | Por **nome completo exato** da parte (match_phrase nos dois formatos de indexação, `partes.nome` e `partes.pessoa.nome`), com polo opcional (ATIVO/PASSIVO, cobrindo Autor/Réu) e ajuizamento decrescente; **nota estrutural (24/10/2026)**: campo `partes` não é mais publicado — a resposta redireciona para e-SAJ NMPARTE (`esaj_buscar` em tjsp/tjal/tjce), DJE-SP e DJEN | DataJud |
 | `datajud_varrer` | Varre UMA consulta em VÁRIOS tribunais numa única chamada, **paralela (5 por vez)**; escopos prontos: `escopo=tj/trf/trt/tre/superiores/militares/todos`; erros por tribunal não abortam a varredura | DataJud |
-| `djen_intimacoes` | Intimações por nome da parte, com texto integral (sentenças completas citam números correlatos) | DJEN/CNJ |
-| `esaj_buscar` | Consulta anônima do 1º grau do TJSP por nome/CPF/número via HTTP (anônimo suprime partes criminais); agora lista também os números de processo encontrados | e-SAJ TJSP |
-| `esaj_tjsp_guia` | Receita do fluxo e-SAJ por número com seletores CSS (para Playwright) | e-SAJ TJSP |
+| `djen_intimacoes` | Intimações por nome da parte, com texto integral (sentenças completas citam números correlatos); **limite: `itensPorPagina` máx. 50 por página** (acima disso a API falha silenciosamente) e a API geo-bloqueia IPs fora do Brasil com 403 | DJEN/CNJ |
+| `esaj_buscar` | Consulta anônima e-SAJ em **3 tribunais — TJSP, TJAL e TJCE** — no **1º e 2º grau**, por nome, CPF/CNPJ, número, **OAB do advogado** (`NUMOAB`) ou nome do advogado (`NMADVOGADO`), via HTTP (no TJSP anônimo suprime partes criminais); lista os números de processo encontrados | e-SAJ (CNJ) |
+| `esaj_tjsp_guia` | Receita do fluxo e-SAJ por número com seletores CSS (para Playwright) + os módulos de **julgados** `cjpg` (sentenças de 1º grau, busca textual livre com operadores E/OU/NAO) e `cjsg` (acórdãos de 2º grau, inteiro teor), com os campos do formulário extraídos ao vivo | e-SAJ (CNJ) |
 | `dje_sp_buscar` | Busca textual no Diário da Justiça Eletrônica do TJSP (DJE-SP, base de 01/10/2007 até a última edição publicada): nome entre aspas, termo ou número, com janela de datas, caderno, até 100 hits (10 páginas de 10) e URL do PDF oficial de cada publicação | DJE-SP TJSP |
 | `brasilapi_cnpj` | CNPJ formatado: razão social, sócios (QSA), CNAE, situação, endereço | BrasilAPI |
 | `ciclo_pf_pj` | Ciclo PF<->PJ COMPLETO em uma chamada: DataJud multi-tribunal (documento entre aspas) + e-SAJ DOCPARTE + DJE-SP (base integral) + BrasilAPI (CNPJ: QSA com CPFs mascarados), com receita reversa CPF→CNPJ e veredito único de hits por fonte | Multi |
@@ -217,14 +227,15 @@ ferramenta e sua fonte.
 | `social_buscar_usuario` | Scanner **gratuito de perfis por username** em dezenas de redes, com a base pública do WhatsMyName (verificação de marcadores m_code/m_string vs e_code/e_string), sem chave de API; achados com URL + inconclusivos/falhas separados | WhatsMyName |
 | `telefone_consultar` | Telefone BR: DDD → UF e cidades via BrasilAPI, tipo de linha, rota WhatsApp (wa.me), Numtrace e Social Searcher | BrasilAPI |
 | `fontes_osint` | Playbook interno: bases, atalhos, rotas por tribunal, técnicas e ética/LGPD | — |
-| `guia_navegacao` | Guia de navegação: links das regras do mantenedor (master rules, pasta de regras, prompt 8.5), fluxo validado com o MCP Playwright (captchas manuais, armadilhas do e-SAJ) e módulos de Python para scripts locais | — |
+| `guia_navegacao` | Guia de navegação: links das regras do mantenedor (master rules, pasta de regras, prompt 9.4), fluxo validado com o MCP Playwright (captchas manuais, armadilhas do e-SAJ) e módulos de Python para scripts locais | — |
 | `guia_dossie` | **Protocolo de dossiê completo por documento** (v1.18.7): checklist obrigatório de 13 etapas (00, 0, 1, 1B, 2-10) — todo pedido do titular (empresas em que trabalhou, artigo do crime, redes/currículo, máscaras, ficha de identificação) vira etapa executável; âncora por documento, ciclo PF↔PJ forçado, contra-prova de máscaras no e-SAJ DOCPARTE, ficha de identificação (genitores, nascimento, documentos, endereço válido, contatos, com a técnica dos 4 campos-chave nome+CPF+nascimento+nome da mãe), vínculos empregatícios com limite do CAGED/Rais declarado, detalhes de crime (rito como hipótese), validação de currículo (e-MEC/conselhos), dossiê×método separados, montagem por etapas (via `guia_publicacao`) e fechamento com pendências. Use antes de iniciar qualquer dossiê novo | — |
 | `termo_responsabilidade` | **Termo de responsabilidade LGPD** (v1.18.3): declara a finalidade exclusiva (auditoria pré-contratual para contratação), as bases legais (LGPD art. 7º, I e IX, art. 10 e 31; Lei 12.846/2013; Lei 7.102/1983), obrigações e proibições do operador (Lei 9.029/1995 — uso discriminatório) e a cláusula de aceite tácito ao executar qualquer ferramenta. Exibido também como prefixo obrigatório do `guia_dossie` | — |
-| `guia_relatorios` | Técnicas de relatório/dossiê: HTML único autocontido (CSS/JS internos, sem PHP), padrão 8.5 adaptado, níveis de confirmação (CONFIRMADO/PROVÁVEL/POSSÍVEL HOMÔNIMO), ficha de identificação como seção, links de perfil sempre clicáveis (`target="_blank" rel="noopener noreferrer"`), seção sem dado não existe no relatório (nem card explicando a ausência), pendências com próximo passo, cadeia de evidência, anti-homônimos e checklist de entrega; `escopo="exclusivo cpf"` devolve as normas do modo dossiê-exclusivo-por-documento (padrão negativo de homônimos) | — |
-| `guia_publicacao` | **Fontes ao vivo + template + relatório por etapas + post 9.2** (v1.18.7): devolve os links SEMPRE atualizados do Google Drive (ler `master_rules.md` primeiro, depois os demais arquivos da pasta na ordem que ele declarar) e do Google Docs (prompt 9.2, lido só no fim); regra inegociável de NUNCA baixar ou copiar esses arquivos para dentro da pasta do MCP (guarda-se só o link); template base `relatorio_<nome>_<cpf>.html` com estados das seções (PENDENTE/EM_ANDAMENTO/AGUARDANDO_FONTE/VALIDADA/CONCLUIDA) e rodapé LGPD; **estrutura padrão `post-*` definida pelo titular (24/10/2026)** — skip-link + `.post-topbar` + `.post-nav` + `.post-hero` (badges, lead, meta e TL;DR) + seções `.post-section` com `.post-answer` + tabelas `.post-table` com filtros e contador + FAQ em `<details>` + `.post-signature`, com impressão pericial A4; **bloco de KPIs obrigatório** (`<section class="post-section" aria-label="Números do dossiê">` com `.post-kpis` de `.post-kpi`) logo após o TL;DR — os rótulos vêm do que o titular quer ver, e cada valor é um dado **confirmado do próprio relatório** (o bloco nasce zerado no template e só muda quando a seção correspondente fica CONCLUIDA, nunca número inventado); geração **seção a seção** — criar template e salvar, 1ª seção e salvar, 2ª seção e salvar, até 100% — com salvamento atômico, retomada, idempotência e contador de progresso; post final pelo prompt 9.2 só após 100% | Google Drive/Docs |
-| `regras_ler` | Conteúdo INTEGRAL dos .md de regras/ (whitelist: master_rules, prompt_8_5) para agentes que acessam por protocolo, sem filesystem do servidor; aviso de que o prompt 8.5 é genérico de blog e fallback para instalações sem a pasta | — |
+| `guia_relatorios` | Técnicas de relatório/dossiê: HTML único autocontido (CSS/JS internos, sem PHP), padrão 9.4 adaptado, níveis de confirmação (CONFIRMADO/PROVÁVEL/POSSÍVEL HOMÔNIMO), ficha de identificação como seção, links de perfil sempre clicáveis (`target="_blank" rel="noopener noreferrer"`), seção sem dado não existe no relatório (nem card explicando a ausência), pendências com próximo passo, cadeia de evidência, anti-homônimos e checklist de entrega; `escopo="exclusivo cpf"` devolve as normas do modo dossiê-exclusivo-por-documento (padrão negativo de homônimos) | — |
+| `guia_publicacao` | **Fontes ao vivo + template + relatório por etapas + post 9.4** (v1.18.7): devolve os links SEMPRE atualizados do Google Drive (ler `master_rules.md` primeiro, depois os demais arquivos da pasta na ordem que ele declarar) e do Google Docs (prompt 9.4, lido só no fim); regra inegociável de NUNCA baixar ou copiar esses arquivos para dentro da pasta do MCP (guarda-se só o link); template base `relatorio_<nome>_<cpf>.html` com estados das seções (PENDENTE/EM_ANDAMENTO/AGUARDANDO_FONTE/VALIDADA/CONCLUIDA) e rodapé LGPD; **estrutura padrão `post-*` definida pelo titular (24/10/2026)** — skip-link + `.post-topbar` + `.post-nav` + `.post-hero` (badges, lead, meta e TL;DR) + seções `.post-section` com `.post-answer` + tabelas `.post-table` com filtros e contador + FAQ em `<details>` + `.post-signature`, com impressão pericial A4; **bloco de KPIs obrigatório** (`<section class="post-section" aria-label="Números do dossiê">` com `.post-kpis` de `.post-kpi`) logo após o TL;DR — os rótulos vêm do que o titular quer ver, e cada valor é um dado **confirmado do próprio relatório** (o bloco nasce zerado no template e só muda quando a seção correspondente fica CONCLUIDA, nunca número inventado); geração **seção a seção** — criar template e salvar, 1ª seção e salvar, 2ª seção e salvar, até 100% — com salvamento atômico, retomada, idempotência e contador de progresso; post final pelo prompt 9.4 só após 100% | Google Drive/Docs |
+| `regras_ler` | Conteúdo INTEGRAL dos .md de regras/ (whitelist: master_rules, prompt_9.4) para agentes que acessam por protocolo, sem filesystem do servidor; aviso de que o prompt 9.4 é o template definitivo e fallback para instalações sem a pasta | — |
 | `guia_instalacao` | Comandos prontos para instalar do zero: Node.js via winget (Windows 10/11), alternativas (choco/scoop/MSI, apt/dnf/brew), obtenção do servidor (git clone ou download do `server.js`), teste via stdin e registro nos clientes | — |
 | `jusbrasil_buscar` | Busca no Jusbrasil: HTTP quando passa; quando o Cloudflare bloqueia (403), devolve a rota pronta via browser (MCP Playwright) com a URL montada; números mascarados alimentam o loop do `cnj_desmascarar` | Jusbrasil |
+| `escavador_buscar` | Busca no Escavador (agregador): mesma lógica do Jusbrasil — HTTP quando passa, rota via browser (MCP Playwright) quando o Cloudflare bloqueia (403); números mascarados voltam para o `cnj_desmascarar`; a rota pública da capa do processo é gratuita no navegador, busca ilimitada exige plano pago (ver seção de fontes restritas) | Escavador |
 | `mcp_atualizar` | Autoatualização: baixa o `server.js` mais recente do GitHub, guarda backup (.bak) e substitui o arquivo; a nova versão sobe ao reiniciar o cliente | GitHub |
 
 ## Que atalhos de consulta pública existem?
@@ -245,7 +256,12 @@ pedem login ou captcha, o que está sinalizado no `GUIA_OSINT.md`.
 | DataJud — API pública (docs/chave) | https://datajud-wiki.cnj.jus.br/api-publica/acesso/ |
 | DJEN — comunicações/intimações | https://comunicaapi.pje.jus.br/api/v1/comunicacao |
 | BrasilAPI — CNPJ gratuito | https://brasilapi.com.br |
-| e-SAJ TJSP — consulta pública | https://esaj.tjsp.jus.br/cpopg |
+| e-SAJ — consulta pública em **3 estados** (TJSP, TJAL, TJCE; use a ferramenta `esaj_buscar`) | https://esaj.tjsp.jus.br/cpopg |
+| e-SAJ TJAL — consulta pública | https://www2.tjal.jus.br/cpopg |
+| e-SAJ TJCE — consulta pública | https://esaj.tjce.jus.br/cpopg |
+| e-SAJ TJSP — julgados/sentenças de 1º grau (`cjpg`, busca textual livre) | https://esaj.tjsp.jus.br/cjpg/ |
+| e-SAJ TJSP — julgados/acórdãos de 2º grau (`cjsg`, inteiro teor) | https://esaj.tjsp.jus.br/cjsg/consultaCompleta.do |
+| STJ — pesquisa de processos (browser: captcha Turnstile) | https://processo.stj.jus.br/processo/pesquisa/ |
 | DJE-SP — Diário da Justiça Eletrônico do TJSP (busca avançada textual, 2007 até hoje; use a ferramenta `dje_sp_buscar`) | https://esaj.tjsp.jus.br/cdje/consultaAvancada.do |
 | Escavador — agregador (paywall) | https://www.escavador.com |
 | Jusbrasil — agregador (paywall) | https://www.jusbrasil.com.br |
@@ -350,6 +366,33 @@ validação de documentos:
 - https://github.com/olavomello/jusbr
 - https://github.com/Juliano2105/radar-processos
 - https://github.com/claujs/buscaprocessos-api
+- https://github.com/cristianoaredes/mcp-dadosbr
+- https://github.com/thiagozs/maat-monitor-jus
+- https://github.com/api-evangelist/cpfhub
+- https://github.com/diditme/didit
+
+### Redes sociais e OSINT (pessoas, perfis, currículo)
+Ferramentas de código aberto para varredura de redes sociais e perfis profissionais:
+
+- https://github.com/qeeqbox/social-analyzer — busca perfis em 1000+ redes sociais
+- https://github.com/sherlock-project/sherlock — varredura de usernames em 400+ redes
+- https://github.com/soxoj/maigret — fork avançado do sherlock, 500+ redes
+- https://github.com/The-Osint-Toolbox/Social-Media-OSINT — técnicas e tradecraft OSINT em redes sociais
+- https://github.com/The-Osint-Toolbox/People-Search-OSINT — busca de pessoas por nome, username, email
+- https://github.com/kawsarlog/social-media-apis — 13.000+ APIs de redes sociais
+- https://github.com/socalit/profile-hound — varredura de usernames, telefones e emails
+- https://github.com/michaelelizarov/linkedin-osint-toolkit — LinkedIn OSINT: empresas, funcionários, cargos
+- https://github.com/l4rm4nd/LinkedInDumper — extrai funcionários de empresas do LinkedIn
+- https://github.com/osint-brazuca/osint-brazuca — fontes e técnicas OSINT no contexto Brasil
+- https://github.com/bgmello/OSINT-Tools-Brazil — ferramentas OSINT para Brasil
+- https://github.com/ipepa/censobr — pacote R para dados do censo brasileiro
+
+### e-Social, Fiscal e governança
+- https://github.com/nfephp-org/sped-esocial — API para comunicação com o e-Social
+- https://github.com/DeHor-Labs/mcp-fiscal-brasil — servidor MCP fiscal com 44 ferramentas
+- https://github.com/erpbrasil/esociallib — biblioteca Python para e-Social
+- https://github.com/qualitaocupacional/libesocial — biblioteca Python para e-Social
+- https://github.com/joaoramos-dev/mcp-especialista-esocial — MCP Server para regras de negócio do eSocial
 
 ### Busca semântica (links validados)
 - https://github.com/topics/semantic-search — topic geral (filtros: `?l=html&o=desc&s=updated`, `?l=java`)
@@ -412,7 +455,10 @@ LGPD e política de uso antes de consultar.
 | ONR — Mapa do Registro de Imóveis | Conector MCP de terceiros para o mapa do RI | https://api.mcp.ai/p_onr_mapa_registro_imoveis (créditos pré-pagos) |
 | mcp.ai Consultas | Situação cadastral CPF/CNPJ, Simples/MEI, SINTEGRA, certidões (CND Federal, CNDT, FGTS), TCU, sanções OFAC/ONU/ICIJ | https://mcp.ai/consultas (créditos pré-pagos) |
 | mcp-fiscal-brasil | CNPJ, CPF, Simples Nacional, NF-e, certidões, due diligence | https://github.com/DeHor-Labs/mcp-fiscal-brasil |
-| mcp-dadosbr | OSINT: CNPJ, CEP, processos, contratos governamentais | https://github.com/cristianoaredes/mcp-dadosbr |
+|- **maat-monitor-jus** (thiagozs) - Monitoramento gratuito e local de processos judiciais brasileiros via API pública DataJud/CNJ. Free, local-first. | <a href="https://github.com/thiagozs/maat-monitor-jus" target="_blank" rel="noopener noreferrer">github.com/thiagozs/maat-monitor-jus</a> |
+|- **claujs/buscaprocessos-api** (claujs) - API jurídica de processos, precatórios e intimações por OAB. Monitoramento diário por CNJ com webhooks. | <a href="https://github.com/claujs/buscaprocessos-api" target="_blank" rel="noopener noreferrer">github.com/claujs/buscaprocessos-api</a> |
+|- **didit.me - CPF status check API** - Validação de situação de CPF com chave própria. Fechada (requer chave de API paga), útil para auditoria de situação cadastral. | <a href="https://didit.me/blog/brazil-cpf-database-validation" target="_blank" rel="noopener noreferrer">didit.me</a> |
+|- **api-evangelist/cpfhub** - Perfil independente de uma API de consulta de CPF: retorna nome, data de nascimento e sexo para qualquer CPF. | <a href="https://github.com/api-evangelist/cpfhub" target="_blank" rel="noopener noreferrer">github.com/api-evangelist/cpfhub</a> |
 | apipj | Dados cadastrais de CNPJ | https://apipj.com.br/mcp |
 | CPFHub | CPF: nome, situação cadastral na Receita Federal | https://www.cpfhub.io |
 | lakebrasil-mcp | 153 ferramentas: Transparência, TCU, DataJud, dados abertos | https://glama.ai/mcp/servers/r4szqk0atg |
@@ -543,20 +589,23 @@ vinculados e CNPJ sempre extrai os CPFs do QSA. O ciclo validado tem nove
 passos:
 
 1. `cnj_validar` — valida o DV e o tribunal antes de qualquer consulta.
-2. Documento primeiro (OBRIGATÓRIO): `datajud_por_cpf`, `datajud_buscar`/`datajud_varrer` com CPF/CNPJ entre aspas, `esaj_buscar` DOCPARTE.
+2. Documento primeiro (OBRIGATÓRIO): `esaj_buscar` DOCPARTE (**tjsp, tjal e tjce** — palavra final por documento), depois `datajud_por_cpf`/`datajud_buscar`/`datajud_varrer` com CPF/CNPJ entre aspas (nota: desde 24/10/2026 o DataJud público não publica `partes`, então lá o 0 é estrutural).
 3. Ciclo PF↔PJ (OBRIGATÓRIO): com CPF do pesquisado, procure os CNPJs vinculados (`brasilapi_cnpj` — razão social costuma embutir o CPF do titular — e `datajud_por_cpf` de cada CNPJ); com CNPJ, extraia os CPFs do QSA e procure os processos dessas pessoas.
 4. `datajud_buscar` (nome entre aspas) e `datajud_varrer` — achados por nome: só entram na lista principal se o documento cruzar; sem âncora, POSSÍVEL HOMÔNIMO — PROIBIDO na lista principal.
 5. `cnj_desmascarar` com o loop — máscara `000XXXX-XX...` + `cpf` e/ou `nome`: gera candidatos com DV válido, verifica no DataJud e marca os vinculados ao pesquisado.
 6. `jusbrasil_buscar` — agregador (rota via browser quando o Cloudflare bloqueia); números mascarados voltam para o passo 5.
 7. `djen_intimacoes` — intimações com texto integral revelam fatos, documentos e processos correlatos.
 8. `datajud_processo` / `datajud_pesquisar` — capa e metadados por número, classe, assunto ou órgão; `brasilapi_cnpj` e `exa_buscar` para contexto societário e de web.
-9. Relatório no padrão obrigatório do prompt 8.5 (seção abaixo), com nível de confirmação por linha.
+9. Relatório no padrão obrigatório do prompt 9.4 (seção abaixo), com nível de confirmação por linha.
 
 ## Qual o padrão obrigatório de relatório?
 
 OBRIGATÓRIO: todo relatório ou dossiê gerado com dados deste servidor segue o
-prompt 8.5 (espelhado em `regras/prompt_8_5.md`) E as estruturas do
-`master_rules.md` adaptadas ao HTML estático — sem PHP. O formato padrão é UM
+prompt 9.4 — VERSÃO ÚNICA OFICIAL, lido sempre ao vivo no Google Docs pelo link
+`https://docs.google.com/document/d/1WGFspgXb79mpb7rDce3Kv6k665vqDFasNCVU0qWbEwI/edit`
+(nunca baixado para o disco; guarda-se só o link) — E as estruturas do
+`master_rules.md` adaptadas ao HTML estático — sem PHP. As versões 8.5 e 9.2
+foramaposentadas e não devem mais ser usadas em código, prompts ou docs. O formato padrão é UM
 único arquivo HTML autocontido — apenas HTML, CSS e JS internos, sem PHP, sem
 arquivos separados, sem CDN — que abre offline; outro formato (PDF, DOCX etc.)
 só quando você pedir explicitamente.
@@ -566,9 +615,9 @@ só quando você pedir explicitamente.
 - Tabela de processos: número CNJ | tribunal/foro | classe | assunto | órgão julgador | ajuizamento | status | fonte | nível de confirmação — com filtro por status e busca textual via JS interno.
 - Níveis de confirmação: CONFIRMADO (fonte chaveada, datas exatas em 2+ bases), PROVÁVEL (fingerprint coerente), POSSÍVEL HOMÔNIMO (sem âncora — PROIBIDO na lista principal; sempre em seção separada).
 - Estruturas do master_rules.md: semântica W3C (`<main>`, `<section>`, `<article>`), WCAG AA com contraste, temas claro e escuro com alternância + persistência (localStorage), CSS sem duplicatas, zero `alert()` (JS interno usa showToast) e títulos `<h2>` em pergunta com resposta de 40-60 palavras.
-- Ordem de montagem: PRIMEIRO a estrutura pelos `.md` de regras (master_rules.md primeiro, depois os demais na ordem que ele declarar), DEPOIS o conteúdo finalizado pelo prompt 8.5.
+- Ordem de montagem: PRIMEIRO a estrutura pelos `.md` de regras (master_rules.md primeiro, depois os demais na ordem que ele declarar), DEPOIS o conteúdo finalizado pelo prompt 9.4 lido no link acima.
 - Fontes ao vivo: o `master_rules.md` e os demais arquivos de regras são lidos NO GOOGLE DRIVE a cada execução (links na ferramenta `guia_publicacao`); o espelho `regras/` é só para consulta offline, e nada é baixado ou copiado para dentro desta pasta.
-- Geração por etapas: o relatório `relatorio_<nome>_<cpf>.html` é montado seção a seção — template e salvar, seção 1 e salvar, seção 2 e salvar, até 100% — com confirmação de gravação entre uma e outra (protocolo em `guia_publicacao`); o post final usa o prompt 9.2 do Google Docs, sempre na versão atual.
+- Geração por etapas: o relatório `relatorio_<nome>_<cpf>.html` é montado seção a seção — template e salvar, seção 1 e salvar, seção 2 e salvar, até 100% — com confirmação de gravação entre uma e outra (protocolo em `guia_publicacao`); o post final usa o prompt 9.4 do Google Docs (link acima), sempre na versão atual lida no link.
 - Seções obrigatórias do dossiê (sempre que existirem dados): redes sociais, processos relacionados ao CPF, currículo declarado, tabela de processos, cruzamento entre empregos e processos, análise de perfil, quão seguro é o usuário e relacionamentos (pais, filhos, irmãos, cônjuge) — cada qual com fonte e nota de credibilidade; **homônimos não são postados** (no máximo, seção "Descartados", nunca como o pesquisado).
 - Cadeia de evidência: número mascarado ao lado do desmascarado; toda afirmação cita fonte e data-hora; HTML/PDF brutos salvos.
 - Pendências obrigatórias com o próximo passo concreto de cada item.
@@ -576,9 +625,10 @@ só quando você pedir explicitamente.
 
 ## O que há na pasta regras/?
 
-Apenas o que o servidor usa (refinada em 23/10/2026): `master_rules.md`
-(protocolo central de estrutura/entrega), `prompt_8_5.md` (padrão de
-relatório e conteúdo), `links.txt` (MCPs e serviços que enriquecem a
+Apenas o que o servidor usa (refinada em 12/11/2026): `master_rules.md`
+(protocolo central de estrutura/entrega), `prompt_9.4.md` (espelho offline do
+prompt 9.4 oficial no Google Docs — padrão de relatório e conteúdo),
+`links.txt` (MCPs e serviços que enriquecem a
 pesquisa, espelho citado por `guia_navegacao`) e
 `links-consulta-proprio-cpf.txt` (rotas oficiais de CPF, espelho citado por
 `fontes_osint`). O espelho do Drive com regras de PHP/Blogger/CMS foi
@@ -588,22 +638,30 @@ https://drive.google.com/drive/folders/1U5U9QNx__hVio5GTKSVflZP9-b_E0OLm
 **Espelho de versão antiga:** os .md desta pasta são um mirror para consulta
 offline (`regras_ler`). Na montagem de relatórios, o servidor manda ler o
 `master_rules.md` e os demais arquivos NO DRIVE — sempre atualizados — e a
-ferramenta `guia_publicacao` devolve esses links (mais o prompt 9.2 do Google
-Docs). Nada é baixado ou copiado para esta pasta: guarda-se só o link.
+ferramenta `guia_publicacao` devolve esses links (mais o prompt 9.4 do Google
+Docs — link único oficial citado acima). Nada é baixado ou copiado para esta
+pasta: guarda-se só o link. Correção registrada em 12/11/2026: o link antigo
+apontava para o documento da versão 9.2; o link correto da 9.4 é o citado no
+topo desta seção.
 
 ## Quais as limitações conhecidas?
 
-Toda fonte pública tem lacunas, e conhecê-las evita conclusões erradas: a API
-pública do DataJud omite as partes em vários tribunais (outros indexam como
-campo de partes), o TJSP às vezes responde devagar, a consulta anônima do e-SAJ
-suprime partes criminais e vários tribunais mascaram o CPF da parte. Os
-detalhes estão na lista abaixo.
+Toda fonte pública tem lacunas, e conhecê-las evita conclusões erradas: desde
+24/10/2026 a API pública do DataJud **não publica mais o campo `partes`**
+(verificado em 4 índices — detalhe abaixo), a consulta anônima do e-SAJ
+suprime partes criminais no TJSP e vários tribunais mascaram o CPF da parte.
+Os detalhes estão na lista abaixo.
 
-- A API pública do DataJud **omite as partes em vários tribunais** — mas vários
-  **indexam** o campo `partes` (nome, polo, documento, advogados):
-  use `datajud_por_nome`/`datajud_por_cpf`; onde omite, classifique por
-  fingerprint (órgão + classe + assunto + datas) ou `datajud_buscar` com o
-  nome/CPF entre aspas.
+- A API pública do DataJud **não publica mais o campo `partes`** — verificado
+  em 24/10/2026 nos índices `tjsp`, `tjpr`, `tre-sp` e `tst` (`exists` = 0 em
+  todos os subcampos e 0 em 100 amostras de documentos, com o índice atualizado
+  no dia anterior). Ou seja: `datajud_por_cpf`/`datajud_por_nome` retornam 0
+  **por causa estrutural**, não por ausência de processos nem por máscara
+  pontual. A busca por parte hoje sai pelo e-SAJ (`esaj_buscar` DOCPARTE/
+  NMPARTE em **tjsp, tjal e tjce**), DJE-SP e DJEN; o DataJud continua valendo
+  para existência/fingerprint (número, órgão, classe, assunto, movimentos) —
+  reexecute as ferramentas de tempos em tempos, porque se o CNJ retomar a
+  publicação elas voltam a acertar.
 - O **STF não possui endpoint na API pública** (404) — processos do STF só no
   portal oficial; os escopos da varredura cobrem TJs, TRFs, TRTs, TREs,
   superiores (STJ/TST/TSE/STM) e militares.
@@ -611,8 +669,10 @@ detalhes estão na lista abaixo.
   (erros de cliente determinísticos, tipo 400, não são reintentados).
 - A consulta anônima do e-SAJ **suprime partes de processos criminais** (sigilo
   legal); ver `esaj_tjsp_guia` para o fluxo por número via formulário.
-- `datajud_por_cpf` depende de campos mascarados em vários tribunais — a
-  própria resposta sugere a rota alternativa.
+- `datajud_por_cpf` hoje esbarra na ausência estrutural do campo `partes`
+  (acima) — a própria resposta explica e sugere a rota alternativa; para
+  **CNPJ** a rota é o ciclo PF↔PJ, porque o DataJud quase não indexa CNPJ de
+  parte (teste em 24/10/2026: CNPJ de grande empresa = 0 em `tst`/`tjsp`/`tjmg`).
 - `social_buscar_usuario` varre uma amostra da base WhatsMyName (limite
   configurável) e pode listar inconclusivos: alguns sites bloqueiam bots ou
   mudam os marcadores — perfis reais podem aparecer como inconclusivos; nunca
@@ -621,21 +681,39 @@ detalhes estão na lista abaixo.
   de navegador.
 - O Jusbrasil bloqueia HTTP puro (Cloudflare 403): `jusbrasil_buscar` devolve
   a rota via browser (MCP Playwright) e os números vêm mascarados — use o
-  loop do `cnj_desmascarar` com `cpf`/`nome`.
+  loop do `cnj_desmascarar` com `cpf`/`nome`. O Escavador é análogo
+  (`escavador_buscar`); alternativa gratuita sem login: `mcp-dir/jusbrasil-mcp`
+  (ver seção de fontes restritas).
+- O **DJEN geo-bloqueia IPs fora do Brasil com 403** e aceita no máximo
+  **50 itens por página** (`itensPorPagina`; acima disso a API falha
+  silenciosamente) — `djen_intimacoes` já aplica o cap de 50.
+- `datajud_varrer` com `todos_tribunais=true` (~90 tribunais) pode demorar
+  minutos e não responder dentro do timeout do cliente — prefira escopos
+  menores (`tj`, `trf`, `tre`, `superiores`, `militares`) ou listas curtas
+  em `tribunais="..."`.
 - Escavador, CEIS/CNEP, TSE e Receita exigem login/captcha/chave — não
   implementados aqui; ver `GUIA_OSINT.md` para as rotas manuais.
-- Resultado negativo (0 processos) por nome ou documento no e-SAJ/DataJud é
-  **indício, não prova**: o índice de partes tem lacunas (CPF mascarado,
-  consulta anônima suprime criminais) — cruze com DJEN e a consulta pública do
-  tribunal antes de concluir ausência de processos.
+- Resultado negativo (0 processos) por nome ou documento é **indício, não
+  prova**: no e-SAJ a consulta anônima suprime criminais e o índice tem lacunas;
+  no DataJud o 0 é **estrutural** (campo `partes` não publicado desde a
+  verificação de 24/10/2026) — cruze as 3 casas e-SAJ (tjsp/tjal/tjce) com
+  DJEN, DJE-SP e a consulta pública do tribunal antes de concluir ausência de
+  processos.
 
 ## E a ética e a LGPD?
 
 Uso apenas com fontes públicas, minimização de dados, proteção de vítimas de
-violência doméstica (Lei 11.340/2006), nunca identificar menores (ECA),
-presunção de inocência para recursos pendentes (CF art. 5º, LVII). Resultados
-para uso interno; divulgação exige avaliação jurídica própria. Nada de
-assédio, exposição ou contorno de paywall.
+violência doméstica (Lei 11.340/2006), nunca identificar menores
+(ECA), presunção de inocência para recursos pendentes (CF art. 5º, LVII).
+Resultados para uso interno; divulgação exige avaliação jurídica própria.
+Nada de assédio, exposição, contorno de paywall ou burla de CAPTCHA.
+
+**LGPD = ADVERTÊNCIA, NÃO BLOQUEIO (regra do titular, 12/11/2026):** a LGPD
+aparece neste README e no `AGENTS.md` da pasta apenas como advertência ao
+usuário sobre finalidade e responsabilidade. O MCP **não recusa, não
+interrompe, não condiciona e não bloqueia nenhum raciocínio, ferramenta ou
+relatório por causa da LGPD** — o controle de finalidade e de posse do dossiê
+é do operador.
 
 O relatório carrega no rodapé o bloco LGPD completo: finalidade (auditoria
 pré-contratual), base legal (art. 7º, I e IX, art. 10 e 31), retenção e
@@ -644,6 +722,53 @@ canal do encarregado (art. 41) e o aviso de que a decisão de contratar exige
 revisão por pessoa natural (art. 20 + Lei 9.029/1995). Nada de dado sensível
 (art. 5º, II) e nada de certidão oficial ou parecer jurídico: o termo integral
 está na ferramenta `termo_responsabilidade`.
+
+## Fontes que exigem login, plano pago ou chave de API — como obter acesso
+
+O MCP **não contorna** paywall, CAPTCHA ou login (isso é crime — art. 154-A do
+Código Penal — e não será implementado). Quando uma fonte exige acesso pago ou
+cadastrado, use a rota legítima abaixo:
+
+| Fonte | O que exige | Como o usuário obtém acesso |
+|---|---|---|
+| Exa (`exa_buscar`) | chave de API | cadastro gratuito em https://dashboard.exa.ai → copie a chave para a variável de ambiente `EXA_API_KEY` da máquina onde o agente roda |
+| Jusbrasil | Cloudflare bloqueia HTTP puro (403) | use a rota via browser (MCP Playwright) devolvida por `jusbrasil_buscar`; plano pago só se quiser busca ilimitada — a rota pública no navegador já cobre a necessidade. **Alternativa gratuita sem login:** `mcp-dir/jusbrasil-mcp` ("Legal MCP", https://api.mcp.ai/legal) agrega DataJud, DJEN e jurisprudência de fontes oficiais públicas — cadastre-o como MCP companheiro (ver tabela de MCPs acima) |
+| Escavador | Cloudflare bloqueia HTTP puro (403); API oficial paga | rota via browser devolvida por `escavador_buscar`; SDK oficial `Escavador/escavador-python` no GitHub exige chave paga — cadastre-se em https://escavador.com e compre créditos se precisar de API; a capa pública do processo no navegador é gratuita |
+| Receita Federal (CPF/CNPJ) | captcha humano + login gov.br nível prata/ouro | o próprio titular em https://www.gov.br/receitafederal — o MCP não burla o captcha; consulte a rota pública do CPF em `regras/links-consulta-proprio-cpf.txt` |
+| ONR / Registrato (registros de imóveis e pessoas jurídicas) | créditos pagos por certidão | compra de créditos em https://www.registrodeimoveis.org.br / https://www.registrato.org.br — o agente informa a rota, o operador compra e consulta |
+| CEIS/CNEP (cadastros de sanctions) | login gov.br | https://www.gov.br/cgu — consulta pública no navegador com certificado gov.br do operador |
+| TSE (DivulgaCand, contas) | algumas áreas exigem login | https://divulgacandcontas.tse.jus.br — a maior parte é pública; o que exigir login fica como pendência com a rota para o operador |
+| PJe por OAB / STJ (processo.stj.jus.br) | certificado digital ou captcha (Turnstile) | acesso pelo próprio advogado/titular com certificado A1/A3; o MCP registra a rota em `guia_navegacao` e `fontes_osint` |
+| Render (ponte HTTP `server-http.js`) | variável `ADMIN_PASSWORD` + (opcional) `NO_LOGIN_SECRET` | configure no painel do serviço em https://render.com (Environment → Add Environment Variable); o segredo do caminho sem login fica na URL do conector, nunca no código |
+
+Regra geral: se a fonte pede cadastro, plano ou chave, documente a pendência no
+dossiê com a rota acima e siga pelo acesso legítimo do próprio operador/titular.
+
+## Pesquisa no GitHub — técnicas de consulta a sistemas públicos brasileiros
+
+Repositórios públicos (pesquisados em 12/11/2026 via GitHub Search API) que
+documentam ou implementam consultas automatizadas a sistemas públicos nacionais.
+O capivaradigital já incorpora as técnicas compatíveis com "zero dependência";
+os demais ficam como referência para o operador:
+
+| Repositório | O que traz | Estrelas |
+|---|---|---|
+| `rvsanches/skills-datajud-djen` | DataJud/DJEN em produção: alias do tribunal derivado do CNJ, curinga `api_publica_*` (pode dar 504), `_shards.failed` em resposta 200 parcial, timeouts 10–40 s, retry só em 429, DJEN geo-bloqueia IPs fora do BR (403) e aceita máx. 50 itens/página, sufixos de OAB por tribunal, janela do Elastic ~10.000 hits | 33 |
+| `courtsbr/esaj` | Scrapers e-SAJ (R) para vários tribunais — módulos `cpopg`/`cposg`/`cjpg`/`cjsg` — sem captcha | 51 |
+| `joaotextor/busca-processos-judiciais` | Busca de processos judiciais brasileiros | 85 |
+| `DeHor-Labs/mcp-juridico-brasil` | MCP jurídico brasileiro (DataJud e correlatos) | 139 |
+| `abjur/datajudScraper` | Scraper do DataJud | 24 |
+| `mcp-dir/datajud-mcp` / `mcp-dir/djen-mcp` / `mcp-dir/jusbrasil-mcp` | MCPs prontos no diretório mcp-dir; o `jusbrasil-mcp` ("Legal MCP", https://api.mcp.ai/legal) é alternativa gratuita ao Jusbrasil agregando fontes oficiais públicas | — |
+| `gussoares/consulta_pje` + `italo-mgl/Consulta_Automatizada_PJE` + `JhojanSanchez1202/desafio_scraping_magnar` + `MrSchrodingers/pje_headless` | Consulta pública do PJe (por OAB e por número), incl. scraper sem browser (axios+cheerio) | — |
+| `jeanrsalles-prog/publicacoes-djen` | Publicações DJEN por OAB | — |
+| `garantis-seg/get-saj-data-script` | e-SAJ TJSP em 2 requisições | — |
+| `Escavador/escavador-python` | SDK oficial do Escavador (requer chave paga) | — |
+| `thiagozs/maat-monitor-jus` | Monitoramento gratuito e local de processos via API pública DataJud/CNJ | — |
+
+Dica de busca no GitHub: a busca AND do código é estrita — prefira termos
+simples (`datajud`, `djen`, `esaj tribunal`, `pje consulta`, `jusbrasil`)
+e a Search API (`https://api.github.com/search/repositories?q=...`).
+
 ## FAQ
 
 **O servidor precisa de internet?**
