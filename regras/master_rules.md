@@ -245,7 +245,7 @@ Regras duras:
 
 ---
 
-## 11. Ferramentas do MCP (29 tools — v1.19.1)
+## 11. Ferramentas do MCP (29 tools — v1.19.2)
 
 Prefixo no kimi: `mcp__capivaradigital__`
 

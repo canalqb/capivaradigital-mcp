@@ -149,7 +149,7 @@ async function getDatajudKey() {
   return cachedKey;
 }
 
-async function datajudSearch(endpoint, body) {
+async function datajudSearch(endpoint, body, ms) {
   let key = await getDatajudKey();
   let lastErr = null;
   for (let tentativa = 0; tentativa < 4; tentativa++) {
@@ -158,7 +158,7 @@ async function datajudSearch(endpoint, body) {
         method: 'POST',
         headers: { 'Authorization': `APIKey ${key}`, 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
-      }, 120000);
+      }, ms || 120000);
       return JSON.parse(text);
     } catch (e) {
       lastErr = e;
@@ -766,6 +766,9 @@ async function toolCpfDesmascarar(a) {
   if (!a.tribunal) throw new Error('Informe o tribunal (alias tjsp/tjpr... ou codigo) para a verificacao em lote no DataJud.');
   const endpoint = resolveEndpoint(a.tribunal);
   const tamanho = Math.min(Number(a.tamanho) || 100, 100);
+  const msPorQuery = Math.min(Math.max(Number(a.timeout_ms) || 45000, 5000), 120000);
+  const prazoMs = Math.min(Math.max(Number(a.prazo_ms) || 150000, 20000), 900000);
+  const deadline = Date.now() + prazoMs;
   const porCpf = new Map();
   const registro = (cpf, hit) => {
     const k = porCpf.get(cpf) || { processos: [], nomes: new Set() };
@@ -775,18 +778,23 @@ async function toolCpfDesmascarar(a) {
     nomesDePartes(src).forEach(x => k.nomes.add(x));
     porCpf.set(cpf, k);
   };
+  let parcial = false, blocosFeitos = 0;
+  const BLOCO = 100;
+  const blocosTotais = Math.ceil(cands.length / BLOCO);
   try {
-    const r1 = await datajudSearch(endpoint, { query: { terms: { 'partes.pessoa.documentoReplicado': cands } }, size: tamanho });
+    const r1 = await datajudSearch(endpoint, { query: { terms: { 'partes.pessoa.documentoReplicado': cands } }, size: tamanho }, msPorQuery);
     for (const h of hitsToArray(r1)) {
       const js = JSON.stringify(h._source || {});
       const achados = cands.filter(c => js.includes(c));
       if (achados.length) achados.forEach(c => registro(c, h));
     }
   } catch (e) { /* terms pode falhar; segue para query_string */ }
-  for (let i = 0; i < cands.length; i += 500) {
-    const q = cands.slice(i, i + 500).map(c => `"${formatCpf(c)}"`).join(' OR ');
+  for (let i = 0; i < cands.length; i += BLOCO) {
+    if (Date.now() > deadline) { parcial = true; break; }
+    blocosFeitos++;
+    const q = cands.slice(i, i + BLOCO).map(c => `"${formatCpf(c)}"`).join(' OR ');
     try {
-      const r2 = await datajudSearch(endpoint, { query: { query_string: { query: q } }, size: tamanho });
+      const r2 = await datajudSearch(endpoint, { query: { query_string: { query: q } }, size: tamanho }, msPorQuery);
       for (const h of hitsToArray(r2)) {
         const js = JSON.stringify(h._source || {});
         const achados = cands.filter(c => js.includes(formatCpf(c)));
@@ -794,7 +802,9 @@ async function toolCpfDesmascarar(a) {
       }
     } catch (e) { /* bloco ignora falha individual */ }
   }
-  let out = `Mascara "${a.mascara}": ${cands.length} CPF(s) com DV correto gerado(s); verificacao EM LOTE no DataJud ${endpoint}: ${porCpf.size} CPF(s) com processo(s).\n`;
+  let out = `Mascara "${a.mascara}": ${cands.length} CPF(s) com DV correto gerado(s); verificacao EM LOTE no DataJud ${endpoint}: ${porCpf.size} CPF(s) com processo(s)`;
+  if (parcial) out += ` [PARCIAL: deadline de ${Math.round(prazoMs / 1000)}s atingido apos ${blocosFeitos}/${blocosTotais} blocos de query_string - resultado parcial; repita com prazo_ms maior ou em tribunal mais rapido]`;
+  out += '.\n';
   if (!porCpf.size) {
     out += 'Nenhum candidato tem processo visivel neste tribunal. 0 e INDICIO, nao prova: repita em outros tribunais.';
   }
@@ -1703,7 +1713,7 @@ const GUIA_CHECKLIST_100 = [
 
 async function toolGuiaPublicacao(a) {
   const etapa = String((a && a.etapa) || '').trim().toLowerCase();
-  const cabecalho = 'TEMPLATE PADRAO + RELATORIO POR ETAPAS + POST (prompt 9.4) - protocolo de montagem do capivaradigital-mcp (v1.19.1)';
+  const cabecalho = 'TEMPLATE PADRAO + RELATORIO POR ETAPAS + POST (prompt 9.4) - protocolo de montagem do capivaradigital-mcp (v1.19.2)';
   if (!etapa) return [cabecalho, '', GUIA_FONTES_AO_VIVO, '', GUIA_TEMPLATE_PADRAO, '', GUIA_SECAO_A_SECAO, '', GUIA_POST_94, '', GUIA_CHECKLIST_100].join('\n');
   if (etapa === 'template') return [cabecalho, '', GUIA_FONTES_AO_VIVO, '', GUIA_TEMPLATE_PADRAO].join('\n');
   if (etapa === 'secoes' || etapa === 'etapas' || etapa === 'sessoes') return [cabecalho, '', GUIA_FONTES_AO_VIVO, '', GUIA_SECAO_A_SECAO].join('\n');
@@ -1945,7 +1955,7 @@ async function toolGuiaDossie(args) {
      '4. REVALIDACAO AO VIVO ANTES DE FECHAR (P7): reexecute AO VIVO toda fonte marcada OK-0 e toda cadeia escavador/jusbrasil (browser) -> DJEN -> dje_sp_buscar -> esaj_buscar NMPARTE em 3 estados; confirme que nenhum estado mudou para BLOQUEADO/SUPRIMIDO/DESATUALIZADO/FALHA - se mudou, o relatorio declare "auditoria em curso" e nao "controle negativo".']
   ];
   let out = FASES.map(f => f.join('\n')).join('\n\n');
-  const header = TERMO_RESPONSABILIDADE + '\n\n' + 'PROTOCOLO DE DOSSIE COMPLETO POR DOCUMENTO (v1.19.1) - regra obrigatoria para TODOS os agentes que usam o capivaradigital. Execute as etapas em ordem; nenhum pedido do titular fica sem resposta ou sem rota tentada. Fonte: sessoes reais 18-22/10/2026 (dossies validados). Zero dados reais neste texto.\n\n';
+  const header = TERMO_RESPONSABILIDADE + '\n\n' + 'PROTOCOLO DE DOSSIE COMPLETO POR DOCUMENTO (v1.19.2) - regra obrigatoria para TODOS os agentes que usam o capivaradigital. Execute as etapas em ordem; nenhum pedido do titular fica sem resposta ou sem rota tentada. Fonte: sessoes reais 18-22/10/2026 (dossies validados). Zero dados reais neste texto.\n\n';
   if (so) { const f = FASES.find(x => x[0].indexOf(so.toUpperCase()) > -1); return header + (f ? f.join('\n') : 'Fase nao encontrada. Fases: 0,1,1B,2,3,4,5,6,7,8,9,10 (use fase="FASE 6" etc.).'); }
   return header + out + '\n\nVEJA TAMBEM: guia_relatorios (template/niveis), guia_publicacao (fontes ao vivo do Drive, montagem secao a secao ate 100%, post 9.4), fontes_osint (protocolo anti-homonimo), guia_navegacao (browser), ciclo_pf_pj (execucao da fase 1-2).';
 }
@@ -1975,14 +1985,16 @@ const TOOLS = [
   },
   {
     name: 'cpf_desmascarar',
-    description: 'Quebra CPF mascarado com ate 3 digitos desconhecidos na base de 9 (ex.: ***.123.456-**, tipico de QSA/DataJud, OU o bloco de 6 digitos antes do DV): loop 000-999 nos ocultos + DV oficial (modulo 11) gera ate 1000 CPFs validos; verificacao EM LOTE no DataJud (terms no documentoReplicado + query_string com CPF formatado) devolve os CPFs com processos e os NOMES visiveis - lista para o USUARIO validar qual e o pesquisado. Apos a validacao, o dossie pesquisa tudo pelo CPF, nunca pelo nome.',
+    description: 'Quebra CPF mascarado com ate 3 digitos desconhecidos na base de 9 (ex.: ***.123.456-**, tipico de QSA/DataJud, OU o bloco de 6 digitos antes do DV): loop 000-999 nos ocultos + DV oficial (modulo 11) gera ate 1000 CPFs validos; verificacao EM LOTE no DataJud (terms no documentoReplicado + query_string com CPF formatado em blocos de 100) devolve os CPFs com processos e os NOMES visiveis - lista para o USUARIO validar qual e o pesquisado. A verificacao tem deadline (prazo_ms, default 150s): se o tribunal estiver lento, retorna resultado PARCIAL rotulado em vez de travar ate o timeout do cliente. Apos a validacao, o dossie pesquisa tudo pelo CPF, nunca pelo nome.',
     inputSchema: {
       type: 'object',
       properties: {
         mascara: { type: 'string', description: 'Mascara do CPF com X ou * nos desconhecidos (ex.: ***.123.456-**, 111.444.777-**) OU o bloco de 6 digitos antes do DV (ex.: 123456). Os 2 DVs finais sao calculados automaticamente' },
         tribunal: { type: 'string', description: 'Tribunal da verificacao em lote (alias tjsp/tjpr... ou codigo 826). Obrigatorio quando consultar_datajud=true' },
         consultar_datajud: { type: 'boolean', description: 'Default true: verifica os candidatos no DataJud; false: apenas lista os CPFs gerados' },
-        tamanho: { type: 'number', description: 'Maximo de processos por query (default 100, max 100)' }
+        tamanho: { type: 'number', description: 'Maximo de processos por query (default 100, max 100)' },
+        timeout_ms: { type: 'number', description: 'Timeout por query do DataJud na verificacao em lote (default 45000, min 5000, max 120000)' },
+        prazo_ms: { type: 'number', description: 'Deadline total da verificacao em lote (default 150000, min 20000, max 900000); ao estourar, retorna resultado PARCIAL rotulado' }
       },
       required: ['mascara']
     },
@@ -2199,7 +2211,7 @@ const TOOLS = [
   },
   {
     name: 'guia_dossie',
-    description: 'PROTOCOLO DE DOSSIE COMPLETO POR DOCUMENTO (v1.19.1): regra obrigatoria para todo agente - FASE 00 ISOLAMENTO DE CONSULTAS: cada CPF/CNPJ e uma consulta NOVA E INDEPENDENTE, nada de consultas anteriores entra no dossie novo salvo pedido explicito do titular de cruzar duas pessoas. TODOS os pedidos do titular da investigacao (empresas em que trabalhou, artigo do crime, redes sociais, curriculo, mascaras) viram etapa executavel deste checklist de 13 etapas (00, 0, 1, 1B, 2-10): ancora por documento, ciclo PF<->PJ forcado (CNPJ sempre com o CPF), loop de mascaras CNJ com contra-prova no e-SAJ DOCPARTE, varredura multi-tribunal e diarios, redes/curriculo/vinculos empregaticios (com limite declarado do CAGED/Rais), detalhes do crime (artigo pelo assunto + rito como hipotese + denuncia exige autos), familiares maiores/terceiros minimizados, validacao de curriculo/certificados (e-MEC/conselhos), montagem (dossie x metodo separados, template HTML autocontido, creditos oficiais) e fechamento com pendencias. Use ANTES de iniciar qualquer dossie de novo CPF/CNPJ.',
+    description: 'PROTOCOLO DE DOSSIE COMPLETO POR DOCUMENTO (v1.19.2): regra obrigatoria para todo agente - FASE 00 ISOLAMENTO DE CONSULTAS: cada CPF/CNPJ e uma consulta NOVA E INDEPENDENTE, nada de consultas anteriores entra no dossie novo salvo pedido explicito do titular de cruzar duas pessoas. TODOS os pedidos do titular da investigacao (empresas em que trabalhou, artigo do crime, redes sociais, curriculo, mascaras) viram etapa executavel deste checklist de 13 etapas (00, 0, 1, 1B, 2-10): ancora por documento, ciclo PF<->PJ forcado (CNPJ sempre com o CPF), loop de mascaras CNJ com contra-prova no e-SAJ DOCPARTE, varredura multi-tribunal e diarios, redes/curriculo/vinculos empregaticios (com limite declarado do CAGED/Rais), detalhes do crime (artigo pelo assunto + rito como hipotese + denuncia exige autos), familiares maiores/terceiros minimizados, validacao de curriculo/certificados (e-MEC/conselhos), montagem (dossie x metodo separados, template HTML autocontido, creditos oficiais) e fechamento com pendencias. Use ANTES de iniciar qualquer dossie de novo CPF/CNPJ.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -2312,7 +2324,7 @@ function send(obj) { process.stdout.write(JSON.stringify(obj) + '\n'); }
 
 async function handle(msg) {
   if (msg.method === 'initialize') {
-    return { protocolVersion: '2024-11-05', capabilities: { tools: {} }, serverInfo: { name: 'capivaradigital', version: '1.19.1' } };
+    return { protocolVersion: '2024-11-05', capabilities: { tools: {} }, serverInfo: { name: 'capivaradigital', version: '1.19.2' } };
   }
   if (msg.method === 'ping') return {};
   if (msg.method === 'tools/list') return { tools: TOOLS.map(t => ({ name: t.name, description: t.description, inputSchema: t.inputSchema })) };
