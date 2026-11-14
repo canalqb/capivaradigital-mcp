@@ -135,6 +135,29 @@ async function fetchRaw(url, options, ms) {
   }
 }
 
+// Estado canonico por fonte (master_rules 10.1): OK-0 | OK-ACHADO | BLOQUEADO |
+// SUPRIMIDO | DESATUALIZADO | NAO EXECUTADA | FALHA. NUNCA um erro vira "0 achados".
+function classificarErroHttp(status, corpo) {
+  const s = Number(status) || 0;
+  const txt = String(corpo || '');
+  if (s === 404 || s === 410) {
+    return { estado: 'DESATUALIZADO', proximo_passo: 'Rota/base fora do ar (404/410): confirme a URL atual da fonte e reconsulte por rota alternativa registrada no dossie.' };
+  }
+  if (s === 401 || s === 403 || s === 407 || s === 429) {
+    return { estado: 'BLOQUEADO', proximo_passo: 'Bloqueio/limite da fonte: reexecute via BROWSER (MCP Playwright) ou aguarde e repita; nunca trate como "0 achados".' };
+  }
+  if (s === 202 || /anomaly|captcha|challenge|just a moment|enable javascript|verificacao de seguranca|cf-browser-verification|security checkpoint/i.test(txt.slice(0, 8000))) {
+    return { estado: 'BLOQUEADO', proximo_passo: 'Anomalia/captcha detectado no corpo: a fonte nao respondeu dados - consulte via browser (MCP Playwright) e registre o estado BLOQUEADO.' };
+  }
+  if (s >= 500) {
+    return { estado: 'FALHA', proximo_passo: 'Erro de servidor/transitorio (5xx): aguarde e repita; se persistir, registre FALHA com a data.' };
+  }
+  if (s >= 400) {
+    return { estado: 'FALHA', proximo_passo: `HTTP ${s} nao mapeado: registre FALHA com o status e a data; a fonte nao sai do relatorio.` };
+  }
+  return { estado: 'FALHA', proximo_passo: 'Falha sem status HTTP (timeout/rede): reconsulta; se repetir, declare NAO EXECUTADA com a data.' };
+}
+
 async function getDatajudKey() {
   if (cachedKey) return cachedKey;
   try {
@@ -1960,6 +1983,364 @@ async function toolGuiaDossie(args) {
   return header + out + '\n\nVEJA TAMBEM: guia_relatorios (template/niveis), guia_publicacao (fontes ao vivo do Drive, montagem secao a secao ate 100%, post 9.4), fontes_osint (protocolo anti-homonimo), guia_navegacao (browser), ciclo_pf_pj (execucao da fase 1-2).';
 }
 
+// ---------------------------------------------------------------------------
+// v1.20.0 - Fontes de identidade/telefone (reimplementadas aqui, sem copiar
+// codigo de terceiros; atribuicao em GUIA_OSINT.md): TinoWeb (identidade por
+// CPF), situacao-cadastral (guia browser), consultaai (guia), fan-out BR de
+// telefone (derivado do Protocolo-OSINT), web_buscar (2 provedores, com
+// deteccao de anomalia) e navegador_resultado_interpretar (fecha P2/P3).
+// ---------------------------------------------------------------------------
+const UA_PADRAO = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
+const TINOWEB_URL = 'https://app.tinoweb.com.br/descobrir-mae-pelo-cpf/';
+const CONSULTAAI_URL = 'https://consultaai.app/api/search/research';
+const SITUACAO_URL = 'https://situacao-cadastral.com.br/';
+const ATRIB_PROTOCOLO = 'Catalogo BR reimplementado (nao copiado) a partir do Protocolo-OSINT (github.com/Rod-Ghost/Protocolo-OSINT, uso educacional/Mit).';
+const EXCL_FONTES = 'Excluido nesta revisao: qualoperadora.info (dominio sequestrado), buscaceptelefonenobrasil.com.br e whocalledme.com.br (fora do ar).';
+
+function agoraISO() { return new Date().toISOString(); }
+
+function normRotulo(s) {
+  return String(s == null ? '' : s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[^A-Z0-9/ ]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function normNome(s) {
+  return String(s == null ? '' : s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[^A-Z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function simNome(a, b) {
+  const ta = normNome(a).split(' ').filter(t => t.length > 1);
+  const tb = normNome(b).split(' ').filter(t => t.length > 1);
+  if (!ta.length || !tb.length) return 0;
+  const sa = new Set(ta), sb = new Set(tb);
+  let com = 0;
+  for (const t of sa) if (sb.has(t)) com++;
+  return com / (sa.size + sb.size - com);
+}
+
+function validaCpf(cpf11) {
+  if (!/^\d{11}$/.test(cpf11)) return false;
+  if (/^(\d)\1{10}$/.test(cpf11)) return false;
+  return cpf11.slice(9) === cpfDvs(cpf11.slice(0, 9));
+}
+
+// Identidade por CPF via TinoWeb (banco privado de historico cadastral, sem
+// captcha). REGLA: indício, nunca prova - o site DEVOLVE identidade para CPF
+// com DV invalido (canario 123.456.789-09), ou seja, fabrica dados em parte
+// da base; so vira CONFIRMADO com documento proprio cruzado.
+async function toolCpfTinoweb(a) {
+  const cpf = digitsOnly(a.cpf);
+  if (cpf.length !== 11) throw new Error('Informe o CPF com 11 digitos (ex.: 304.293.848-40).');
+  const dvOk = validaCpf(cpf);
+  const stamp = agoraISO();
+  let html;
+  try {
+    html = await fetchWithTimeout(TINOWEB_URL, {
+      method: 'POST',
+      headers: { 'User-Agent': UA_PADRAO, 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'text/html,application/xhtml+xml' },
+      body: 'cpf=' + encodeURIComponent(formatCpf(cpf)),
+      retries: 1
+    }, 30000);
+  } catch (e) {
+    const c = classificarErroHttp(e && e.status, String(e && e.message ? e.message : e));
+    return `TinoWeb (identidade por CPF) - ${formatCpf(cpf)}\nConsulta: ${stamp}\nESTADO: ${c.estado}\nDetalhe: ${String(e && e.message ? e.message : e).slice(0, 200)}\nProximo passo: ${c.proximo_passo}\n\nRegra: fonte BLOQUEADA/FALHA nao vira "0 achados"; registre o estado e reconsulte.`;
+  }
+  const mapa = {};
+  const re = /<div class="result-item">[\s\S]*?<span class="text-secondary">([^<:]+):?<\/span>[\s\S]*?<span class="result-val[^"]*">([^<]*)<\/span>/g;
+  let m;
+  while ((m = re.exec(html))) mapa[normRotulo(m[1])] = String(m[2]).trim();
+  const nome = mapa['NOME COMPLETO'] || '';
+  const mae = mapa['NOME DA MAE'] || '';
+  const nasc = mapa['DATA DE NASCIMENTO'] || '';
+  const sexo = mapa['SEXO / GENERO'] || '';
+  let out = `TinoWeb (identidade por CPF) - ${formatCpf(cpf)}\nConsulta: ${stamp}\n`;
+  if (nome || mae) {
+    out += 'ESTADO: OK-ACHADO (fonte indexada por CPF - INDICIO de identidade; confirme com e-SAJ DOCPARTE/DJE antes de CONFIRMADO)\n';
+    out += `Nome: ${nome || 'nao informado'}\nMae: ${mae || 'nao informado'}\nNascimento: ${nasc || 'nao informado'}\nSexo: ${sexo || 'nao informado'}\n`;
+  } else {
+    out += 'ESTADO: OK-0 (a fonte nao devolveu identidade para este CPF)\n';
+  }
+  out += `DV local: ${dvOk ? 'VALIDO' : 'INVALIDO'}\n`;
+  if (!dvOk) {
+    out += 'ALERTA: CPF com DV INVALIDO - se a fonte devolveu identidade, ela FABRICA dados (MOCK): o retorno NAO prova nada; descarte e reconsulte fonte oficial.';
+  } else {
+    out += '\nRegra: TinoWeb e indício (banco privado); so vira CONFIRMADO com documento proprio cruzado (ciclo_pf_pj, esaj_buscar DOCPARTE, dje_sp_buscar).';
+  }
+  return out;
+}
+
+// Motor anti-homonimo (master_rules 10): cruza o que a pesquisa achou com o
+// que a fonte devolveu e devolve o nivel + o motivo. Puro, sem rede.
+async function toolCpfQualificar(a) {
+  const cpf = digitsOnly(a.cpf || '');
+  if (cpf.length !== 11) throw new Error('Informe o CPF com 11 digitos.');
+  const dvOk = validaCpf(cpf);
+  const nomePesq = String(a.nome_pesquisado || '').trim();
+  const nomeFonte = String(a.nome_fonte || '').trim();
+  const maeFonte = String(a.mae_fonte || '').trim();
+  const nascPesq = digitsOnly(a.nascimento_pesquisado || '');
+  const nascFonte = digitsOnly(a.nascimento_fonte || '');
+  const status = String(a.status_por_fonte || '');
+  const evid = String(a.evidencias || '').trim();
+  const ancora = a.processo_ancora === true || a.processo_ancora === 'true';
+  const cross = /OK-ACHADO/i.test(status) && /(esaj|dje|djep|datajud|ciclo|cenprot|registr|protesto)/i.test(status);
+  const sim = (nomePesq && nomeFonte) ? simNome(nomePesq, nomeFonte) : null;
+  const nascIgual = (nascPesq && nascFonte) ? (nascPesq === nascFonte) : null;
+
+  let nivel, motivo, proximo;
+  if (!dvOk && nomeFonte) {
+    nivel = 'INDICIO DESCARTADO';
+    motivo = 'O CPF tem DV INVALIDO e mesmo assim uma fonte devolveu identidade: a fonte FABRICA dados para entradas invalidas (MOCK). Esse retorno nao e prova de nada.';
+    proximo = 'Descarte a fonte para este CPF; reconsulte fonte oficial (Receita/situacao-cadastral com captcha, e-SAJ DOCPARTE, DJE) e registre o MOCK na secao de pendencias.';
+  } else if (nomeFonte && sim != null && sim >= 0.9 && (ancora || cross) && nascIgual !== false) {
+    nivel = 'CONFIRMADO';
+    motivo = `Nome devolvido pela fonte por DOCUMENTO bate com o pesquisado (similaridade ${(sim * 100).toFixed(0)}%)${nascIgual ? ' e a data de nascimento tambem bate' : ''}, com vinculo proprio confirmado em fonte independente (ancora/cross = ${ancora || cross}).`;
+    proximo = 'Mantenha a ancora por CPF no relatorio; cite fonte, data e o documento que ancorou cada vinculo.';
+  } else if (nomeFonte && sim != null && sim >= 0.9) {
+    nivel = 'PROVAVEL';
+    motivo = `Nome devolvido pela fonte por DOCUMENTO bate com o pesquisado (similaridade ${(sim * 100).toFixed(0)}%), mas falta cruzamento independente (e-SAJ DOCPARTE/DJE/DataJud) para fechar CONFIRMADO.${nascIgual === false ? ' ATENCAO: a data de nascimento diverge entre a pesquisa e a fonte.' : ''}`;
+    proximo = 'Rode ciclo_pf_pj + esaj_buscar DOCPARTE + dje_sp_buscar; com retorno proprio, vira CONFIRMADO; sem retorno, mantenha PROVAVEL com a ressalva.';
+  } else if (nomePesq && !nomeFonte) {
+    nivel = 'SEM DOCUMENTO';
+    motivo = 'So ha nome na pesquisa, sem fonte devolvendo identidade por CPF: controle negativo nao fecha aqui.';
+    proximo = 'Consulte fonte por documento (esaj_buscar DOCPARTE, dje_sp_buscar, ciclo_pf_pj) antes de qualquer atribuicao.';
+  } else if (nomePesq && nomeFonte && sim != null && sim < 0.9) {
+    nivel = 'POSSIVEL HOMONIMO';
+    motivo = `Nome da fonte por documento NAO bate com o pesquisado (similaridade ${(sim * 100).toFixed(0)}%): provavelmente a fonte devolveu OUTRA pessoa com o mesmo CPF ou a pesquisa esta errada.`;
+    proximo = 'NAO atribua; confirme o CPF com o titular/documento oficial e reconsulte.';
+  } else {
+    nivel = 'NAO VERIFICADO';
+    motivo = 'Sem evidencia suficiente (falta nome da fonte e/ou nome do pesquisado) para qualificar.';
+    proximo = 'Colete identidade por documento (cpf_tinoweb + e-SAJ/DJE) e repasse nome_pesquisado + nome_fonte.';
+  }
+
+  let out = `cpf_qualificar - ${formatCpf(cpf)}\n`;
+  out += `NIVEL: ${nivel}\n`;
+  out += `MOTIVO: ${motivo}\n`;
+  out += `Proximo passo: ${proximo}\n`;
+  out += `DV local: ${dvOk ? 'VALIDO' : 'INVALIDO'}\n`;
+  if (maeFonte) out += `Mae (fonte): ${maeFonte}\n`;
+  if (sim != null) out += `Similaridade nome: ${(sim * 100).toFixed(0)}%\n`;
+  if (nascIgual != null) out += `Nascimento bate: ${nascIgual ? 'SIM' : 'NAO'}\n`;
+  if (status) out += `Status por fonte: ${status}\n`;
+  if (evid) out += `Evidencias: ${evid}\n`;
+  out += '\nRegra (master_rules 10/10.1): CONFIRMADO so com documento proprio batendo; achado so por nome = POSSIVEL HOMONIMO (fora da lista principal); fonte BLOQUEADA/SUPRIMIDO/DESATUALIZADO/FALHA/NAO EXECUTADA nunca vira "0 processos".';
+  return out;
+}
+
+// Guia da consulta de situacao cadastral (rota browser - fingerprint2,
+// honeypot e reCAPTCHA impedem HTTP puro). O site DEVOLVE dados para CPFs
+// sinteticos: trate como MOCK/indicio, nunca como prova.
+async function toolCpfSituacaoCadastralGuia(a) {
+  const cpf = digitsOnly(a.cpf || '');
+  const rotas = [
+    `1. browser_navigate: ${SITUACAO_URL}`,
+    '2. browser_snapshot: confirme o campo #doc (placeholder "CPF ou CNPJ") e o botao #consultar.',
+    '3. browser_evaluate: leia TODOS os inputs ocultos (input[type=hidden]) e devolva name/value de cada um - o campo hidden tem id/name DINAMICO (ex.: 0596b631...) e muda a cada carga; NAO tente hardcodar.',
+    '4. NAO preencha nenhum input que pareca honeypot (fora do formulario visivel, valor vazio, position off-screen): preenche-lo sinaliza bot e a consulta e descartada.',
+    '5. browser_type no #doc com o CPF (formatado) e browser_click no #consultar.',
+    '6. browser_find: procure spans com classe "dados" - documento, nome, situacao e o texto explicativo (regular/pendente/cancelada/nula/titular falecido).',
+    '7. Se aparecer reCAPTCHA: resolva MANUALMENTE no browser e reenvie; fingerprint2 e gerado pelo proprio browser, nao replique via curl.'
+  ];
+  let out = `cpf_situacao_cadastral_guia - ${cpf ? formatCpf(cpf) : '(sem CPF informado)'}\n`;
+  out += `Consulta: ${agoraISO()}\nESTADO: NAO EXECUTADA (guia - execute via MCP Playwright)\n\nROTA (browser obrigatorio):\n${rotas.join('\n')}\n`;
+  out += `\nROTA OFICIAL ALTERNATIVA (Receita, captcha manual): https://servicos.receita.fazenda.gov.br/servicos/cpf/consultasituacao/consultapublica.asp (CPF + data de nascimento + CAPTCHA).\n`;
+  out += `\nALERTA MOCK (verificado ao vivo): o situacao-cadastral DEVOLVE identidade plausivel para CPF sintetico (ex.: 111.444.777-35) e para CPF com DV invalido - a base tem fabricacao parcial. Use APENAS como indício de situacao cadastral, sempre cruzado com e-SAJ DOCPARTE/DJE; nunca sozinho para CONFIRMADO.\n`;
+  out += `\nStatus por fonte ao executar: OK-ACHADO (retornou situacao), OK-0 (consultou e nao achou), BLOQUEADO (captcha/anomalia), FALHA (erro).`;
+  return out;
+}
+
+// Guia do contrato da consultaai (free tier = prefixos; fetch puro leva 429 do
+// Vercel Security Checkpoint - confirmado ao vivo em 14/11/2026).
+async function toolConsultaaiBuscarGuia(a) {
+  const cpf = digitsOnly(a.cpf || '');
+  let out = `consultaai_buscar_guia - ${cpf ? formatCpf(cpf) : '(sem CPF informado)'}\n`;
+  out += `Consulta: ${agoraISO()}\nESTADO: NAO EXECUTADA (guia - a rota HTTP pura esta BLOQUEADA, use browser)\n`;
+  out += `\nCONTRATO (POST, JSON):\n`;
+  out += `- URL: ${CONSULTAAI_URL}\n`;
+  out += `- Headers: Content-Type: application/json | User-Agent: navegador | x-device-fp: <fingerprint de dispositivo> (obrigatorio) | cf-turnstile-token: <token> (so quando exigir Turnstile)\n`;
+  out += `- Body: {"tipo_chamada":"cpf","cpf":"${cpf || 'XXX.XXX.XXX-XX'}","token":""}\n`;
+  out += `- Exemplo node: fetch('${CONSULTAAI_URL}', { method:'POST', headers:{'Content-Type':'application/json','x-device-fp':'meu-fp'}, body: JSON.stringify({tipo_chamada:'cpf', cpf:'XXX.XXX.XXX-XX', token:''}) })\n`;
+  out += `\nBLOQUEIO CONFIRMADO (14/11/2026): HTTP 429 "Vercel Security Checkpoint" em fetch puro - a rota browser e a correta:\n`;
+  out += `1. browser_navigate: https://consultaai.app/\n2. browser_evaluate: leia o fingerprint do dispositivo (localStorage/cookies do proprio site) e o cf-turnstile-token quando presente.\n3. Repita o POST via browser (page.request ou evaluate com fetch) com os headers acima.\n4. Se o Turnstile aparecer, resolva MANUALMENTE e refaca.\n`;
+  out += `\nLIMITACOES DO FREE TIER: devolve PREFIXOS (ex.: dia e mes de nascimento), NAO nome completo - nao use como identidade; sirva apenas como corroboração junto com cpf_tinoweb/e-SAJ. Estado canonico: BLOQUEADO (429/turnstile) ou OK-0/OK-ACHADO (retornou prefixo).`;
+  return out;
+}
+
+// Fan-out BR de telefone (4 fontes vivas verificadas). consultar=true faz o
+// fan-out ao vivo com estado por fonte; padrao = guia.
+async function toolTelefoneFontesBr(a) {
+  const tel = digitsOnly(a.telefone);
+  if (tel.length < 10 || tel.length > 13) throw new Error('Informe o telefone (BR: 10-11 digitos com DDD, ex. 11999998888, ou com codigo de pais).');
+  const ddd = tel.slice(0, 2);
+  const corpo = tel.slice(2);
+  const stamp = agoraISO();
+  const fontes = [
+    { nome: 'consultanumero.com.br', url: 'https://consultanumero.com.br/' + ddd + corpo },
+    { nome: 'telefone.ninja', url: 'https://telefone.ninja/' + ddd + corpo },
+    { nome: 'donodozap.com', url: 'https://donodozap.com/' + ddd + corpo },
+    { nome: 'scannero.io (reverse lookup)', url: 'https://scannero.io/pt/reverse-number-lookup/' + ddd + corpo }
+  ];
+  let out = `telefone_fontes_br - ${tel} (DDD ${ddd})\nConsulta: ${stamp}\n${ATRIB_PROTOCOLO}\n${EXCL_FONTES}\n`;
+  out += `Tipo (BR): ${tel.length === 11 ? 'celular (9o digito)' : 'fixo/celular antigo (sem 9o digito)'}\n`;
+  if (a.consultar !== true && a.consultar !== 'true') {
+    out += '\nESTADO: NAO EXECUTADA (padrao: sem fan-out). Passe consultar=true para consultar as 4 fontes ao vivo.\n';
+    out += '\nROTAS (abra via browser/MCP Playwright se bloquearem HTTP):\n' + fontes.map(f => `- ${f.nome}: ${f.url}`).join('\n');
+    out += `\n\nRota WhatsApp: https://wa.me/55${tel} | Numtrace: https://numtrace.com/pt-br/phone-page?phone=${tel} (pagina dinamica - browser)`;
+    return out;
+  }
+  out += '\nFAN-OUT AO VIVO (4 fontes):\n';
+  for (const f of fontes) {
+    try {
+      const r = await fetchRaw(f.url, { headers: { 'User-Agent': UA_PADRAO, 'Accept': 'text/html,application/xhtml+xml' } }, 15000);
+      const corpoTxt = (r.text || '').slice(0, 400000);
+      const c = classificarErroHttp(r.status, corpoTxt);
+      const titulo = ((corpoTxt.match(/<title[^>]*>([\s\S]*?)<\/title>/i) || [])[1] || '').replace(/\s+/g, ' ').trim();
+      const desc = ((corpoTxt.match(/<meta[^>]+name="description"[^>]+content="([^"]*)"/i) || [])[1] || '').trim();
+      if (c.estado !== 'FALHA' || r.status >= 400) {
+        const semDados = !titulo || /nao encontr|não encontr|not found|nenhum resultado|no results|404/i.test(titulo + ' ' + desc);
+        const estado = (r.ok && !/anomaly|captcha|challenge|just a moment/i.test(corpoTxt.slice(0, 4000)) && !semDados) ? 'OK-ACHADO' : (r.ok ? 'OK-0' : c.estado);
+        out += `- ${f.nome}: ESTADO ${estado} (HTTP ${r.status})${titulo ? ' - titulo: ' + titulo.slice(0, 120) : ''}\n`;
+        if (desc) out += `  desc: ${desc.slice(0, 200)}\n`;
+        out += `  ${f.url}\n`;
+        if (estado !== 'OK-ACHADO') out += `  Proximo passo: ${c.proximo_passo}\n`;
+      } else {
+        out += `- ${f.nome}: ESTADO ${c.estado} (HTTP ${r.status || 'n/d'}) - ${c.proximo_passo}\n  ${f.url}\n`;
+      }
+    } catch (e) {
+      const c = classificarErroHttp(e && e.status, String(e && e.message ? e.message : e));
+      out += `- ${f.nome}: ESTADO ${c.estado} - ${c.proximo_passo}\n  ${f.url}\n`;
+    }
+  }
+  out += '\nAVISO: telefone e dado pessoal (LGPD); agregadores listam dados publicos e denuncias de spam - INDICIO, nunca prova. Status de linha/operadora so a telefonia confirma.';
+  return out;
+}
+
+// Web search com 2 provedores e deteccao de anomalia (fecha P3: nunca "0
+// menções" com fonte bloqueada).
+async function toolWebBuscar(a) {
+  const consulta = String(a.consulta || '').trim();
+  if (!consulta) throw new Error('Informe a consulta (texto, nome entre aspas ou CPF/CNPJ formatado).');
+  const n = Math.min(Math.max(Number(a.n) || 8, 1), 20);
+  const stamp = agoraISO();
+  const q = encodeURIComponent(consulta);
+  const provedores = [];
+
+  let ddg = { estado: 'FALHA', itens: [], detalhe: '' };
+  try {
+    const r = await fetchRaw('https://html.duckduckgo.com/html/?q=' + q, { headers: { 'User-Agent': UA_PADRAO, 'Accept': 'text/html,application/xhtml+xml' } }, 25000);
+    const corpo = r.text || '';
+    const anom = r.status === 202 || /anomaly|captcha|challenge|just a moment|enable javascript|security checkpoint/i.test(corpo.slice(0, 8000));
+    if (!r.ok || anom) {
+      const c = classificarErroHttp(r.status, corpo);
+      ddg = { estado: c.estado, itens: [], detalhe: c.proximo_passo };
+    } else {
+      const itens = [];
+      const re = /<a[^>]+class="result__a"[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/g;
+      let m;
+      while ((m = re.exec(corpo)) && itens.length < n) {
+        let url = m[1];
+        const ud = url.match(/[?&]uddg=([^&]+)/);
+        if (ud) { try { url = decodeURIComponent(ud[1]); } catch (e) { /* mantem */ } }
+        const titulo = m[2].replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+        if (titulo) itens.push({ titulo, url });
+      }
+      ddg = { estado: itens.length ? 'OK-ACHADO' : 'OK-0', itens, detalhe: itens.length ? '' : 'DuckDuckGo respondeu sem resultados extraiveis (pode ser bloqueio silencioso - confirme manualmente).' };
+    }
+  } catch (e) {
+    const c = classificarErroHttp(e && e.status, String(e && e.message ? e.message : e));
+    ddg = { estado: c.estado, itens: [], detalhe: c.proximo_passo };
+  }
+  provedores.push({ nome: 'DuckDuckGo (HTML)', ...ddg });
+
+  let bing = { estado: 'FALHA', itens: [], detalhe: '' };
+  try {
+    const r = await fetchRaw('https://www.bing.com/search?q=' + q + '&format=rss&count=' + n, { headers: { 'User-Agent': UA_PADRAO, 'Accept': 'application/rss+xml,application/xml,text/xml' } }, 25000);
+    const corpo = r.text || '';
+    const anom = r.status === 202 || /anomaly|captcha|challenge|just a moment|security checkpoint/i.test(corpo.slice(0, 4000));
+    if (!r.ok || anom) {
+      const c = classificarErroHttp(r.status, corpo);
+      bing = { estado: c.estado, itens: [], detalhe: c.proximo_passo };
+    } else {
+      const itens = [];
+      const re = /<item>[\s\S]*?<title>([\s\S]*?)<\/title>[\s\S]*?<link>([\s\S]*?)<\/link>(?:[\s\S]*?<description>([\s\S]*?)<\/description>)?[\s\S]*?<\/item>/g;
+      let m;
+      while ((m = re.exec(corpo)) && itens.length < n) {
+        const titulo = m[1].replace(/<!\[CDATA\[|\]\]>/g, '').replace(/\s+/g, ' ').trim();
+        const url = m[2].replace(/<!\[CDATA\[|\]\]>/g, '').trim();
+        if (titulo) itens.push({ titulo, url });
+      }
+      bing = { estado: itens.length ? 'OK-ACHADO' : 'OK-0', itens, detalhe: itens.length ? '' : 'Bing respondeu sem itens RSS extraiveis.' };
+    }
+  } catch (e) {
+    const c = classificarErroHttp(e && e.status, String(e && e.message ? e.message : e));
+    bing = { estado: c.estado, itens: [], detalhe: c.proximo_passo };
+  }
+  provedores.push({ nome: 'Bing (RSS)', ...bing });
+
+  let out = `web_buscar - "${consulta}"\nConsulta: ${stamp}\n`;
+  for (const p of provedores) {
+    out += `\n${p.nome}: ESTADO ${p.estado}${p.detalhe ? ' - ' + p.detalhe : ''}\n`;
+    if (p.itens.length) out += p.itens.map(i => `- ${i.titulo}\n  ${i.url}`).join('\n') + '\n';
+  }
+  const ok0 = provedores.filter(p => p.estado === 'OK-0').length;
+  const comDados = provedores.filter(p => p.estado === 'OK-ACHADO').length;
+  const bloqueado = provedores.filter(p => p.estado === 'BLOQUEADO' || p.estado === 'FALHA' || p.estado === 'DESATUALIZADO').length;
+  out += '\nVEREDITO: ';
+  if (comDados) out += `ha menções (estado OK-ACHADO em ${comDados} provedor(es)); cite cada provedor com a data.`;
+  else if (ok0 === provedores.length) out += '0 menções CONFIRMADAS por 2 provedores independentes (ambos OK-0).';
+  else out += `NAO FECHADO como "0": ${bloqueado} provedor(es) BLOQUEADO/FALHA - o estado canonico e NAO EXECUTADA/FALHA, registre em pendencias com a data.`;
+  out += '\nRegra (master_rules 10.1): "0 so com fonte OK-0"; com bloqueio/anomalia a fonte nao conta no KPI de controle negativo.';
+  return out;
+}
+
+// Fecha P2/P3: recebe o HTML capturado pelo browser (Jusbrasil/Escavador/web)
+// e devolve, DENTRO DO MCP, os numeros (completos e mascarados), os itens, o
+// estado canonico e a classificacao anti-homonimo.
+async function toolNavegadorResultadoInterpretar(a) {
+  const html = String(a.html || '');
+  if (!html.trim()) throw new Error('Informe o html capturado no browser (browser_snapshot / browser_evaluate).');
+  const fonte = String(a.fonte || 'outra').trim().toLowerCase();
+  const consulta = String(a.consulta || '').trim();
+  const cpf = digitsOnly(a.cpf || '');
+  const stamp = agoraISO();
+  const corpo = html.slice(0, 400000);
+  const anom = /just a moment|challenges\.cloudflare|captcha|anomaly|enable javascript|verificacao de seguranca|security checkpoint/i.test(corpo.slice(0, 8000));
+  let out = `navegador_resultado_interpretar (fonte: ${fonte})\nConsulta original: ${consulta || '(nao informada)'}\nConsulta: ${stamp}\n`;
+  if (anom) {
+    out += 'ESTADO: BLOQUEADO - a pagina capturada e uma tela de bloqueio/anomalia, NAO um resultado. Nunca trate como "0 achados".\nProximo passo: recarregue no browser (MCP Playwright), resolva o captcha manualmente e recapture; se persistir, registre BLOQUEADO com a data.';
+    return out;
+  }
+  const completos = [...new Set(corpo.match(/\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}/g) || [])].slice(0, 30);
+  const mascarados = [...new Set(corpo.match(/(?:\d{0,7}X{1,7}|X{2,7})-?(?:XX|\d{0,2})\.\d{4}\.\d\.\d{2}\.\d{4}/g) || [])].slice(0, 30);
+  const hostRe = fonte === 'jusbrasil' ? /jusbrasil\.com\.br/ : fonte === 'escavador' ? /escavador\.com/ : /(jusbrasil\.com\.br|escavador\.com)/;
+  const itens = [];
+  const vistos = new Set();
+  const re = /<a[^>]+href="(https?:\/\/[^"]+)"[^>]*>([^<]{4,180})<\/a>/g;
+  let m;
+  while ((m = re.exec(corpo)) && itens.length < 30) {
+    if (!hostRe.test(m[1])) continue;
+    if (/\/(login|registro|assinaturas|planos|cadastrar|assine)/.test(m[1])) continue;
+    const chave = m[1].replace(/\/$/, '');
+    if (vistos.has(chave)) continue;
+    vistos.add(chave);
+    itens.push(`- ${m[2].replace(/\s+/g, ' ').trim()}\n  ${m[1]}`);
+  }
+  const temDados = itens.length || completos.length || mascarados.length;
+  const pareceVazio = /carregando|loading|sem resultados|nenhum resultado|no results/i.test(corpo.slice(0, 12000));
+  if (temDados) out += 'ESTADO: OK-ACHADO (dados extraidos da pagina capturada)\n';
+  else if (pareceVazio || corpo.length < 500) out += 'ESTADO: NAO EXECUTADA (pagina capturada vazia/ainda carregando - reexecute a captura no browser)\n';
+  else out += 'ESTADO: OK-0 (pagina consultada e sem dados de resultado)\n';
+  if (itens.length) out += `\nItens (${itens.length}):\n${itens.join('\n')}\n`;
+  if (completos.length) out += `\nNumeros completos na pagina (${completos.length}):\n${completos.join('\n')}\n`;
+  if (mascarados.length) out += `\nNumeros MASCARADOS (${mascarados.length}) - use cnj_desmascarar com a mascara + cpf:\n${mascarados.join('\n')}\n`;
+  const temAncoraDoc = /\d{3}\.?\d{3}\.?\d{3}-?\d{2}/.test(consulta) || cpf.length === 11;
+  if (temDados) {
+    if (temAncoraDoc) out += '\nCLASSIFICACAO: ancora por DOCUMENTO presente na consulta - os numeros sao candidatos de vinculo; confirme com datajud_pesquisar/datajud_processo e esaj_buscar DOCPARTE antes de atribuir.';
+    else out += '\nCLASSIFICACAO: SO NOME (sem documento na consulta) - PROIBIDO atribuir ao pesquisado; classifique POSSIVEL HOMONIMO e cruze com cpf (ciclo_pf_pj, esaj DOCPARTE) antes de usar.';
+  }
+  return out;
+}
+
 const TOOLS = [
   {
     name: 'cnj_validar',
@@ -2307,6 +2688,101 @@ const TOOLS = [
     _run: toolEscavadorBuscar
   },
   {
+    name: 'cpf_tinoweb',
+    description: 'Identidade por CPF via TinoWeb (nome completo, nome da mae, nascimento e sexo; sem captcha). Devolve ESTADO por fonte e DV local - a fonte e INDICIO (banco privado que fabrica dados para CPF sintetico/DV invalido); so vira CONFIRMADO com documento proprio cruzado (e-SAJ DOCPARTE, DJE).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        cpf: { type: 'string', description: 'CPF com 11 digitos (ex.: 111.444.777-35 ou 11144477735)' }
+      },
+      required: ['cpf']
+    },
+    _run: toolCpfTinoweb
+  },
+  {
+    name: 'cpf_qualificar',
+    description: 'Motor anti-homonimo (master_rules 10/10.1): cruza o CPF e o nome do pesquisado com o que a fonte devolveu e devolve NIVEL (CONFIRMADO/PROVAVEL/POSSIVEL HOMONIMO/SEM DOCUMENTO/NAO VERIFICADO/INDICIO DESCARTADO) + motivo + proximo passo. Puro, sem rede - alimente com cpf_tinoweb, esaj DOCPARTE, DJE etc.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        cpf: { type: 'string', description: 'CPF com 11 digitos do pesquisado' },
+        nome_pesquisado: { type: 'string', description: 'Nome completo do pesquisado (da fonte/documento)' },
+        nome_fonte: { type: 'string', description: 'Nome devolvido pela fonte indexada por documento' },
+        mae_fonte: { type: 'string', description: 'Nome da mae devolvido pela fonte (opcional)' },
+        nascimento_pesquisado: { type: 'string', description: 'Data de nascimento do pesquisado (opcional; dd/mm/aaaa ou aaaammdd)' },
+        nascimento_fonte: { type: 'string', description: 'Data de nascimento devolvida pela fonte (opcional)' },
+        processo_ancora: { type: 'boolean', description: 'true se ha processo ancorado no proprio CPF/CNPJ (fecha CONFIRMADO)' },
+        status_por_fonte: { type: 'string', description: 'Resumo dos estados por fonte, ex.: "tino: OK-ACHADO; esaj: OK-0; dje: OK-ACHADO"' },
+        evidencias: { type: 'string', description: 'Texto livre com as evidencias coletadas (fonte + data + retorno)' }
+      },
+      required: ['cpf']
+    },
+    _run: toolCpfQualificar
+  },
+  {
+    name: 'cpf_situacao_cadastral_guia',
+    description: 'Guia da consulta de situacao cadastral (ROTA BROWSER - fingerprint2, honeypot e reCAPTCHA impedem HTTP puro): passo a passo do situacao-cadastral.com.br (campo #doc, hidden dinamico, honeypot) + rota oficial da Receita. ALERTA MOCK: o site devolve identidade para CPF sintetico/DV invalido - indício nunca prova.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        cpf: { type: 'string', description: 'CPF com 11 digitos (opcional; a rota usa o valor digitado no browser)' }
+      }
+    },
+    _run: toolCpfSituacaoCadastralGuia
+  },
+  {
+    name: 'consultaai_buscar_guia',
+    description: 'Guia do contrato da consultaai (free tier = prefixos de nascimento; fetch puro leva 429 do Vercel Security Checkpoint - confirmado ao vivo): URL, headers (x-device-fp, cf-turnstile-token), body JSON e a rota correta via browser. Nao serve como identidade - so como corroboração junto com cpf_tinoweb/e-SAJ.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        cpf: { type: 'string', description: 'CPF com 11 digitos (opcional; entra no exemplo de body)' }
+      }
+    },
+    _run: toolConsultaaiBuscarGuia
+  },
+  {
+    name: 'telefone_fontes_br',
+    description: 'Fan-out BR de telefone em 4 fontes vivas (consultanumero.com.br, telefone.ninja, donodozap.com, scannero.io), com estado por fonte (OK-ACHADO/OK-0/BLOQUEADO/FALHA) e rotas de rota WhatsApp/Numtrace. Padrao = guia; consultar=true faz o fan-out ao vivo. Catalogo derivado do Protocolo-OSINT (atribuicao no GUIA_OSINT).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        telefone: { type: 'string', description: 'Telefone BR com DDD (10-11 digitos, ex. 11999998888) ou com codigo de pais' },
+        consultar: { type: 'boolean', description: 'true = consultar as 4 fontes ao vivo; padrao false = guia com rotas' }
+      },
+      required: ['telefone']
+    },
+    _run: toolTelefoneFontesBr
+  },
+  {
+    name: 'web_buscar',
+    description: 'Busca web com 2 provedores independentes (DuckDuckGo HTML + Bing RSS) e deteccao de anomalia/captcha: se qualquer provedor bloquear, o estado vira BLOQUEADO/FALHA e "0 menções" so e valido com OS DOIS em OK-0 (fecha P3). Cada hit vem com titulo, URL e o estado do provedor.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        consulta: { type: 'string', description: 'Texto, nome entre aspas ou CPF/CNPJ formatado' },
+        n: { type: 'number', description: 'Maximo de resultados por provedor (1-20; padrao 8)' }
+      },
+      required: ['consulta']
+    },
+    _run: toolWebBuscar
+  },
+  {
+    name: 'navegador_resultado_interpretar',
+    description: 'Fecha P2/P3: recebe o HTML capturado no browser (Jusbrasil/Escavador/web) e devolve, DENTRO DO MCP, os numeros completos e mascarados, os itens, o estado canonico (OK-ACHADO/OK-0/NAO EXECUTADA/BLOQUEADO) e a classificacao anti-homonimo (so nome = PROIBIDO atribuir).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        html: { type: 'string', description: 'HTML capturado no browser (browser_snapshot/browser_evaluate)' },
+        fonte: { type: 'string', description: 'jusbrasil | escavador | outra (define quais hosts sao extraidos)' },
+        consulta: { type: 'string', description: 'Consulta original usada na busca (nome/documento) - define a classificacao' },
+        cpf: { type: 'string', description: 'CPF do pesquisado, se houver (fortalece a ancora por documento)' }
+      },
+      required: ['html']
+    },
+    _run: toolNavegadorResultadoInterpretar
+  },
+  {
     name: 'mcp_atualizar',
     description: 'Autoatualizacao do servidor: baixa a ultima versao do server.js direto do GitHub (canalqb/capivaradigital-mcp), guarda backup (.bak) e substitui o arquivo local; a nova versao sobe apos reiniciar o cliente MCP. Funciona em QUALQUER instalacao (com ou sem git) - e a rota oficial de atualizacao.',
     inputSchema: {
@@ -2324,7 +2800,7 @@ function send(obj) { process.stdout.write(JSON.stringify(obj) + '\n'); }
 
 async function handle(msg) {
   if (msg.method === 'initialize') {
-    return { protocolVersion: '2024-11-05', capabilities: { tools: {} }, serverInfo: { name: 'capivaradigital', version: '1.19.2' } };
+    return { protocolVersion: '2024-11-05', capabilities: { tools: {} }, serverInfo: { name: 'capivaradigital', version: '1.20.0' } };
   }
   if (msg.method === 'ping') return {};
   if (msg.method === 'tools/list') return { tools: TOOLS.map(t => ({ name: t.name, description: t.description, inputSchema: t.inputSchema })) };

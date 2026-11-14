@@ -197,13 +197,15 @@ confirmar instalação, contagem de ferramentas e saúde da rede em segundos.
 cmd /c "node <caminho>\capivaradigital-mcp\server.js < teste.jsonl"
 ```
 
-## Quais são as 29 ferramentas?
+## Quais são as 36 ferramentas?
 
 Uma paleta enxuta cobrindo o ciclo completo de uma pesquisa judicial: validar o
 número, desmascarar o que está oculto, consultar por número, nome, documento ou
 varredura multi-tribunal (com escopos prontos por ramo), ler intimações e
-complementar com CNPJ, web, agregadores (Jusbrasil/Escavador), redes
-sociais/telefone, navegação por browser automatizado e instalação do zero.
+complementar com CNPJ, web (2 provedores com detecção de anomalia), agregadores
+(Jusbrasil/Escavador), identidade por CPF (TinoWeb + qualificador anti-homônimo),
+telefone (fan-out BR de 4 fontes), redes sociais, navegação por browser
+automatizado (com intérprete de resultado dentro do MCP) e instalação do zero.
 A tabela abaixo resume cada ferramenta e sua fonte.
 
 | Ferramenta | O que faz | Fonte |
@@ -236,6 +238,13 @@ A tabela abaixo resume cada ferramenta e sua fonte.
 | `guia_instalacao` | Comandos prontos para instalar do zero: Node.js via winget (Windows 10/11), alternativas (choco/scoop/MSI, apt/dnf/brew), obtenção do servidor (git clone ou download do `server.js`), teste via stdin e registro nos clientes | — |
 | `jusbrasil_buscar` | Busca no Jusbrasil: HTTP quando passa; quando o Cloudflare bloqueia (403), devolve a rota pronta via browser (MCP Playwright) com a URL montada; números mascarados alimentam o loop do `cnj_desmascarar` | Jusbrasil |
 | `escavador_buscar` | Busca no Escavador (agregador): mesma lógica do Jusbrasil — HTTP quando passa, rota via browser (MCP Playwright) quando o Cloudflare bloqueia (403); números mascarados voltam para o `cnj_desmascarar`; a rota pública da capa do processo é gratuita no navegador, busca ilimitada exige plano pago (ver seção de fontes restritas) | Escavador |
+| `cpf_tinoweb` | Identidade por CPF via TinoWeb (nome completo, nome da mãe, nascimento e sexo; POST sem captcha) — devolve `ESTADO` por fonte + DV local; **indício, nunca prova**: a base fabrica dados para CPF sintético/DV inválido, então só vira `CONFIRMADO` com documento próprio cruzado (e-SAJ DOCPARTE, DJE) | TinoWeb |
+| `cpf_qualificar` | Motor anti-homônimo (master_rules §10/§10.1): cruza CPF + nome do pesquisado com o que a fonte devolveu e devolve `NIVEL` (`CONFIRMADO`/`PROVÁVEL`/`POSSÍVEL HOMÔNIMO`/`SEM DOCUMENTO`/`NAO VERIFICADO`/`INDÍCIO DESCARTADO`) + motivo + próximo passo; puro, sem rede | — |
+| `cpf_situacao_cadastral_guia` | Guia da situação cadastral (**rota browser**: fingerprint2, honeypot e reCAPTCHA impedem HTTP puro) — passo a passo do `#doc`, hidden dinâmico e honeypot + rota oficial da Receita; alerta de MOCK (devolve identidade para CPF sintético/DV inválido) | situacao-cadastral / Receita |
+| `consultaai_buscar_guia` | Guia do contrato da consultaai (free tier = **prefixos** de nascimento): URL, headers (`x-device-fp`, `cf-turnstile-token`) e body JSON; a rota HTTP pura leva **429 do Vercel Security Checkpoint** (confirmado ao vivo) — use via browser; não serve como identidade | consultaai |
+| `telefone_fontes_br` | Fan-out BR de telefone em **4 fontes vivas** (consultanumero.com.br, telefone.ninja, donodozap.com, scannero.io) com estado por fonte (`OK-ACHADO`/`OK-0`/`BLOQUEADO`/`FALHA`) + rotas wa.me/Numtrace; `consultar=true` faz o fan-out ao vivo (padrão = guia); derivado do Protocolo-OSINT (atribuição no GUIA_OSINT) | Multi (BR) |
+| `web_buscar` | Busca web com **2 provedores independentes** (DuckDuckGo HTML + Bing RSS) e detecção de anomalia/captcha: se qualquer provedor bloquear, o estado vira `BLOQUEADO`/`FALHA` e **"0 menções" só é válido com OS DOIS em `OK-0`**; cada hit vem com título, URL e estado do provedor | DuckDuckGo / Bing |
+| `navegador_resultado_interpretar` | Fecha P2/P3: recebe o HTML capturado no browser (Jusbrasil/Escavador/web) e devolve **dentro do MCP** os números completos e mascarados, os itens, o estado canônico (`OK-ACHADO`/`OK-0`/`NAO EXECUTADA`/`BLOQUEADO`) e a classificação anti-homônimo (só nome = proibido atribuir) | — |
 | `mcp_atualizar` | Autoatualização: baixa o `server.js` mais recente do GitHub, guarda backup (.bak) e substitui o arquivo; a nova versão sobe ao reiniciar o cliente | GitHub |
 
 ## Que atalhos de consulta pública existem?
@@ -699,6 +708,27 @@ Os detalhes estão na lista abaixo.
   verificação de 24/10/2026) — cruze as 3 casas e-SAJ (tjsp/tjal/tjce) com
   DJEN, DJE-SP e a consulta pública do tribunal antes de concluir ausência de
   processos.
+- **TinoWeb é indício, não prova (verificado ao vivo em 14/11/2026):** devolve
+  identidade plausível para CPF sintético (`111.444.777-35`) e até para CPF com
+  **DV inválido** (`123.456.789-09` → nome completo) — ou seja, a base tem
+  fabricação parcial. Use `cpf_tinoweb` + `cpf_qualificar` e feche `CONFIRMADO`
+  só com documento próprio cruzado (e-SAJ DOCPARTE, DJE, DataJud). Se uma fonte
+  devolver identidade para DV inválido, classifique como MOCK e descarte.
+- **situação-cadastral exige browser** (fingerprint2, honeypot com hidden de
+  id/name dinâmico e reCAPTCHA) e também devolve dados para CPF sintético —
+  `cpf_situacao_cadastral_guia` traz a rota; nunca use sozinho como prova.
+- **consultaai bloqueia HTTP puro com 429 do Vercel Security Checkpoint**
+  (confirmado em 14/11/2026) — `consultaai_buscar_guia` documenta o contrato e
+  a rota via browser; o free tier devolve só **prefixos** de nascimento, não
+  nome, então serve como corroboração, nunca como identidade.
+- `web_buscar` conta com 2 provedores: **"0 menções" só sai com os dois em
+  `OK-0`** — se qualquer um bloquear/anomalia, o estado vira `BLOQUEADO`/`FALHA`
+  e a ausência vira pendência (regra §10.1 do master_rules).
+- `telefone_fontes_br` consulta agregadores que podem bloquear bot (`BLOQUEADO`)
+  ou listar dados desatualizados — telefone é indício, nunca prova; status de
+  linha/operadora só a telefonia confirma. Fontes excluídas nesta revisão:
+  `qualoperadora.info` (domínio sequestrado), `buscaceptelefonenobrasil.com.br`
+  e `whocalledme.com.br` (fora do ar).
 
 ## E a ética e a LGPD?
 

@@ -104,6 +104,22 @@ Todas as referências a versões 8.5 e 9.2 foram removidas — a 9.4 é a única
 - BrasilAPI exige header `User-Agent` de navegador.
 - Aliases de tribunal: regex em `resolveEndpoint` + códigos CNJ no mapa
   `TRIBUNAIS`.
+- **Fonte que devolve identidade para CPF sintético ou DV inválido = MOCK →
+  indício** (verificado ao vivo em 14/11/2026: TinoWeb devolveu nome completo
+  para `111.444.777-35` e para `123.456.789-09`, que tem DV inválido). Nunca
+  use esses retornos como prova; feche `CONFIRMADO` só com documento próprio
+  cruzado (e-SAJ DOCPARTE, DJE, DataJud) — `cpf_qualificar` aplica a regra
+  (`INDÍCIO DESCARTADO` quando DV inválido).
+- **Erro HTTP nunca vira "0 achados"**: `classificarErroHttp` mapeia
+  404/410→`DESATUALIZADO`, 401/403/429→`BLOQUEADO`, 5xx/timeout→`FALHA` e
+  captcha/anomalia→`BLOQUEADO`, sempre com `proximo_passo`. "0" (KPI de
+  controle negativo) só com fonte `OK-0`; qualquer bloqueio vira pendência.
+- Fontes que exigem **browser** (fingerprint2/honeypot/Turnstile):
+  situação-cadastral, consultaai (429 Vercel), Jusbrasil/Escavador (403
+  Cloudflare). Capture no Playwright e interprete com
+  `navegador_resultado_interpretar` — não trate tela de captcha como resultado.
+- `web_buscar` só confirma "0 menções" com **os 2 provedores** (DuckDuckGo +
+  Bing) em `OK-0`; provedor bloqueado anula o controle negativo.
 
 ## 7. Regras de pesquisa e dados (v9.4 — compatível com regras-pesquisa.html)
 - **Anti-homônimo estrito:** achado por nome sem cruzamento de documento **nunca

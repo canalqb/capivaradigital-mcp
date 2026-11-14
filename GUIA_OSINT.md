@@ -272,6 +272,66 @@ Cobre o que a API pública omite (partes, nomes, desfechos por extenso).
   tem CAGED público; GDPR vigora na UE. A lista completa roda em
   `fontes_osint` e `guia_navegacao` em tempo de execução.
 
+### 5.12 Identidade por CPF, telefone e busca web com 2 provedores (v1.20.0)
+
+Técnicas novas no servidor (`server.js` v1.20.0, 36 ferramentas). O catálogo
+de telefone foi **reimplementado aqui** (sem copiar código) a partir do
+Protocolo-OSINT — atribuição obrigatória: `github.com/Rod-Ghost/Protocolo-OSINT`
+(uso educacional/Mit). A identidade por CPF vem da técnica pública do
+`fernandobortotti/CPF-Tools`; as rotas de web são próprias.
+
+- **Identidade por CPF (`cpf_tinoweb`)** — POST em
+  `app.tinoweb.com.br/descobrir-mae-pelo-cpf/` com campo `cpf` (sem captcha);
+  o HTML traz `<div class="result-item">` com `<span class="text-secondary">`
+  (rótulo) e `<span class="result-val…">` (valor) para Nome Completo, Nome da
+  Mãe, Data de Nascimento e Sexo. **REGRA DE OURO (verificado ao vivo em
+  14/11/2026):** a base devolve identidade plausível para CPF sintético
+  (`111.444.777-35` → "JEAN CARLOS MONTEIRO") e até para CPF com **DV inválido**
+  (`123.456.789-09` → nome completo) — ou seja, fabrica dados em parte da base.
+  Trate sempre como **indício**: feche `CONFIRMADO` só com documento próprio
+  cruzado (e-SAJ DOCPARTE, DJE, DataJud). Se uma fonte devolver identidade para
+  DV inválido, classifique **MOCK** e descarte.
+- **Qualificador anti-homônimo (`cpf_qualificar`)** — puro, sem rede: recebe
+  CPF, nome do pesquisado, nome/mãe/nascimento da fonte, status por fonte e
+  evidências, e devolve o nível do master_rules §10 com motivo e próximo passo:
+  `CONFIRMADO` (nome por documento ≥ 90% + ancora/cross + nascimento coerente),
+  `PROVÁVEL` (bateu mas falta cruzamento independente), `POSSÍVEL HOMÔNIMO`
+  (bateu < 90% ou só nome), `SEM DOCUMENTO`, `INDÍCIO DESCARTADO` (DV inválido
+  com retorno de fonte = MOCK) ou `NAO VERIFICADO`.
+- **Situação cadastral (`cpf_situacao_cadastral_guia`)** — rota **browser**:
+  `#doc` + `#consultar`, hidden com id/name dinâmico a cada carga (leia todos
+  os `input[type=hidden]` via `browser_evaluate`, nunca hardcode), honeypot
+  (não preencha), fingerprint2 e reCAPTCHA manual. Alternativa oficial:
+  Receita (`servicos.receita.fazenda.gov.br/…/consultapublica.asp`) com captcha.
+  Mesmo alerta de MOCK do TinoWeb vale aqui.
+- **consultaai (`consultaai_buscar_guia`)** — `POST
+  consultaai.app/api/search/research` com `Content-Type: application/json`,
+  `x-device-fp` (obrigatório) e `cf-turnstile-token` (quando exigir); body
+  `{"tipo_chamada":"cpf","cpf":"…","token":""}`. **HTTP puro = 429 "Vercel
+  Security Checkpoint"** (confirmado 14/11/2026) → rota via browser. Free tier
+  devolve só **prefixos** de nascimento (não nome): corroboração, nunca
+  identidade.
+- **Fan-out BR de telefone (`telefone_fontes_br`)** — 4 fontes vivas:
+  `consultanumero.com.br`, `telefone.ninja`, `donodozap.com` e
+  `scannero.io/pt/reverse-number-lookup`, no formato `/<ddd><numero>`, com
+  estado por fonte (`OK-ACHADO`/`OK-0`/`BLOQUEADO`/`FALHA`) e rotas
+  `wa.me/55<tel>` + Numtrace (dinâmico → browser). **Excluídos nesta revisão:**
+  `qualoperadora.info` (domínio sequestrado), `buscaceptelefonenobrasil.com.br`
+  e `whocalledme.com.br` (fora do ar). Telefone = indício (LGPD), nunca prova.
+- **Busca web com 2 provedores (`web_buscar`)** — DuckDuckGo HTML
+  (`html.duckduckgo.com/html/?q=`, resultados em `class="result__a"` com
+  `uddg=` para URL real) + Bing RSS (`bing.com/search?q=…&format=rss`).
+  Detecção de anomalia/captcha no corpo (e status 202) vira `BLOQUEADO`; **"0
+  menções" só com os dois provedores em `OK-0`** (regra §10.1) — com qualquer
+  bloqueio, o estado é `NAO EXECUTADA`/`FALHA` e a ausência vira pendência.
+- **intérprete de captura (`navegador_resultado_interpretar`)** — fecha P2/P3:
+  recebe o HTML do browser e extrai **dentro do MCP** números CNJ completos
+  (`\d{7}-\d{2}.\d{4}.J.TR.OOOO`) e mascarados (`XXXX`), itens de host
+  (Jusbrasil/Escavador), estado canônico e a classificação: com documento na
+  consulta → candidatos a vinculo (confirmar no DataJud/e-SAJ); **só nome →
+  PROIBIDO atribuir** (`POSSÍVEL HOMÔNIMO`). Tela de captcha/Cloudflare detectada
+  → `BLOQUEADO`, nunca "0 achados".
+
 ---
 
 ## 6. Histórico técnico rápido (para não repetir erros)
